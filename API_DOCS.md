@@ -1,0 +1,313 @@
+# CN Servicies — API Documentation
+
+**Base URL:** `http://localhost:8080`  
+**Autenticación:** JWT Bearer Token  
+**Algoritmo:** HS384
+
+---
+
+## Autenticación
+
+Todos los endpoints protegidos requieren el header:
+```
+Authorization: Bearer <token>
+```
+
+---
+
+## Roles
+
+| Rol | Descripción |
+|-----|-------------|
+| `ROLE_ADMIN` | Acceso total |
+| `ROLE_EDITOR` | Crear y editar posts |
+| `ROLE_TECHNICAL_STAFF` | Gestión de atletas y resultados |
+| `ROLE_USER` | Usuario estándar |
+
+---
+
+## Endpoints
+
+### Auth — `/api/auth`
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `POST` | `/api/auth/signup` | No | Registro de usuario (rol USER por defecto) |
+| `POST` | `/api/auth/signup/with-role` | No | Registro con rol específico |
+| `POST` | `/api/auth/login` | No | Login, devuelve access + refresh token |
+| `POST` | `/api/auth/refresh` | No | Renueva el access token |
+
+#### POST `/api/auth/login`
+```json
+// Request
+{
+  "username": "admin",
+  "password": "contraseña"
+}
+
+// Response 200
+{
+  "accessToken": "eyJ...",
+  "refreshToken": "eyJ...",
+  "tokenType": "Bearer"
+}
+```
+
+#### POST `/api/auth/signup`
+```json
+// Request
+{
+  "username": "usuario",
+  "email": "usuario@email.com",
+  "password": "minimo8chars"
+}
+```
+
+#### POST `/api/auth/signup/with-role`
+```json
+// Request
+{
+  "username": "editor1",
+  "email": "editor1@email.com",
+  "password": "minimo8chars",
+  "role": "ROLE_EDITOR"
+}
+```
+
+#### POST `/api/auth/refresh`
+```json
+// Request
+{
+  "refreshToken": "eyJ..."
+}
+```
+
+---
+
+### Users — `/api/users`
+
+| Método | Ruta | Rol requerido | Descripción |
+|--------|------|---------------|-------------|
+| `GET` | `/api/users/me` | Autenticado | Perfil del usuario actual |
+| `GET` | `/api/users` | ADMIN | Listar todos los usuarios |
+| `POST` | `/api/users` | ADMIN | Crear usuario |
+| `PATCH` | `/api/users/{id}` | ADMIN | Actualizar usuario |
+| `PUT` | `/api/users/{id}/roles` | ADMIN | Cambiar rol del usuario |
+| `POST` | `/api/users/{id}/profile-photo` | Autenticado | Subir foto de perfil |
+| `DELETE` | `/api/users/{id}` | ADMIN | Borrado lógico del usuario |
+
+#### PUT `/api/users/{id}/roles`
+```json
+// Request
+{
+  "role": "ROLE_TECHNICAL_STAFF"
+}
+// Valores: ROLE_ADMIN | ROLE_EDITOR | ROLE_USER | ROLE_TECHNICAL_STAFF
+```
+
+#### PATCH `/api/users/{id}`
+```json
+// Request (todos los campos son opcionales)
+{
+  "roles": ["ROLE_EDITOR"],
+  "enabled": true
+}
+```
+
+#### Response Usuario
+```json
+{
+  "id": "uuid",
+  "username": "admin",
+  "email": "admin@email.com",
+  "enabled": true,
+  "roles": ["ROLE_ADMIN"],
+  "createdAt": "2026-04-29T10:00:00",
+  "profilePhoto": "/api/images/foto.jpg"
+}
+```
+
+---
+
+### Athletes — `/api/athletes`
+
+| Método | Ruta | Rol requerido | Descripción |
+|--------|------|---------------|-------------|
+| `GET` | `/api/athletes` | TECHNICAL_STAFF | Listar atletas |
+| `GET` | `/api/athletes/{id}` | TECHNICAL_STAFF | Obtener atleta |
+| `POST` | `/api/athletes` | TECHNICAL_STAFF | Crear atleta |
+| `PUT` | `/api/athletes/{id}` | TECHNICAL_STAFF | Actualizar atleta |
+| `DELETE` | `/api/athletes/{id}` | ADMIN | Borrado lógico |
+
+#### POST/PUT `/api/athletes`
+```json
+// Request
+{
+  "firstName": "Carlos",
+  "lastName": "García",
+  "birthDate": "2000-05-15",
+  "dni": "12345678A"
+}
+```
+
+#### Response Atleta
+```json
+{
+  "id": "uuid",
+  "firstName": "Carlos",
+  "lastName": "García",
+  "birthDate": "2000-05-15",
+  "dni": "12345678A",
+  "createdAt": "2026-04-29T10:00:00"
+}
+```
+
+---
+
+### Competition Results — `/api/competition-results`
+
+| Método | Ruta | Rol requerido | Descripción |
+|--------|------|---------------|-------------|
+| `GET` | `/api/competition-results` | ADMIN, TECHNICAL_STAFF | Listar resultados |
+| `GET` | `/api/competition-results/{id}` | ADMIN, TECHNICAL_STAFF | Obtener resultado |
+| `GET` | `/api/competition-results/athlete/{athleteId}` | ADMIN, TECHNICAL_STAFF | Resultados de un atleta |
+| `POST` | `/api/competition-results` | ADMIN, TECHNICAL_STAFF | Crear resultado |
+| `PUT` | `/api/competition-results/{id}` | ADMIN, TECHNICAL_STAFF | Actualizar resultado |
+| `DELETE` | `/api/competition-results/{id}` | ADMIN | Borrado lógico |
+
+#### POST/PUT `/api/competition-results`
+```json
+// Request
+{
+  "athleteId": "uuid-del-atleta",
+  "competitionDate": "2026-03-20",
+  "distanceMeters": 100,
+  "stroke": "FREESTYLE",
+  "poolLength": 50,
+  "resultTimeMillis": 52340,
+  "partial": false,
+  "finalResultId": null
+}
+// stroke: FREESTYLE | BACKSTROKE | BREASTSTROKE | BUTTERFLY | MEDLEY
+```
+
+#### Response Resultado
+```json
+{
+  "id": "uuid",
+  "athleteId": "uuid",
+  "athleteFullName": "Carlos García",
+  "competitionDate": "2026-03-20",
+  "distanceMeters": 100,
+  "stroke": "FREESTYLE",
+  "poolLength": 50,
+  "resultTimeMillis": 52340,
+  "partial": false,
+  "finalResultId": null,
+  "createdAt": "2026-04-29T10:00:00"
+}
+```
+
+---
+
+### Posts — `/api/posts`
+
+| Método | Ruta | Rol requerido | Descripción |
+|--------|------|---------------|-------------|
+| `GET` | `/api/posts/published` | No | Listar posts publicados (paginado) |
+| `GET` | `/api/posts/published/{slug}` | No | Obtener post publicado por slug |
+| `GET` | `/api/posts` | Autenticado | Listar todos los posts (paginado) |
+| `GET` | `/api/posts/{id}` | Autenticado | Obtener post por ID |
+| `POST` | `/api/posts` | EDITOR | Crear post (multipart/form-data) |
+| `PUT` | `/api/posts/{id}` | ADMIN, EDITOR | Actualizar post |
+| `DELETE` | `/api/posts/{id}` | ADMIN | Borrado lógico |
+
+#### GET `/api/posts/published`
+```
+Parámetros: ?page=0&size=10&sort=publishedAt,desc
+```
+
+#### POST `/api/posts` — multipart/form-data
+```
+Part "data" (application/json):
+{
+  "title": "Título del post",
+  "content": "Contenido...",
+  "slug": "titulo-del-post",
+  "status": "DRAFT"
+}
+// status: DRAFT | PUBLISHED | DELETED
+
+Part "images" (opcional): archivos de imagen (máx. 5MB c/u, total 55MB)
+```
+
+#### Response Post
+```json
+{
+  "id": "uuid",
+  "title": "Título del post",
+  "content": "Contenido...",
+  "slug": "titulo-del-post",
+  "status": "PUBLISHED",
+  "publishedAt": "2026-04-29T10:00:00",
+  "authorUsername": "editor1",
+  "images": ["/api/images/archivo.jpg"],
+  "createdAt": "2026-04-29T10:00:00"
+}
+```
+
+---
+
+### Comments — `/api/posts/{postId}/comments`
+
+| Método | Ruta | Rol requerido | Descripción |
+|--------|------|---------------|-------------|
+| `POST` | `/api/posts/{postId}/comments` | Autenticado | Crear comentario |
+| `GET` | `/api/posts/{postId}/comments` | Autenticado | Listar comentarios del post |
+
+#### POST `/api/posts/{postId}/comments`
+```json
+// Request
+{
+  "content": "Texto del comentario"
+}
+```
+
+---
+
+### Images — `/api/images`
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/images/{filename}` | No | Obtener imagen por nombre de archivo |
+
+---
+
+## Errores
+
+```json
+// 401 — No autenticado
+{
+  "status": 401,
+  "message": "Debes autenticarte para acceder a este recurso. Incluye un token válido en la cabecera Authorization",
+  "path": "/api/...",
+  "timestamp": "2026-04-29T10:00:00"
+}
+
+// 403 — Sin permisos
+{
+  "status": 403,
+  "message": "No tienes los permisos necesarios para acceder a este recurso",
+  "path": "/api/...",
+  "timestamp": "2026-04-29T10:00:00"
+}
+```
+
+---
+
+## Notas
+
+- El borrado de usuarios, atletas y resultados es **lógico** (`deleted_at`). Los registros no se eliminan de la BD.
+- Los posts se marcan como `DELETED` en el campo `status`.
+- El token de acceso expira en **24 horas**. Usa el refresh token para renovarlo.
+- El refresh token expira en **7 días**.
