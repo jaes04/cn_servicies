@@ -32,6 +32,9 @@ public class Comment {
     @JoinColumn(name = "author_id", nullable = false)
     private User author;
 
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean blocked = false;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

@@ -108,6 +108,20 @@ public class UserService {
         return toResponse(userRepository.save(user));
     }
 
+    public UserResponse blockUser(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Usuario no encontrado"));
+        user.setBlocked(true);
+        return toResponse(userRepository.save(user));
+    }
+
+    public UserResponse unblockUser(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Usuario no encontrado"));
+        user.setBlocked(false);
+        return toResponse(userRepository.save(user));
+    }
+
     public void softDelete(UUID id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Usuario no encontrado"));
@@ -122,6 +136,7 @@ public class UserService {
         response.setUsername(user.getUsername());
         response.setEmail(user.getEmail());
         response.setEnabled(user.isEnabled());
+        response.setBlocked(user.isBlocked());
         response.setRoles(user.getRoles().stream()
                 .map(r -> r.getName().name())
                 .collect(Collectors.toSet()));

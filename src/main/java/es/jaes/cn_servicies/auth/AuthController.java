@@ -1,6 +1,5 @@
 package es.jaes.cn_servicies.auth;
 
-import es.jaes.cn_servicies.user.UserResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,12 +26,12 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<UserResponse> signup(@Valid @RequestBody SignupRequest request) {
+    public ResponseEntity<LoginResponse> signup(@Valid @RequestBody SignupRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.signup(request));
     }
 
     @PostMapping("/signup/with-role")
-    public ResponseEntity<UserResponse> signupWithRole(@Valid @RequestBody SignupWithRoleRequest request) {
+    public ResponseEntity<LoginResponse> signupWithRole(@Valid @RequestBody SignupWithRoleRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.signupWithRole(request));
     }
 

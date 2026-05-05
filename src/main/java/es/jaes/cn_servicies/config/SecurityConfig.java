@@ -25,11 +25,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-import static org.springframework.http.HttpMethod.DELETE;
-import static org.springframework.http.HttpMethod.GET;
-import static org.springframework.http.HttpMethod.PATCH;
-import static org.springframework.http.HttpMethod.POST;
-import static org.springframework.http.HttpMethod.PUT;
+import static org.springframework.http.HttpMethod.*;
+
 
 @Configuration
 @EnableMethodSecurity
@@ -57,6 +54,7 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(POST, "/api/posts/*/comments").authenticated()
                         .requestMatchers(GET, "/api/posts/*/comments").authenticated()
+                        .requestMatchers(PATCH, "/api/posts/*/comments/**").hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(POST, "/api/posts/**").hasRole("EDITOR")
                         .requestMatchers(PUT, "/api/posts/**").hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(DELETE, "/api/posts/**").hasRole("ADMIN")
@@ -105,8 +103,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:8080"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

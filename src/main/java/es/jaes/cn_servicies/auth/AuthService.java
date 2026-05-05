@@ -49,20 +49,26 @@ public class AuthService {
         return new LoginResponse(newAccessToken, newRefreshToken);
     }
 
-    public UserResponse signup(SignupRequest request) {
+    public LoginResponse signup(SignupRequest request) {
         UserRequest userRequest = new UserRequest();
         userRequest.setUsername(request.getUsername());
         userRequest.setEmail(request.getEmail());
         userRequest.setPassword(request.getPassword());
-        return userService.create(userRequest);
+        userService.create(userRequest);
+
+        UserDetails user = userDetailsService.loadUserByUsername(request.getUsername());
+        return new LoginResponse(jwtTokenProvider.generateAccessToken(user), jwtTokenProvider.generateRefreshToken(user));
     }
 
-    public UserResponse signupWithRole(SignupWithRoleRequest request) {
+    public LoginResponse signupWithRole(SignupWithRoleRequest request) {
         UserRequest userRequest = new UserRequest();
         userRequest.setUsername(request.getUsername());
         userRequest.setEmail(request.getEmail());
         userRequest.setPassword(request.getPassword());
         userRequest.setRoles(request.getRoles());
-        return userService.create(userRequest);
+        userService.create(userRequest);
+
+        UserDetails user = userDetailsService.loadUserByUsername(request.getUsername());
+        return new LoginResponse(jwtTokenProvider.generateAccessToken(user), jwtTokenProvider.generateRefreshToken(user));
     }
 }

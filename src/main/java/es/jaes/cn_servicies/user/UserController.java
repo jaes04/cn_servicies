@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -47,6 +48,18 @@ public class UserController {
             @PathVariable UUID id,
             @RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(userService.uploadProfilePhoto(id, file));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{id}/block")
+    public ResponseEntity<UserResponse> block(@PathVariable UUID id) {
+        return ResponseEntity.ok(userService.blockUser(id));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{id}/unblock")
+    public ResponseEntity<UserResponse> unblock(@PathVariable UUID id) {
+        return ResponseEntity.ok(userService.unblockUser(id));
     }
 
     @DeleteMapping("/{id}")

@@ -82,6 +82,12 @@ Authorization: Bearer <token>
 }
 ```
 
+#### GET `/api/auth/hash` _(temporal — solo para pruebas)_
+```
+GET /api/auth/hash?raw=miContraseña
+// Response: "$2a$10$..."  (hash BCrypt listo para insertar en BD)
+```
+
 ---
 
 ### Users — `/api/users`
@@ -94,6 +100,8 @@ Authorization: Bearer <token>
 | `PATCH` | `/api/users/{id}` | ADMIN | Actualizar usuario |
 | `PUT` | `/api/users/{id}/roles` | ADMIN | Cambiar rol del usuario |
 | `POST` | `/api/users/{id}/profile-photo` | Autenticado | Subir foto de perfil |
+| `PATCH` | `/api/users/{id}/block` | ADMIN | Bloquear usuario |
+| `PATCH` | `/api/users/{id}/unblock` | ADMIN | Desbloquear usuario |
 | `DELETE` | `/api/users/{id}` | ADMIN | Borrado lógico del usuario |
 
 #### PUT `/api/users/{id}/roles`
@@ -114,6 +122,9 @@ Authorization: Bearer <token>
 }
 ```
 
+#### PATCH `/api/users/{id}/block` y `/api/users/{id}/unblock`
+Sin body. Devuelve el `UserResponse` actualizado.
+
 #### Response Usuario
 ```json
 {
@@ -121,6 +132,7 @@ Authorization: Bearer <token>
   "username": "admin",
   "email": "admin@email.com",
   "enabled": true,
+  "blocked": false,
   "roles": ["ROLE_ADMIN"],
   "createdAt": "2026-04-29T10:00:00",
   "profilePhoto": "/api/images/foto.jpg"
@@ -264,12 +276,29 @@ Part "images" (opcional): archivos de imagen (máx. 5MB c/u, total 55MB)
 |--------|------|---------------|-------------|
 | `POST` | `/api/posts/{postId}/comments` | Autenticado | Crear comentario |
 | `GET` | `/api/posts/{postId}/comments` | Autenticado | Listar comentarios del post |
+| `PATCH` | `/api/posts/{postId}/comments/{id}/block` | ADMIN, EDITOR | Bloquear comentario |
+| `PATCH` | `/api/posts/{postId}/comments/{id}/unblock` | ADMIN, EDITOR | Desbloquear comentario |
 
 #### POST `/api/posts/{postId}/comments`
 ```json
 // Request
 {
   "content": "Texto del comentario"
+}
+```
+
+#### PATCH `/api/posts/{postId}/comments/{id}/block` y `/api/posts/{postId}/comments/{id}/unblock`
+Sin body. Devuelve el `CommentResponse` actualizado.
+
+#### Response Comentario
+```json
+{
+  "id": "uuid",
+  "content": "Texto del comentario",
+  "authorUsername": "usuario1",
+  "postId": "uuid",
+  "blocked": false,
+  "createdAt": "2026-04-29T10:00:00"
 }
 ```
 

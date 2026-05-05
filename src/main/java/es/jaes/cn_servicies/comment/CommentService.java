@@ -43,8 +43,23 @@ public class CommentService {
         }
         return commentRepository.findByPostIdOrderByCreatedAtAsc(postId)
                 .stream()
+                .filter(c -> !c.isBlocked())
                 .map(this::toResponse)
                 .toList();
+    }
+
+    public CommentResponse blockComment(UUID commentId) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new EntityNotFoundException("Comentario no encontrado"));
+        comment.setBlocked(true);
+        return toResponse(commentRepository.save(comment));
+    }
+
+    public CommentResponse unblockComment(UUID commentId) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new EntityNotFoundException("Comentario no encontrado"));
+        comment.setBlocked(false);
+        return toResponse(commentRepository.save(comment));
     }
 
     private CommentResponse toResponse(Comment comment) {
@@ -53,6 +68,7 @@ public class CommentService {
         response.setContent(comment.getContent());
         response.setAuthorUsername(comment.getAuthor().getUsername());
         response.setPostId(comment.getPost().getId());
+        response.setBlocked(comment.isBlocked());
         response.setCreatedAt(comment.getCreatedAt());
         return response;
     }
