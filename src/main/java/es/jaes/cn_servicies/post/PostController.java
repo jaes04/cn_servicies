@@ -26,8 +26,10 @@ public class PostController {
 
     @GetMapping("/published")
     public ResponseEntity<Page<PostResponse>> listPublished(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String author,
             @PageableDefault(size = 10, sort = "publishedAt") Pageable pageable) {
-        return ResponseEntity.ok(postService.listPublished(pageable));
+        return ResponseEntity.ok(postService.listPublished(q, author, pageable));
     }
 
     @GetMapping("/published/{slug}")
@@ -37,8 +39,11 @@ public class PostController {
 
     @GetMapping
     public ResponseEntity<Page<PostResponse>> listAll(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String author,
+            @RequestParam(required = false) PostStatus status,
             @PageableDefault(size = 10, sort = "createdAt") Pageable pageable) {
-        return ResponseEntity.ok(postService.listAll(pageable));
+        return ResponseEntity.ok(postService.listAll(q, author, status, pageable));
     }
 
     @GetMapping("/{id}")

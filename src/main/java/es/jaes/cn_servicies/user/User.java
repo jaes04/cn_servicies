@@ -35,8 +35,6 @@ public class User {
     @Column(nullable = false)
     private String passwordHash;
 
-    private boolean enabled = true;
-
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean blocked = false;
 

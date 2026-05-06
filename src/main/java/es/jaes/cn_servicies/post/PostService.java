@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -86,15 +87,20 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
-    public Page<PostResponse> listPublished(Pageable pageable) {
-        return postRepository.findByStatus(PostStatus.PUBLISHED, pageable)
-                .map(this::toResponse);
+    public Page<PostResponse> listPublished(String q, String author, Pageable pageable) {
+        Specification<Post> spec = Specification.where(PostSpecification.hasStatus(PostStatus.PUBLISHED));
+        if (q != null && !q.isBlank()) spec = spec.and(PostSpecification.titleOrContentContains(q));
+        if (author != null && !author.isBlank()) spec = spec.and(PostSpecification.hasAuthor(author));
+        return postRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
-    public Page<PostResponse> listAll(Pageable pageable) {
-        return postRepository.findAllActive(pageable)
-                .map(this::toResponse);
+    public Page<PostResponse> listAll(String q, String author, PostStatus status, Pageable pageable) {
+        Specification<Post> spec = Specification.where(null);
+        if (q != null && !q.isBlank()) spec = spec.and(PostSpecification.titleOrContentContains(q));
+        if (author != null && !author.isBlank()) spec = spec.and(PostSpecification.hasAuthor(author));
+        if (status != null) spec = spec.and(PostSpecification.hasStatus(status));
+        return postRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

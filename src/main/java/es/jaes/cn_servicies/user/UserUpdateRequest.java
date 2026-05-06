@@ -7,5 +7,4 @@ import java.util.Set;
 @Data
 public class UserUpdateRequest {
     private Set<RoleName> roles;
-    private Boolean enabled;
 }

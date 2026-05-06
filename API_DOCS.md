@@ -95,9 +95,9 @@ GET /api/auth/hash?raw=miContraseña
 | Método | Ruta | Rol requerido | Descripción |
 |--------|------|---------------|-------------|
 | `GET` | `/api/users/me` | Autenticado | Perfil del usuario actual |
-| `GET` | `/api/users` | ADMIN | Listar todos los usuarios |
+| `GET` | `/api/users` | ADMIN | Listar usuarios (paginado, con filtros) |
 | `POST` | `/api/users` | ADMIN | Crear usuario |
-| `PATCH` | `/api/users/{id}` | ADMIN | Actualizar usuario |
+| `PATCH` | `/api/users/{id}` | ADMIN | Actualizar roles del usuario |
 | `PUT` | `/api/users/{id}/roles` | ADMIN | Cambiar rol del usuario |
 | `POST` | `/api/users/{id}/profile-photo` | Autenticado | Subir foto de perfil |
 | `PATCH` | `/api/users/{id}/block` | ADMIN | Bloquear usuario |
@@ -122,6 +122,17 @@ GET /api/auth/hash?raw=miContraseña
 }
 ```
 
+#### GET `/api/users`
+```
+Parámetros de paginación: ?page=0&size=20&sort=createdAt,desc
+Filtros opcionales:
+  ?q=jorge          → busca en username y email (case-insensitive)
+  ?role=ROLE_EDITOR → filtra por rol (ROLE_ADMIN | ROLE_EDITOR | ROLE_USER | ROLE_TECHNICAL_STAFF)
+  ?blocked=false    → filtra por estado bloqueado/desbloqueado
+
+Ejemplo: GET /api/users?q=jorge&role=ROLE_EDITOR&blocked=false&page=0&size=20
+```
+
 #### PATCH `/api/users/{id}/block` y `/api/users/{id}/unblock`
 Sin body. Devuelve el `UserResponse` actualizado.
 
@@ -131,7 +142,6 @@ Sin body. Devuelve el `UserResponse` actualizado.
   "id": "uuid",
   "username": "admin",
   "email": "admin@email.com",
-  "enabled": true,
   "blocked": false,
   "roles": ["ROLE_ADMIN"],
   "createdAt": "2026-04-29T10:00:00",
@@ -236,7 +246,23 @@ Sin body. Devuelve el `UserResponse` actualizado.
 
 #### GET `/api/posts/published`
 ```
-Parámetros: ?page=0&size=10&sort=publishedAt,desc
+Parámetros de paginación: ?page=0&size=10&sort=publishedAt,desc
+Filtros opcionales:
+  ?q=natación       → busca en título y contenido (case-insensitive)
+  ?author=editor1   → filtra por nombre de usuario del autor
+
+Ejemplo: GET /api/posts/published?q=natación&author=editor1&page=0&size=10
+```
+
+#### GET `/api/posts`
+```
+Parámetros de paginación: ?page=0&size=10&sort=createdAt,desc
+Filtros opcionales:
+  ?q=natación         → busca en título y contenido (case-insensitive)
+  ?author=editor1     → filtra por nombre de usuario del autor
+  ?status=DRAFT       → filtra por estado (DRAFT | PUBLISHED)
+
+Ejemplo: GET /api/posts?q=campeonato&status=PUBLISHED&page=0&size=5
 ```
 
 #### POST `/api/posts` — multipart/form-data

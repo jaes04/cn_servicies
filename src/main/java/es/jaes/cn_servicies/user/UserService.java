@@ -59,10 +59,16 @@ public class UserService {
         return toResponse(user);
     }
 
-    public java.util.List<UserResponse> findAll() {
-        return userRepository.findAll().stream()
-                .map(this::toResponse)
-                .toList();
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<UserResponse> findAll(
+            String q, String role, Boolean blocked,
+            org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.jpa.domain.Specification<User> spec =
+                org.springframework.data.jpa.domain.Specification.where(null);
+        if (q != null && !q.isBlank()) spec = spec.and(UserSpecification.usernameOrEmailContains(q));
+        if (role != null && !role.isBlank()) spec = spec.and(UserSpecification.hasRole(role));
+        if (blocked != null) spec = spec.and(UserSpecification.isBlocked(blocked));
+        return userRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
     public UserResponse update(UUID id, UserUpdateRequest request) {
@@ -75,10 +81,6 @@ public class UserService {
                             .orElseThrow(() -> new IllegalArgumentException("Rol no encontrado: " + name)))
                     .collect(Collectors.toSet());
             user.setRoles(roles);
-        }
-
-        if (request.getEnabled() != null) {
-            user.setEnabled(request.getEnabled());
         }
 
         return toResponse(userRepository.save(user));
@@ -125,7 +127,6 @@ public class UserService {
     public void softDelete(UUID id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Usuario no encontrado"));
-        user.setEnabled(false);
         user.setDeletedAt(LocalDateTime.now());
         userRepository.save(user);
     }
@@ -135,7 +136,6 @@ public class UserService {
         response.setId(user.getId());
         response.setUsername(user.getUsername());
         response.setEmail(user.getEmail());
-        response.setEnabled(user.isEnabled());
         response.setBlocked(user.isBlocked());
         response.setRoles(user.getRoles().stream()
                 .map(r -> r.getName().name())
