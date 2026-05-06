@@ -2,11 +2,13 @@ package es.jaes.cn_servicies.competition_result;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -17,8 +19,14 @@ public class CompetitionResultController {
     private final CompetitionResultService resultService;
 
     @GetMapping
-    public ResponseEntity<List<CompetitionResultResponse>> findAll() {
-        return ResponseEntity.ok(resultService.findAll());
+    public ResponseEntity<Page<CompetitionResultResponse>> findAll(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Stroke stroke,
+            @RequestParam(required = false) Integer distanceMeters,
+            @RequestParam(required = false) Integer poolLength,
+            @RequestParam(required = false) Boolean partial,
+            @PageableDefault(size = 20, sort = "competitionDate") Pageable pageable) {
+        return ResponseEntity.ok(resultService.findAll(q, stroke, distanceMeters, poolLength, partial, pageable));
     }
 
     @GetMapping("/{id}")

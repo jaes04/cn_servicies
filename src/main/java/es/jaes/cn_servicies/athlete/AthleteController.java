@@ -2,11 +2,13 @@ package es.jaes.cn_servicies.athlete;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -17,8 +19,10 @@ public class AthleteController {
     private final AthleteService athleteService;
 
     @GetMapping
-    public ResponseEntity<List<AthleteResponse>> findAll() {
-        return ResponseEntity.ok(athleteService.findAll());
+    public ResponseEntity<Page<AthleteResponse>> findAll(
+            @RequestParam(required = false) String q,
+            @PageableDefault(size = 20, sort = "lastName") Pageable pageable) {
+        return ResponseEntity.ok(athleteService.findAll(q, pageable));
     }
 
     @GetMapping("/{id}")

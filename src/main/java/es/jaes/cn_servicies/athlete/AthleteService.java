@@ -2,11 +2,13 @@ package es.jaes.cn_servicies.athlete;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -34,8 +36,10 @@ public class AthleteService {
     }
 
     @Transactional(readOnly = true)
-    public List<AthleteResponse> findAll() {
-        return athleteRepository.findAll().stream().map(this::toResponse).toList();
+    public Page<AthleteResponse> findAll(String q, Pageable pageable) {
+        Specification<Athlete> spec = Specification.where(null);
+        if (q != null && !q.isBlank()) spec = spec.and(AthleteSpecification.nameOrDniContains(q));
+        return athleteRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
     public AthleteResponse update(UUID id, AthleteRequest request) {

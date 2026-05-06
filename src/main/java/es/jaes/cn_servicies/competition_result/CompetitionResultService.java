@@ -4,6 +4,9 @@ import es.jaes.cn_servicies.athlete.Athlete;
 import es.jaes.cn_servicies.athlete.AthleteService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,8 +54,16 @@ public class CompetitionResultService {
     }
 
     @Transactional(readOnly = true)
-    public List<CompetitionResultResponse> findAll() {
-        return resultRepository.findAll().stream().map(this::toResponse).toList();
+    public Page<CompetitionResultResponse> findAll(
+            String q, Stroke stroke, Integer distanceMeters, Integer poolLength, Boolean partial,
+            Pageable pageable) {
+        Specification<CompetitionResult> spec = Specification.where(null);
+        if (q != null && !q.isBlank()) spec = spec.and(CompetitionResultSpecification.athleteNameContains(q));
+        if (stroke != null) spec = spec.and(CompetitionResultSpecification.hasStroke(stroke));
+        if (distanceMeters != null) spec = spec.and(CompetitionResultSpecification.hasDistance(distanceMeters));
+        if (poolLength != null) spec = spec.and(CompetitionResultSpecification.hasPoolLength(poolLength));
+        if (partial != null) spec = spec.and(CompetitionResultSpecification.isPartial(partial));
+        return resultRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

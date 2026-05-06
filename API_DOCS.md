@@ -117,8 +117,7 @@ GET /api/auth/hash?raw=miContraseña
 ```json
 // Request (todos los campos son opcionales)
 {
-  "roles": ["ROLE_EDITOR"],
-  "enabled": true
+  "roles": ["ROLE_EDITOR"]
 }
 ```
 
@@ -155,11 +154,20 @@ Sin body. Devuelve el `UserResponse` actualizado.
 
 | Método | Ruta | Rol requerido | Descripción |
 |--------|------|---------------|-------------|
-| `GET` | `/api/athletes` | TECHNICAL_STAFF | Listar atletas |
+| `GET` | `/api/athletes` | TECHNICAL_STAFF | Listar atletas (paginado, con filtros) |
 | `GET` | `/api/athletes/{id}` | TECHNICAL_STAFF | Obtener atleta |
 | `POST` | `/api/athletes` | TECHNICAL_STAFF | Crear atleta |
 | `PUT` | `/api/athletes/{id}` | TECHNICAL_STAFF | Actualizar atleta |
 | `DELETE` | `/api/athletes/{id}` | ADMIN | Borrado lógico |
+
+#### GET `/api/athletes`
+```
+Parámetros de paginación: ?page=0&size=20&sort=lastName,asc
+Filtros opcionales:
+  ?q=carlos   → busca en nombre, apellido y DNI (case-insensitive)
+
+Ejemplo: GET /api/athletes?q=garcia&page=0&size=20
+```
 
 #### POST/PUT `/api/athletes`
 ```json
@@ -190,12 +198,25 @@ Sin body. Devuelve el `UserResponse` actualizado.
 
 | Método | Ruta | Rol requerido | Descripción |
 |--------|------|---------------|-------------|
-| `GET` | `/api/competition-results` | ADMIN, TECHNICAL_STAFF | Listar resultados |
+| `GET` | `/api/competition-results` | ADMIN, TECHNICAL_STAFF | Listar resultados (paginado, con filtros) |
 | `GET` | `/api/competition-results/{id}` | ADMIN, TECHNICAL_STAFF | Obtener resultado |
 | `GET` | `/api/competition-results/athlete/{athleteId}` | ADMIN, TECHNICAL_STAFF | Resultados de un atleta |
 | `POST` | `/api/competition-results` | ADMIN, TECHNICAL_STAFF | Crear resultado |
 | `PUT` | `/api/competition-results/{id}` | ADMIN, TECHNICAL_STAFF | Actualizar resultado |
 | `DELETE` | `/api/competition-results/{id}` | ADMIN | Borrado lógico |
+
+#### GET `/api/competition-results`
+```
+Parámetros de paginación: ?page=0&size=20&sort=competitionDate,desc
+Filtros opcionales:
+  ?q=carlos            → busca en nombre y apellido del atleta (case-insensitive)
+  ?stroke=FREESTYLE    → filtra por estilo (FREESTYLE | BACKSTROKE | BREASTSTROKE | BUTTERFLY | MEDLEY)
+  ?distanceMeters=100  → filtra por distancia (50 | 100 | 200 | 400 | 800 | 1500)
+  ?poolLength=50       → filtra por longitud de piscina (25 | 50)
+  ?partial=false       → filtra por resultados parciales o finales
+
+Ejemplo: GET /api/competition-results?q=garcia&stroke=FREESTYLE&distanceMeters=100&poolLength=50&page=0&size=20
+```
 
 #### POST/PUT `/api/competition-results`
 ```json
