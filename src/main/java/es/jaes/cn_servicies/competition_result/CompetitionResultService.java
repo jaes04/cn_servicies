@@ -110,12 +110,19 @@ public class CompetitionResultService {
                 .orElseThrow(() -> new EntityNotFoundException("Resultado no encontrado"));
     }
 
+    private static final List<Integer> OFFICIAL_DISTANCES = List.of(50, 100, 200, 400, 800, 1500);
+
     private void validateDistanceAndPool(CompetitionResultRequest request) {
         if (!List.of(25, 50).contains(request.getPoolLength())) {
             throw new IllegalArgumentException("La longitud de piscina debe ser 25 o 50 metros");
         }
-        if (!List.of(50, 100, 200, 400, 800, 1500).contains(request.getDistanceMeters())) {
-            throw new IllegalArgumentException("Distancia no válida");
+        int dist = request.getDistanceMeters();
+        if (request.isPartial()) {
+            if (dist < 50 || dist > 1450 || dist % 50 != 0) {
+                throw new IllegalArgumentException("Un parcial debe ser múltiplo de 50 entre 50 y 1450 metros");
+            }
+        } else if (!OFFICIAL_DISTANCES.contains(dist)) {
+            throw new IllegalArgumentException("Distancia no válida. Valores permitidos: 50, 100, 200, 400, 800, 1500");
         }
     }
 
