@@ -96,6 +96,7 @@ GET /api/auth/hash?raw=miContraseña
 |--------|------|---------------|-------------|
 | `GET` | `/api/users/me` | Autenticado | Perfil del usuario actual |
 | `GET` | `/api/users` | ADMIN | Listar usuarios (paginado, con filtros) |
+| `GET` | `/api/users/{id}/comments` | Autenticado | Comentarios hechos por el usuario |
 | `POST` | `/api/users` | ADMIN | Crear usuario |
 | `PATCH` | `/api/users/{id}` | ADMIN | Actualizar roles del usuario |
 | `PUT` | `/api/users/{id}/roles` | ADMIN | Cambiar rol del usuario |
@@ -103,6 +104,23 @@ GET /api/auth/hash?raw=miContraseña
 | `PATCH` | `/api/users/{id}/block` | ADMIN | Bloquear usuario |
 | `PATCH` | `/api/users/{id}/unblock` | ADMIN | Desbloquear usuario |
 | `DELETE` | `/api/users/{id}` | ADMIN | Borrado lógico del usuario |
+
+#### GET `/api/users/{id}/comments`
+Devuelve todos los comentarios hechos por el usuario, ordenados del más reciente al más antiguo. Incluye comentarios bloqueados.
+
+```json
+// Response 200 — Array de CommentResponse
+[
+  {
+    "id": "uuid",
+    "content": "Texto del comentario",
+    "authorUsername": "usuario1",
+    "postId": "uuid",
+    "blocked": false,
+    "createdAt": "2026-04-29T10:00:00"
+  }
+]
+```
 
 #### PUT `/api/users/{id}/roles`
 ```json

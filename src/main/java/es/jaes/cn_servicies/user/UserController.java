@@ -1,5 +1,7 @@
 package es.jaes.cn_servicies.user;
 
+import es.jaes.cn_servicies.comment.CommentResponse;
+import es.jaes.cn_servicies.comment.CommentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -11,6 +13,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -19,6 +22,7 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final CommentService commentService;
 
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me(java.security.Principal principal) {
@@ -66,6 +70,11 @@ public class UserController {
     @PatchMapping("/{id}/unblock")
     public ResponseEntity<UserResponse> unblock(@PathVariable UUID id) {
         return ResponseEntity.ok(userService.unblockUser(id));
+    }
+
+    @GetMapping("/{id}/comments")
+    public ResponseEntity<List<CommentResponse>> getCommentsByUser(@PathVariable UUID id) {
+        return ResponseEntity.ok(commentService.findByAuthor(id));
     }
 
     @DeleteMapping("/{id}")

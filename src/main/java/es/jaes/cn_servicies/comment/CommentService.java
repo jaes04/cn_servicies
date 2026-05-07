@@ -48,6 +48,17 @@ public class CommentService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<CommentResponse> findByAuthor(UUID userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new EntityNotFoundException("Usuario no encontrado");
+        }
+        return commentRepository.findByAuthorIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     public CommentResponse blockComment(UUID commentId) {
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new EntityNotFoundException("Comentario no encontrado"));
