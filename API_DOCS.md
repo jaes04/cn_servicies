@@ -271,6 +271,66 @@ Ejemplo: GET /api/competition-results?q=garcia&stroke=FREESTYLE&distanceMeters=1
 
 ---
 
+### Athlete Links — `/api/athlete-links`
+
+Permite vincular usuarios a atletas mediante una key de invitación de un solo uso.  
+Los tipos de vínculo son `ATHLETE` (el propio atleta) y `TUTOR` (tutor de un menor).
+
+| Método | Ruta | Rol requerido | Descripción |
+|--------|------|---------------|-------------|
+| `POST` | `/api/athlete-links/{athleteId}/key` | ADMIN, TECHNICAL_STAFF | Genera una key de invitación |
+| `POST` | `/api/athlete-links/redeem` | Autenticado | Canjea la key y vincula al usuario actual |
+| `GET` | `/api/athlete-links/my-athletes` | Autenticado | Atletas vinculados al usuario actual |
+| `GET` | `/api/athlete-links/by-athlete/{athleteId}` | ADMIN, TECHNICAL_STAFF | Usuarios vinculados a un atleta |
+
+#### POST `/api/athlete-links/{athleteId}/key`
+Genera una key válida durante **72 horas** y de **un solo uso**.
+```json
+// Request
+{
+  "type": "TUTOR"
+}
+// type: ATHLETE | TUTOR
+
+// Response 201
+{
+  "key": "550e8400-e29b-41d4-a716-446655440000",
+  "athleteId": "uuid",
+  "athleteFullName": "Carlos García",
+  "type": "TUTOR",
+  "expiresAt": "2026-05-11T10:00:00"
+}
+```
+
+#### POST `/api/athlete-links/redeem`
+Valida la key y crea el vínculo entre el usuario autenticado y el atleta.
+```json
+// Request
+{
+  "key": "550e8400-e29b-41d4-a716-446655440000"
+}
+
+// Response 201
+{
+  "id": "uuid",
+  "userId": "uuid",
+  "username": "jorge",
+  "athleteId": "uuid",
+  "athleteFullName": "Carlos García",
+  "type": "TUTOR",
+  "createdAt": "2026-05-08T10:00:00"
+}
+```
+
+Posibles errores al canjear:
+- `400` — Key no válida
+- `409` — Key ya utilizada o expirada, o usuario ya vinculado al atleta
+
+#### GET `/api/athlete-links/my-athletes`
+Devuelve la lista de atletas vinculados al usuario autenticado (array de `UserAthleteResponse`).
+
+---
+
 ### Posts — `/api/posts`
 
 | Método | Ruta | Rol requerido | Descripción |
