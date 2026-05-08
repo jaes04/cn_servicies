@@ -216,12 +216,24 @@ Ejemplo: GET /api/athletes?q=garcia&page=0&size=20
 
 | Método | Ruta | Rol requerido | Descripción |
 |--------|------|---------------|-------------|
+| `GET` | `/api/competition-results/me` | Autenticado | Mis tiempos (atletas vinculados al usuario) |
 | `GET` | `/api/competition-results` | ADMIN, TECHNICAL_STAFF | Listar resultados (paginado, con filtros) |
 | `GET` | `/api/competition-results/{id}` | ADMIN, TECHNICAL_STAFF | Obtener resultado |
 | `GET` | `/api/competition-results/athlete/{athleteId}` | ADMIN, TECHNICAL_STAFF | Resultados de un atleta |
 | `POST` | `/api/competition-results` | ADMIN, TECHNICAL_STAFF | Crear resultado |
 | `PUT` | `/api/competition-results/{id}` | ADMIN, TECHNICAL_STAFF | Actualizar resultado |
 | `DELETE` | `/api/competition-results/{id}` | ADMIN | Borrado lógico |
+
+#### GET `/api/competition-results/me`
+Devuelve los tiempos de todos los atletas vinculados al usuario autenticado. Admite los mismos filtros que el listado general excepto `?q`.
+```
+Parámetros de paginación: ?page=0&size=20&sort=competitionDate,desc
+Filtros opcionales:
+  ?stroke=FREESTYLE    → filtra por estilo
+  ?distanceMeters=100  → filtra por distancia
+  ?poolLength=50       → filtra por longitud de piscina
+  ?partial=false       → filtra por parciales o finales
+```
 
 #### GET `/api/competition-results`
 ```

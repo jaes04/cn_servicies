@@ -2,6 +2,8 @@ package es.jaes.cn_servicies.competition_result;
 
 import es.jaes.cn_servicies.athlete.Athlete;
 import es.jaes.cn_servicies.athlete.AthleteService;
+import es.jaes.cn_servicies.athlete_link.UserAthleteRepository;
+import es.jaes.cn_servicies.user.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -21,6 +23,8 @@ public class CompetitionResultService {
 
     private final CompetitionResultRepository resultRepository;
     private final AthleteService athleteService;
+    private final UserAthleteRepository userAthleteRepository;
+    private final UserRepository userRepository;
 
     public CompetitionResultResponse create(CompetitionResultRequest request) {
         validateDistanceAndPool(request);
@@ -69,6 +73,25 @@ public class CompetitionResultService {
     @Transactional(readOnly = true)
     public List<CompetitionResultResponse> findByAthlete(UUID athleteId) {
         return resultRepository.findByAthleteId(athleteId).stream().map(this::toResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CompetitionResultResponse> findByCurrentUser(
+            String username, Stroke stroke, Integer distanceMeters, Integer poolLength, Boolean partial,
+            Pageable pageable) {
+        var user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado"));
+        var athleteIds = userAthleteRepository.findByUserId(user.getId()).stream()
+                .map(ua -> ua.getAthlete().getId())
+                .toList();
+        if (athleteIds.isEmpty()) return Page.empty(pageable);
+
+        Specification<CompetitionResult> spec = CompetitionResultSpecification.athleteIdIn(athleteIds);
+        if (stroke != null) spec = spec.and(CompetitionResultSpecification.hasStroke(stroke));
+        if (distanceMeters != null) spec = spec.and(CompetitionResultSpecification.hasDistance(distanceMeters));
+        if (poolLength != null) spec = spec.and(CompetitionResultSpecification.hasPoolLength(poolLength));
+        if (partial != null) spec = spec.and(CompetitionResultSpecification.isPartial(partial));
+        return resultRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
     public CompetitionResultResponse update(UUID id, CompetitionResultRequest request) {

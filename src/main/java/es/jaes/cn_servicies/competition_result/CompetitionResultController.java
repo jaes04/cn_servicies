@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,6 +29,18 @@ public class CompetitionResultController {
             @RequestParam(required = false) Boolean partial,
             @PageableDefault(size = 20, sort = "competitionDate") Pageable pageable) {
         return ResponseEntity.ok(resultService.findAll(q, stroke, distanceMeters, poolLength, partial, pageable));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<Page<CompetitionResultResponse>> findMine(
+            @RequestParam(required = false) Stroke stroke,
+            @RequestParam(required = false) Integer distanceMeters,
+            @RequestParam(required = false) Integer poolLength,
+            @RequestParam(required = false) Boolean partial,
+            @PageableDefault(size = 20, sort = "competitionDate") Pageable pageable,
+            Principal principal) {
+        return ResponseEntity.ok(resultService.findByCurrentUser(
+                principal.getName(), stroke, distanceMeters, poolLength, partial, pageable));
     }
 
     @GetMapping("/{id}")

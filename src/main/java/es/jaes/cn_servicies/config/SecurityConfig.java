@@ -65,6 +65,7 @@ public class SecurityConfig {
                         .requestMatchers(POST, "/api/athletes/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(PUT, "/api/athletes/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(DELETE, "/api/athletes/**").hasRole("ADMIN")
+                        .requestMatchers(GET, "/api/competition-results/me").authenticated()
                         .requestMatchers(GET, "/api/competition-results/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(POST, "/api/competition-results/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(PUT, "/api/competition-results/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")

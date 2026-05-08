@@ -2,7 +2,14 @@ package es.jaes.cn_servicies.competition_result;
 
 import org.springframework.data.jpa.domain.Specification;
 
+import java.util.List;
+import java.util.UUID;
+
 class CompetitionResultSpecification {
+
+    static Specification<CompetitionResult> athleteIdIn(List<UUID> athleteIds) {
+        return (root, query, cb) -> root.get("athlete").get("id").in(athleteIds);
+    }
 
     static Specification<CompetitionResult> athleteNameContains(String q) {
         String pattern = "%" + q.toLowerCase() + "%";
