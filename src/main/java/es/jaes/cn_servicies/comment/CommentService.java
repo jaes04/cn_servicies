@@ -95,6 +95,7 @@ public class CommentService {
         response.setContent(comment.getContent());
         response.setAuthorUsername(comment.getAuthor().getUsername());
         response.setPostId(comment.getPost().getId());
+        response.setPostTitle(comment.getPost().getTitle());
         response.setBlocked(comment.isBlocked());
         response.setCreatedAt(comment.getCreatedAt());
         return response;

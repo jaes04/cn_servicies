@@ -11,6 +11,7 @@ public class CommentResponse {
     private String content;
     private String authorUsername;
     private UUID postId;
+    private String postTitle;
     private boolean blocked;
     private LocalDateTime createdAt;
 }
