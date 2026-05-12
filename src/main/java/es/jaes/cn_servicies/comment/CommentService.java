@@ -6,11 +6,14 @@ import es.jaes.cn_servicies.user.User;
 import es.jaes.cn_servicies.user.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+
 
 @Service
 @RequiredArgsConstructor
@@ -43,7 +46,7 @@ public class CommentService {
         }
         return commentRepository.findByPostIdOrderByCreatedAtAsc(postId)
                 .stream()
-                .filter(c -> !c.isBlocked())
+                .filter(c -> !c.isBlocked() && c.getDeletedAt() == null)
                 .map(this::toResponse)
                 .toList();
     }
@@ -55,8 +58,21 @@ public class CommentService {
         }
         return commentRepository.findByAuthorIdOrderByCreatedAtDesc(userId)
                 .stream()
+                .filter(c -> c.getDeletedAt() == null)
                 .map(this::toResponse)
                 .toList();
+    }
+
+    public void softDelete(UUID commentId, String username) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new EntityNotFoundException("Comentario no encontrado"));
+
+        if (!comment.getAuthor().getUsername().equals(username)) {
+            throw new AccessDeniedException("Solo el autor puede eliminar su comentario");
+        }
+
+        comment.setDeletedAt(LocalDateTime.now());
+        commentRepository.save(comment);
     }
 
     public CommentResponse blockComment(UUID commentId) {

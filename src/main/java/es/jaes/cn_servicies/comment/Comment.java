@@ -35,6 +35,9 @@ public class Comment {
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean blocked = false;
 
+    @Column
+    private LocalDateTime deletedAt;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

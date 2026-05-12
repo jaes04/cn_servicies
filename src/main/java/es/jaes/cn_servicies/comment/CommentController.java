@@ -33,6 +33,15 @@ public class CommentController {
         return ResponseEntity.ok(commentService.findByPost(postId));
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(
+            @PathVariable UUID postId,
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        commentService.softDelete(id, userDetails.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
     @PreAuthorize("hasAnyRole('ADMIN', 'EDITOR')")
     @PatchMapping("/{id}/block")
     public ResponseEntity<CommentResponse> block(@PathVariable UUID postId, @PathVariable UUID id) {

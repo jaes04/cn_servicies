@@ -413,6 +413,7 @@ Part "images" (opcional): archivos de imagen (máx. 5MB c/u, total 55MB)
 |--------|------|---------------|-------------|
 | `POST` | `/api/posts/{postId}/comments` | Autenticado | Crear comentario |
 | `GET` | `/api/posts/{postId}/comments` | Autenticado | Listar comentarios del post |
+| `DELETE` | `/api/posts/{postId}/comments/{id}` | Autenticado (solo autor) | Borrado lógico del comentario |
 | `PATCH` | `/api/posts/{postId}/comments/{id}/block` | ADMIN, EDITOR | Bloquear comentario |
 | `PATCH` | `/api/posts/{postId}/comments/{id}/unblock` | ADMIN, EDITOR | Desbloquear comentario |
 
@@ -423,6 +424,12 @@ Part "images" (opcional): archivos de imagen (máx. 5MB c/u, total 55MB)
   "content": "Texto del comentario"
 }
 ```
+
+#### DELETE `/api/posts/{postId}/comments/{id}`
+Borrado lógico: marca el comentario con `deletedAt`. Solo puede ejecutarlo el autor del comentario.
+- `204 No Content` — eliminado correctamente
+- `403 Forbidden` — el usuario autenticado no es el autor
+- `404 Not Found` — comentario no encontrado
 
 #### PATCH `/api/posts/{postId}/comments/{id}/block` y `/api/posts/{postId}/comments/{id}/unblock`
 Sin body. Devuelve el `CommentResponse` actualizado.
