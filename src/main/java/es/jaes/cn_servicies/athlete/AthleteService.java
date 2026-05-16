@@ -17,6 +17,7 @@ import java.util.UUID;
 public class AthleteService {
 
     private final AthleteRepository athleteRepository;
+    private final GenderRepository genderRepository;
 
     public AthleteResponse create(AthleteRequest request) {
         if (athleteRepository.existsByDni(request.getDni())) {
@@ -27,6 +28,7 @@ public class AthleteService {
         athlete.setLastName(request.getLastName());
         athlete.setBirthDate(request.getBirthDate());
         athlete.setDni(request.getDni());
+        athlete.setGender(resolveGender(request.getGender()));
         return toResponse(athleteRepository.save(athlete));
     }
 
@@ -51,6 +53,7 @@ public class AthleteService {
         athlete.setLastName(request.getLastName());
         athlete.setBirthDate(request.getBirthDate());
         athlete.setDni(request.getDni());
+        athlete.setGender(resolveGender(request.getGender()));
         return toResponse(athleteRepository.save(athlete));
     }
 
@@ -65,6 +68,11 @@ public class AthleteService {
                 .orElseThrow(() -> new EntityNotFoundException("Atleta no encontrado"));
     }
 
+    private GenderEntity resolveGender(Gender gender) {
+        return genderRepository.findByName(gender)
+                .orElseThrow(() -> new IllegalArgumentException("Género no encontrado: " + gender));
+    }
+
     private AthleteResponse toResponse(Athlete athlete) {
         AthleteResponse response = new AthleteResponse();
         response.setId(athlete.getId());
@@ -72,6 +80,7 @@ public class AthleteService {
         response.setLastName(athlete.getLastName());
         response.setBirthDate(athlete.getBirthDate());
         response.setDni(athlete.getDni());
+        response.setGender(athlete.getGender().getName());
         response.setCreatedAt(athlete.getCreatedAt());
         return response;
     }

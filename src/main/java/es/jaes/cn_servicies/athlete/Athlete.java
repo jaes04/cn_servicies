@@ -34,6 +34,10 @@ public class Athlete {
     @Column(unique = true, nullable = false, length = 9)
     private String dni;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "gender_id", nullable = false)
+    private GenderEntity gender;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

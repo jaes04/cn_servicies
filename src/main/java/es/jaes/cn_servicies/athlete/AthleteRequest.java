@@ -24,4 +24,7 @@ public class AthleteRequest {
     @Size(min = 9, max = 9, message = "El DNI debe tener exactamente 9 caracteres")
     @Pattern(regexp = "^[0-9]{8}[A-Z]$", message = "El DNI debe tener 8 dígitos y una letra mayúscula")
     private String dni;
+
+    @NotNull
+    private Gender gender;
 }

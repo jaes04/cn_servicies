@@ -13,5 +13,6 @@ public class AthleteResponse {
     private String lastName;
     private LocalDate birthDate;
     private String dni;
+    private Gender gender;
     private LocalDateTime createdAt;
 }
