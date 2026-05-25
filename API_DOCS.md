@@ -173,18 +173,38 @@ Sin body. Devuelve el `UserResponse` actualizado.
 | Método | Ruta | Rol requerido | Descripción |
 |--------|------|---------------|-------------|
 | `GET` | `/api/athletes` | TECHNICAL_STAFF | Listar atletas (paginado, con filtros) |
+| `GET` | `/api/athletes/my-tutees` | Autenticado | Atletas que el usuario actual está tutorizando |
 | `GET` | `/api/athletes/{id}` | TECHNICAL_STAFF | Obtener atleta |
 | `POST` | `/api/athletes` | TECHNICAL_STAFF | Crear atleta |
 | `PUT` | `/api/athletes/{id}` | TECHNICAL_STAFF | Actualizar atleta |
 | `DELETE` | `/api/athletes/{id}` | ADMIN | Borrado lógico |
 
+#### GET `/api/athletes/my-tutees`
+Devuelve los atletas vinculados al usuario autenticado con tipo `TUTOR`. Incluye todos los datos del atleta.
+
+```json
+// Response 200 — Array de AthleteResponse
+[
+  {
+    "id": "uuid",
+    "firstName": "Ana",
+    "lastName": "Martínez",
+    "birthDate": "2010-03-12",
+    "dni": "12345678A",
+    "gender": "FEMALE",
+    "createdAt": "2026-05-08T10:00:00"
+  }
+]
+```
+
 #### GET `/api/athletes`
 ```
 Parámetros de paginación: ?page=0&size=20&sort=lastName,asc
 Filtros opcionales:
-  ?q=carlos   → busca en nombre, apellido y DNI (case-insensitive)
+  ?q=carlos          → busca en nombre, apellido y DNI (case-insensitive)
+  ?gender=MALE       → filtra por género (MALE | FEMALE | OTHER)
 
-Ejemplo: GET /api/athletes?q=garcia&page=0&size=20
+Ejemplo: GET /api/athletes?q=garcia&gender=FEMALE&page=0&size=20
 ```
 
 #### POST/PUT `/api/athletes`
@@ -194,8 +214,10 @@ Ejemplo: GET /api/athletes?q=garcia&page=0&size=20
   "firstName": "Carlos",
   "lastName": "García",
   "birthDate": "2000-05-15",
-  "dni": "12345678A"
+  "dni": "12345678A",
+  "gender": "MALE"
 }
+// gender: MALE | FEMALE | OTHER
 ```
 
 #### Response Atleta
@@ -206,6 +228,7 @@ Ejemplo: GET /api/athletes?q=garcia&page=0&size=20
   "lastName": "García",
   "birthDate": "2000-05-15",
   "dni": "12345678A",
+  "gender": "MALE",
   "createdAt": "2026-04-29T10:00:00"
 }
 ```
@@ -292,7 +315,8 @@ Los tipos de vínculo son `ATHLETE` (el propio atleta) y `TUTOR` (tutor de un me
 |--------|------|---------------|-------------|
 | `POST` | `/api/athlete-links/{athleteId}/key` | ADMIN, TECHNICAL_STAFF | Genera una key de invitación |
 | `POST` | `/api/athlete-links/redeem` | Autenticado | Canjea la key y vincula al usuario actual |
-| `GET` | `/api/athlete-links/my-athletes` | Autenticado | Atletas vinculados al usuario actual |
+| `GET` | `/api/athlete-links/my-athletes` | Autenticado | Todos los atletas vinculados al usuario (ATHLETE + TUTOR) |
+| `GET` | `/api/athlete-links/my-tutees` | Autenticado | Solo los atletas que el usuario está tutorizando (TUTOR) |
 | `GET` | `/api/athlete-links/by-athlete/{athleteId}` | ADMIN, TECHNICAL_STAFF | Usuarios vinculados a un atleta |
 
 #### POST `/api/athlete-links/{athleteId}/key`
@@ -339,7 +363,94 @@ Posibles errores al canjear:
 - `409` — Key ya utilizada o expirada, o usuario ya vinculado al atleta
 
 #### GET `/api/athlete-links/my-athletes`
-Devuelve la lista de atletas vinculados al usuario autenticado (array de `UserAthleteResponse`).
+Devuelve todos los atletas vinculados al usuario autenticado, independientemente del tipo. Usar el campo `type` para diferenciar en el frontend.
+
+```json
+// Response 200 — Array de UserAthleteResponse
+[
+  {
+    "id": "uuid-del-link",
+    "userId": "uuid-del-usuario",
+    "username": "jorge",
+    "athleteId": "uuid-del-atleta",
+    "athleteFullName": "Carlos García",
+    "type": "ATHLETE",
+    "createdAt": "2026-05-08T10:00:00"
+  },
+  {
+    "id": "uuid-del-link-2",
+    "userId": "uuid-del-usuario",
+    "username": "jorge",
+    "athleteId": "uuid-del-atleta-2",
+    "athleteFullName": "Ana Martínez",
+    "type": "TUTOR",
+    "createdAt": "2026-05-10T10:00:00"
+  }
+]
+```
+
+#### GET `/api/athlete-links/my-tutees`
+Devuelve únicamente los atletas donde el usuario autenticado actúa como **tutor** (`type: TUTOR`). Útil para mostrar el listado de atletas tutelados en el perfil del usuario.
+
+```json
+// Response 200 — Array de UserAthleteResponse (solo type: TUTOR)
+[
+  {
+    "id": "uuid-del-link",
+    "userId": "uuid-del-usuario",
+    "username": "jorge",
+    "athleteId": "uuid-del-atleta",
+    "athleteFullName": "Ana Martínez",
+    "type": "TUTOR",
+    "createdAt": "2026-05-10T10:00:00"
+  }
+]
+```
+
+---
+
+### Athlete Documents — `/api/athlete-documents`
+
+Permite subir y consultar documentos asociados a un atleta. Cada documento registra quién lo subió, a qué atleta pertenece, su tipo y título.  
+Formatos aceptados: **PDF, JPEG, PNG**.
+
+| Método | Ruta | Rol requerido | Descripción |
+|--------|------|---------------|-------------|
+| `POST` | `/api/athlete-documents/athlete/{athleteId}` | ADMIN, TECHNICAL_STAFF | Subir documento a un atleta |
+| `GET` | `/api/athlete-documents/athlete/{athleteId}` | ADMIN, TECHNICAL_STAFF | Listar documentos de un atleta |
+| `GET` | `/api/athlete-documents/my` | Autenticado | Documentos de los atletas vinculados al usuario |
+| `GET` | `/api/athlete-documents/{id}/file` | Autenticado | Obtener el archivo del documento |
+| `DELETE` | `/api/athlete-documents/{id}` | ADMIN | Eliminar documento |
+
+#### POST `/api/athlete-documents/athlete/{athleteId}` — multipart/form-data
+```
+Part "title"  (text): "Reconocimiento médico 2026"
+Part "type"   (text): "MEDICAL"
+Part "file"   (file): archivo PDF, JPEG o PNG
+
+// type: MEDICAL | TRAINING | COMPETITION | CONSENT | IDENTIFICATION | OTHER
+```
+
+```json
+// Response 201
+{
+  "id": "uuid",
+  "title": "Reconocimiento médico 2026",
+  "type": "MEDICAL",
+  "originalFilename": "reconocimiento.pdf",
+  "athleteId": "uuid",
+  "athleteFullName": "Carlos García",
+  "uploadedById": "uuid",
+  "uploadedByUsername": "staff1",
+  "createdAt": "2026-05-25T10:00:00"
+}
+```
+
+#### GET `/api/athlete-documents/my`
+Devuelve los documentos de todos los atletas vinculados al usuario autenticado (tanto `ATHLETE` como `TUTOR`).
+
+#### GET `/api/athlete-documents/{id}/file`
+Devuelve el archivo con el `Content-Type` correcto (`application/pdf`, `image/jpeg` o `image/png`) y disposición `inline` para visualización en navegador.
 
 ---
 
@@ -462,7 +573,9 @@ Sin body. Devuelve el `CommentResponse` actualizado.
 // 401 — No autenticado
 {
   "status": 401,
-  "message": "Debes autenticarte para acceder a este recurso. Incluye un token válido en la cabecera Authorization",
+  "error": "Unauthorized",
+  "message": "Token ausente o inválido. Incluye un Bearer token válido en la cabecera Authorization",
+  "method": "GET",
   "path": "/api/...",
   "timestamp": "2026-04-29T10:00:00"
 }
@@ -470,7 +583,9 @@ Sin body. Devuelve el `CommentResponse` actualizado.
 // 403 — Sin permisos
 {
   "status": 403,
+  "error": "Forbidden",
   "message": "No tienes los permisos necesarios para acceder a este recurso",
+  "method": "GET",
   "path": "/api/...",
   "timestamp": "2026-04-29T10:00:00"
 }
