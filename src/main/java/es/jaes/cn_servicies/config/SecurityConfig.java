@@ -86,7 +86,9 @@ public class SecurityConfig {
                             new ObjectMapper().writeValue(response.getWriter(), Map.of(
                                     "timestamp", LocalDateTime.now().toString(),
                                     "status", 403,
+                                    "error", "Forbidden",
                                     "message", "No tienes los permisos necesarios para acceder a este recurso",
+                                    "method", request.getMethod(),
                                     "path", request.getRequestURI()
                             ));
                         })
@@ -97,7 +99,9 @@ public class SecurityConfig {
                             new ObjectMapper().writeValue(response.getWriter(), Map.of(
                                     "timestamp", LocalDateTime.now().toString(),
                                     "status", 401,
-                                    "message", "Debes autenticarte para acceder a este recurso. Incluye un token válido en la cabecera Authorization",
+                                    "error", "Unauthorized",
+                                    "message", "Token ausente o inválido. Incluye un Bearer token válido en la cabecera Authorization",
+                                    "method", request.getMethod(),
                                     "path", request.getRequestURI()
                             ));
                         })
