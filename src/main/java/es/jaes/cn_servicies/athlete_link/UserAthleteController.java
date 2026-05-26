@@ -40,6 +40,11 @@ public class UserAthleteController {
         return ResponseEntity.ok(userAthleteService.findByUser(principal.getName()));
     }
 
+    @GetMapping("/my-tutees")
+    public ResponseEntity<List<UserAthleteResponse>> myTutees(Principal principal) {
+        return ResponseEntity.ok(userAthleteService.findTuteesByUser(principal.getName()));
+    }
+
     @GetMapping("/by-athlete/{athleteId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICAL_STAFF')")
     public ResponseEntity<List<UserAthleteResponse>> byAthlete(@PathVariable UUID athleteId) {

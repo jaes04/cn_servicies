@@ -1,5 +1,9 @@
 package es.jaes.cn_servicies.athlete;
 
+import es.jaes.cn_servicies.athlete_link.UserAthleteRepository;
+import es.jaes.cn_servicies.athlete_link.UserAthleteType;
+import es.jaes.cn_servicies.user.User;
+import es.jaes.cn_servicies.user.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -9,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -18,6 +23,8 @@ public class AthleteService {
 
     private final AthleteRepository athleteRepository;
     private final GenderRepository genderRepository;
+    private final UserAthleteRepository userAthleteRepository;
+    private final UserRepository userRepository;
 
     public AthleteResponse create(AthleteRequest request) {
         if (athleteRepository.existsByDni(request.getDni())) {
@@ -38,9 +45,10 @@ public class AthleteService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AthleteResponse> findAll(String q, Pageable pageable) {
+    public Page<AthleteResponse> findAll(String q, Gender gender, Pageable pageable) {
         Specification<Athlete> spec = Specification.where(null);
         if (q != null && !q.isBlank()) spec = spec.and(AthleteSpecification.nameOrDniContains(q));
+        if (gender != null) spec = spec.and(AthleteSpecification.hasGender(gender));
         return athleteRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
@@ -55,6 +63,15 @@ public class AthleteService {
         athlete.setDni(request.getDni());
         athlete.setGender(resolveGender(request.getGender()));
         return toResponse(athleteRepository.save(athlete));
+    }
+
+    @Transactional(readOnly = true)
+    public List<AthleteResponse> findTuteesByUser(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado"));
+        return userAthleteRepository.findByUserIdAndType(user.getId(), UserAthleteType.TUTOR).stream()
+                .map(link -> toResponse(link.getAthlete()))
+                .toList();
     }
 
     public void softDelete(UUID id) {

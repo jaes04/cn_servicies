@@ -9,6 +9,8 @@ public interface UserAthleteRepository extends JpaRepository<UserAthlete, UUID> 
 
     List<UserAthlete> findByUserId(UUID userId);
 
+    List<UserAthlete> findByUserIdAndType(UUID userId, UserAthleteType type);
+
     List<UserAthlete> findByAthleteId(UUID athleteId);
 
     boolean existsByUserIdAndAthleteId(UUID userId, UUID athleteId);

@@ -84,6 +84,15 @@ public class UserAthleteService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<UserAthleteResponse> findTuteesByUser(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado"));
+        return userAthleteRepository.findByUserIdAndType(user.getId(), UserAthleteType.TUTOR).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     private AthleteInviteKeyResponse toKeyResponse(AthleteInviteKey key) {
         AthleteInviteKeyResponse response = new AthleteInviteKeyResponse();
         response.setKey(key.getKeyValue());

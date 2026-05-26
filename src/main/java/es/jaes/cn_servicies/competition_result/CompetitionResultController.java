@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.competition_result;
 
+import es.jaes.cn_servicies.athlete.Gender;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -27,8 +28,9 @@ public class CompetitionResultController {
             @RequestParam(required = false) Integer distanceMeters,
             @RequestParam(required = false) Integer poolLength,
             @RequestParam(required = false) Boolean partial,
+            @RequestParam(required = false) Gender gender,
             @PageableDefault(size = 20, sort = "competitionDate") Pageable pageable) {
-        return ResponseEntity.ok(resultService.findAll(q, stroke, distanceMeters, poolLength, partial, pageable));
+        return ResponseEntity.ok(resultService.findAll(q, stroke, distanceMeters, poolLength, partial, gender, pageable));
     }
 
     @GetMapping("/me")
@@ -37,10 +39,11 @@ public class CompetitionResultController {
             @RequestParam(required = false) Integer distanceMeters,
             @RequestParam(required = false) Integer poolLength,
             @RequestParam(required = false) Boolean partial,
+            @RequestParam(required = false) Gender gender,
             @PageableDefault(size = 20, sort = "competitionDate") Pageable pageable,
             Principal principal) {
         return ResponseEntity.ok(resultService.findByCurrentUser(
-                principal.getName(), stroke, distanceMeters, poolLength, partial, pageable));
+                principal.getName(), stroke, distanceMeters, poolLength, partial, gender, pageable));
     }
 
     @GetMapping("/{id}")

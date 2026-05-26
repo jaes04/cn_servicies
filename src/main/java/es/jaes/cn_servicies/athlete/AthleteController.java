@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -21,8 +23,14 @@ public class AthleteController {
     @GetMapping
     public ResponseEntity<Page<AthleteResponse>> findAll(
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) Gender gender,
             @PageableDefault(size = 20, sort = "lastName") Pageable pageable) {
-        return ResponseEntity.ok(athleteService.findAll(q, pageable));
+        return ResponseEntity.ok(athleteService.findAll(q, gender, pageable));
+    }
+
+    @GetMapping("/my-tutees")
+    public ResponseEntity<List<AthleteResponse>> myTutees(Principal principal) {
+        return ResponseEntity.ok(athleteService.findTuteesByUser(principal.getName()));
     }
 
     @GetMapping("/{id}")

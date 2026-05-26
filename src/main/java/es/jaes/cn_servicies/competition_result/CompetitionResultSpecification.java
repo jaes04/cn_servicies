@@ -34,4 +34,8 @@ class CompetitionResultSpecification {
     static Specification<CompetitionResult> isPartial(boolean partial) {
         return (root, query, cb) -> cb.equal(root.get("partial"), partial);
     }
+
+    static Specification<CompetitionResult> hasAthleteGender(es.jaes.cn_servicies.athlete.Gender gender) {
+        return (root, query, cb) -> cb.equal(root.get("athlete").get("gender").get("name"), gender);
+    }
 }

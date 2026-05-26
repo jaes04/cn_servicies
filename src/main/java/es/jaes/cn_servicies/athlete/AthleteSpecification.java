@@ -12,4 +12,8 @@ class AthleteSpecification {
                 cb.like(cb.lower(root.get("dni")), pattern)
         );
     }
+
+    static Specification<Athlete> hasGender(Gender gender) {
+        return (root, query, cb) -> cb.equal(root.get("gender").get("name"), gender);
+    }
 }

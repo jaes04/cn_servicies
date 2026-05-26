@@ -2,6 +2,7 @@ package es.jaes.cn_servicies.competition_result;
 
 import es.jaes.cn_servicies.athlete.Athlete;
 import es.jaes.cn_servicies.athlete.AthleteService;
+import es.jaes.cn_servicies.athlete.Gender;
 import es.jaes.cn_servicies.athlete_link.UserAthleteRepository;
 import es.jaes.cn_servicies.user.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -59,7 +60,7 @@ public class CompetitionResultService {
 
     @Transactional(readOnly = true)
     public Page<CompetitionResultResponse> findAll(
-            String q, Stroke stroke, Integer distanceMeters, Integer poolLength, Boolean partial,
+            String q, Stroke stroke, Integer distanceMeters, Integer poolLength, Boolean partial, Gender gender,
             Pageable pageable) {
         Specification<CompetitionResult> spec = Specification.where(null);
         if (q != null && !q.isBlank()) spec = spec.and(CompetitionResultSpecification.athleteNameContains(q));
@@ -67,6 +68,7 @@ public class CompetitionResultService {
         if (distanceMeters != null) spec = spec.and(CompetitionResultSpecification.hasDistance(distanceMeters));
         if (poolLength != null) spec = spec.and(CompetitionResultSpecification.hasPoolLength(poolLength));
         if (partial != null) spec = spec.and(CompetitionResultSpecification.isPartial(partial));
+        if (gender != null) spec = spec.and(CompetitionResultSpecification.hasAthleteGender(gender));
         return resultRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
@@ -77,7 +79,7 @@ public class CompetitionResultService {
 
     @Transactional(readOnly = true)
     public Page<CompetitionResultResponse> findByCurrentUser(
-            String username, Stroke stroke, Integer distanceMeters, Integer poolLength, Boolean partial,
+            String username, Stroke stroke, Integer distanceMeters, Integer poolLength, Boolean partial, Gender gender,
             Pageable pageable) {
         var user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado"));
@@ -91,6 +93,7 @@ public class CompetitionResultService {
         if (distanceMeters != null) spec = spec.and(CompetitionResultSpecification.hasDistance(distanceMeters));
         if (poolLength != null) spec = spec.and(CompetitionResultSpecification.hasPoolLength(poolLength));
         if (partial != null) spec = spec.and(CompetitionResultSpecification.isPartial(partial));
+        if (gender != null) spec = spec.and(CompetitionResultSpecification.hasAthleteGender(gender));
         return resultRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
