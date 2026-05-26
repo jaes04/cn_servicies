@@ -411,18 +411,21 @@ Devuelve únicamente los atletas donde el usuario autenticado actúa como **tuto
 
 ### Athlete Documents — `/api/athlete-documents`
 
-Permite subir y consultar documentos asociados a un atleta. Cada documento registra quién lo subió, a qué atleta pertenece, su tipo y título.  
-Formatos aceptados: **PDF, JPEG, PNG**.
+Permite subir y consultar documentos asociados a un atleta. Cada documento registra quién lo subió, a qué atleta pertenece, su tipo, título y fecha de subida.  
+Formatos aceptados: **PDF (.pdf), JPEG (.jpg / .jpeg), PNG (.png)**.
 
-| Método | Ruta | Rol requerido | Descripción |
-|--------|------|---------------|-------------|
-| `POST` | `/api/athlete-documents/athlete/{athleteId}` | ADMIN, TECHNICAL_STAFF | Subir documento a un atleta |
+| Método | Ruta | Acceso | Descripción |
+|--------|------|--------|-------------|
+| `POST` | `/api/athlete-documents/athlete/{athleteId}` | ADMIN, TECHNICAL_STAFF o usuario vinculado al atleta | Subir documento a un atleta |
 | `GET` | `/api/athlete-documents/athlete/{athleteId}` | ADMIN, TECHNICAL_STAFF | Listar documentos de un atleta |
 | `GET` | `/api/athlete-documents/my` | Autenticado | Documentos de los atletas vinculados al usuario |
 | `GET` | `/api/athlete-documents/{id}/file` | Autenticado | Obtener el archivo del documento |
 | `DELETE` | `/api/athlete-documents/{id}` | ADMIN | Eliminar documento |
 
 #### POST `/api/athlete-documents/athlete/{athleteId}` — multipart/form-data
+
+Puede subir documentos cualquier usuario que sea `ADMIN`, `TECHNICAL_STAFF`, o esté vinculado al atleta (tipo `ATHLETE` o `TUTOR`). Si el usuario no cumple ninguna condición devuelve `403`.
+
 ```
 Part "title"  (text): "Reconocimiento médico 2026"
 Part "type"   (text): "MEDICAL"
@@ -443,6 +446,20 @@ Part "file"   (file): archivo PDF, JPEG o PNG
   "uploadedById": "uuid",
   "uploadedByUsername": "staff1",
   "createdAt": "2026-05-25T10:00:00"
+}
+```
+
+Errores de subida:
+- `400` — Formato de archivo no válido (se indica el tipo detectado y los formatos aceptados)
+- `403` — El usuario no tiene permiso para subir documentos a este atleta
+- `404` — Atleta no encontrado
+
+Ejemplo de error `400` por formato incorrecto:
+```json
+{
+  "status": 400,
+  "message": "Formato de archivo no válido (text/plain). Los formatos aceptados son: PDF (.pdf), JPEG (.jpg / .jpeg), PNG (.png)",
+  "path": "/api/athlete-documents/athlete/..."
 }
 ```
 

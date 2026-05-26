@@ -76,7 +76,7 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/athlete-links/by-athlete/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(POST, "/api/athlete-links/redeem").authenticated()
                         .requestMatchers(GET, "/api/athlete-links/my-athletes").authenticated()
-                        .requestMatchers(POST, "/api/athlete-documents/athlete/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers(POST, "/api/athlete-documents/athlete/**").authenticated()
                         .requestMatchers(GET, "/api/athlete-documents/athlete/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/athlete-documents/my").authenticated()
                         .requestMatchers(GET, "/api/athlete-documents/*/file").authenticated()

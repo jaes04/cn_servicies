@@ -26,7 +26,7 @@ public class AthleteDocumentController {
     private final AthleteDocumentService athleteDocumentService;
 
     @PostMapping(value = "/athlete/{athleteId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICAL_STAFF')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<AthleteDocumentResponse> upload(
             @PathVariable UUID athleteId,
             @RequestParam String title,
@@ -44,11 +44,13 @@ public class AthleteDocumentController {
     }
 
     @GetMapping("/my")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<AthleteDocumentResponse>> myDocuments(Principal principal) {
         return ResponseEntity.ok(athleteDocumentService.findByCurrentUser(principal.getName()));
     }
 
     @GetMapping("/{documentId}/file")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Resource> getFile(@PathVariable UUID documentId) throws IOException {
         Path path = athleteDocumentService.getFilePath(documentId);
         Resource resource = new UrlResource(path.toUri());

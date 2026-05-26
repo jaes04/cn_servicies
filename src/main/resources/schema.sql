@@ -90,6 +90,18 @@ CREATE TABLE IF NOT EXISTS competition_results (
     deleted_at          TIMESTAMP
 );
 
+-- ATHLETE_DOCUMENTS
+CREATE TABLE IF NOT EXISTS athlete_documents (
+    id                UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    title             VARCHAR(255) NOT NULL,
+    type              VARCHAR(30)  NOT NULL,
+    filename          VARCHAR(255) NOT NULL,
+    original_filename VARCHAR(255) NOT NULL,
+    athlete_id        UUID         NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+    uploaded_by_id    UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at        TIMESTAMP    NOT NULL DEFAULT now()
+);
+
 -- ============================================================
 --  DATOS INICIALES
 -- ============================================================

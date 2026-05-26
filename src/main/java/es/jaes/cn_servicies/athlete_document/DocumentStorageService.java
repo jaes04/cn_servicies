@@ -19,6 +19,8 @@ public class DocumentStorageService {
             "application/pdf", "image/jpeg", "image/png"
     );
 
+    private static final String ALLOWED_FORMATS_MSG = "PDF (.pdf), JPEG (.jpg / .jpeg), PNG (.png)";
+
     private final Path uploadDir;
 
     public DocumentStorageService(@Value("${app.upload.dir}") String uploadDir) throws IOException {
@@ -29,7 +31,10 @@ public class DocumentStorageService {
     public String save(MultipartFile file) throws IOException {
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_TYPES.contains(contentType)) {
-            throw new IllegalArgumentException("Tipo de archivo no permitido. Se aceptan: PDF, JPEG, PNG");
+            throw new IllegalArgumentException(
+                "Formato de archivo no válido" + (contentType != null ? " (" + contentType + ")" : "") +
+                ". Los formatos aceptados son: " + ALLOWED_FORMATS_MSG
+            );
         }
         String extension = switch (contentType) {
             case "application/pdf" -> ".pdf";

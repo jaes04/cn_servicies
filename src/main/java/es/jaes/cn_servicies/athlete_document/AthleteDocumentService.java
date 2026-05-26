@@ -7,6 +7,9 @@ import es.jaes.cn_servicies.user.User;
 import es.jaes.cn_servicies.user.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,6 +35,13 @@ public class AthleteDocumentService {
         Athlete athlete = athleteService.findOrThrow(athleteId);
         User uploadedBy = userRepository.findByUsername(username)
                 .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado"));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isPrivileged = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_TECHNICAL_STAFF"));
+        if (!isPrivileged && !userAthleteRepository.existsByUserIdAndAthleteId(uploadedBy.getId(), athleteId)) {
+            throw new AccessDeniedException("No tienes permiso para subir documentos a este atleta");
+        }
 
         String filename;
         try {
