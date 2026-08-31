@@ -143,6 +143,11 @@ Puntos que van a doler y conviene tener presentes desde ya:
 - **`Role` es global.** `RoleName` no está scopeado por club. Un ADMIN hoy es ADMIN de
   todo. Habrá que decidir si el rol pasa a ser por club o si se introduce una entidad
   intermedia usuario–club–rol.
+- **Hay un administrador de plataforma** — decidido. `adminjaes`, con rol propio
+  `ROLE_PLATFORM_ADMIN`, ve todos los clubes: da de alta clubes y da soporte. Es la única
+  excepción legítima a las tres capas de defensa de arriba, y por eso vive en un rol
+  aparte, con auditoría de cada acceso cruzado, en lugar de repartirse como un privilegio
+  más de `ROLE_ADMIN`.
 - **`User.username` pasa a ser único por club** — decidido. El índice único se migra a
   `(club_id, username)`, de forma que cada club pueda tener su propio `admin`. La
   contrapartida es que una cuenta pertenece a un solo club: quien esté en dos clubes

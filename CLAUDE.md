@@ -176,6 +176,23 @@ ejecuta en la tarea 0.2 del roadmap. El índice único de `username` se migra a
 - `UserRepository.findByUsername` y `existsByUsername` quedan ambiguos: pasan a
   necesitar el club como parámetro.
 
+**`adminjaes` es administrador universal de todos los clubes.** Decisión tomada; se
+implementa en la tarea 0.8 del roadmap. Da de alta clubes y entra a dar soporte sin que
+el club le cree cuenta. Cómo se hace:
+
+- Rol propio **`ROLE_PLATFORM_ADMIN`**, separado de `ROLE_ADMIN`. Un `ROLE_ADMIN` sigue
+  siendo administrador **de su club y solo de su club**.
+- `users.club_id` sigue **NOT NULL** también para él: cuelga del club por defecto. Lo que
+  le da acceso cruzado es el rol, nunca la ausencia de club. Dejar la columna nullable
+  "para el admin" convertiría el NOT NULL en papel mojado para toda la tabla.
+- El estado "todos los clubes" del `TenantContext` solo puede originarse en ese rol.
+  **Nunca en un parámetro de petición**, cabecera ni cuerpo.
+- Todo acceso cruzado suyo se audita: quién, a qué club, cuándo.
+
+Es un agujero deliberado en el aislamiento que construyen las tareas 0.4–0.6, y será lo
+primero que busque quien ataque el sistema, porque es la única vía que existe. Cualquier
+cambio que amplíe lo que este rol puede hacer se piensa dos veces y se dice en voz alta.
+
 ---
 
 ## Decisiones abiertas
@@ -190,7 +207,9 @@ No las cierres tú. Si una tarea depende de una, pregunta.
 - **`User.email`**: hoy es único global, igual que lo era `username`. Al pasar el
   username a único por club, el email queda como el nuevo obstáculo para que una
   persona use el mismo correo en dos clubes. Sin resolver.
-- **Roles**: `Role` es global hoy. Con multi-tenancy hará falta que sean por club.
+- **Roles de club**: `Role` es global hoy. Con multi-tenancy hará falta que `ROLE_ADMIN`,
+  `ROLE_EDITOR`, `ROLE_USER` y `ROLE_TECHNICAL_STAFF` sean por club. Sin resolver — lo
+  que sí está decidido es el rol de plataforma, ver más abajo.
 - **Dominio de producción**: pendiente de decisión del club.
 
 ---

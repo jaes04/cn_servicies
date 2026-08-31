@@ -36,10 +36,13 @@ Cada tarea lleva tres etiquetas: `tiempo · dificultad · importancia`
 | Grupos y temporadas | `Grupo` cuelga de `Temporada` | Entrenador, horario y composición cambian cada año |
 | Sesiones | Filas reales generadas desde horario recurrente | Necesitas cancelar sesiones concretas y colgarles asistencia |
 | Datos de salud | Solo metadatos del certificado médico | Sin veredicto ni diagnóstico, la minimización evita casi todo el problema |
+| Administrador de plataforma | `adminjaes`, rol propio `ROLE_PLATFORM_ADMIN` | Alguien tiene que dar de alta clubes y dar soporte; separarlo de `ROLE_ADMIN` mantiene el agujero en un único sitio, visible y auditable |
 
 ### Orden de las fases
 
-La división por clubes va **primera**, aunque el móvil sea lo último. Construir grupos y asistencia sin `club_id` obliga después a migrar cada tabla, cada query, cada endpoint y el JWT.
+Por delante de todo va la **Fase S.0**: cerrar los endpoints de autenticación que hoy permiten a cualquiera crearse un administrador. Son unas horas y no depende de nada, pero mientras siga abierto, todo el aislamiento entre clubes de la Fase 0 es decorativo.
+
+Hecho eso, la división por clubes va **primera**, aunque el móvil sea lo último. Construir grupos y asistencia sin `club_id` obliga después a migrar cada tabla, cada query, cada endpoint y el JWT.
 
 ---
 
@@ -47,7 +50,8 @@ La división por clubes va **primera**, aunque el móvil sea lo último. Constru
 
 | Fase | Contenido | Tiempo | Cuándo |
 |---|---|---|---|
-| 0 | Multi-tenancy | ~33 h (4–5 días) | Primero, bloquea todo |
+| S.0 | Agujeros de autenticación abiertos | ~4 h | **Lo primero de todo** |
+| 0 | Multi-tenancy | ~40 h (5–6 días) | Bloquea todo lo demás |
 | S.1 | Consentimiento y certificado médico | ~16 h (2 días) | Antes de la Fase 1 |
 | 1 | Temporadas y grupos | ~38 h (5 días) | |
 | 2 | Horarios y asistencia | ~52 h (6–7 días) | |
@@ -56,9 +60,29 @@ La división por clubes va **primera**, aunque el móvil sea lo último. Constru
 | Transversal | Backups y monitorización | ~14 h | Antes del primer cliente |
 | 4 | App móvil | ~120 h (4 semanas) | |
 
-**Total hasta producto vendible sin móvil:** unas 240 horas. A 15 horas semanales, en torno a 4 meses. Con la app móvil, 6 meses.
+**Total hasta producto vendible sin móvil:** unas 250 horas. A 15 horas semanales, en torno a 4 meses. Con la app móvil, 6 meses.
 
 Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software que sobrara.
+
+---
+
+## Fase S.0 — Agujeros de autenticación abiertos
+
+**Va antes que todo lo demás, incluida la Fase 0.** No depende de nada, se resuelve en una tarde, y mientras siga ahí el resto del trabajo de aislamiento no sirve para nada: no hace falta saltarse la tenancy si te puedes crear un administrador.
+
+**Bloquea:** nada técnicamente, pero cualquier despliegue fuera de local.
+
+- [ ] Cerrar `POST /api/auth/signup/with-role` — `1h · Baja · Crítica`
+- [ ] Validar en servidor qué roles puede asignar quien llama, sin fiarse del cuerpo — `1h · Media · Crítica`
+- [ ] Eliminar `GET /api/auth/hash` — `15min · Baja · Alta`
+- [ ] Repasar uno a uno los `permitAll` restantes de `SecurityConfig` — `1h · Media · Alta`
+- [ ] Rotar el secreto JWT, la contraseña de Postgres y la del administrador **antes del primer despliegue fuera de local** — `1h · Baja · Crítica`
+
+> `signup/with-role` está hoy en `permitAll` y acepta un `Set<RoleName>` arbitrario en el cuerpo, que pasa a `userService.create()` sin comprobación, devolviendo además el JWT ya emitido. Una sola petición anónima basta para obtener `ROLE_ADMIN`.
+
+> `/api/auth/hash` lleva un comentario que dice "TEMPORAL: eliminar tras las pruebas" y quedó público. No filtra nada, pero es cómputo BCrypt anónimo a demanda.
+
+> La rotación no corre prisa mientras los datos vivan solo en la base local: no hay nada expuesto. Lo que no puede pasar es que esos valores lleguen a producción, porque están en el historial de git.
 
 ---
 
@@ -128,6 +152,26 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 - [ ] Test negativo: query sin filtro **sigue** sin devolver datos ajenos gracias a RLS — `2h · Alta · Crítica`
 - [ ] Test: token manipulado con otro `club_id` no da acceso — `1h · Media · Crítica`
 - [ ] Regresión: login y funcionalidad actual siguen funcionando — `1h · Baja · Crítica`
+
+---
+
+### 0.8 Administrador de plataforma — 7 h
+
+**Decisión tomada:** `adminjaes` es administrador universal, con acceso a todos los clubes. Es quien da de alta clubes y quien puede entrar a dar soporte sin que el club le cree una cuenta.
+
+Esto es, por definición, **un agujero deliberado en el aislamiento** que las tareas 0.4 a 0.6 construyen. Que sea deliberado no lo hace menos peligroso: es la ruta que un atacante buscará primero, porque es la única que existe. De ahí que sea un rol propio y no un `ROLE_ADMIN` con superpoderes.
+
+- [ ] `ROLE_PLATFORM_ADMIN` nuevo en `RoleName`, distinto de `ROLE_ADMIN` — `1h · Baja · Crítica`
+- [ ] `users.club_id` sigue **NOT NULL** también para él: cuelga del club por defecto. Lo que le da acceso cruzado es el rol, nunca la ausencia de club — `1h · Alta · Crítica`
+- [ ] `TenantContext` admite un estado "todos los clubes", que solo puede originarse en ese rol y jamás en un parámetro de petición — `1h · Alta · Crítica`
+- [ ] Filtro de Hibernate desactivado para ese rol (aplica sobre 0.5) — `1h · Alta · Crítica`
+- [ ] Policy RLS con la excepción vía `current_setting('app.platform_admin')` (aplica sobre 0.6) — `1h · Alta · Crítica`
+- [ ] Todo acceso cruzado de este rol queda auditado: quién, qué club, cuándo — `1h · Media · Crítica`
+- [ ] Test: un `ROLE_ADMIN` de club **no** obtiene acceso cruzado; solo `ROLE_PLATFORM_ADMIN` — `1h · Media · Crítica`
+
+> El primer punto es el que decide todo lo demás, y hay que resolverlo **durante la 0.2**, no después: si `club_id` se deja nullable "para el admin", el NOT NULL deja de ser una garantía en toda la tabla y cualquier fila mal insertada se cuela sin club.
+
+> MFA para este rol no es opcional. Está en S.3.1 como MFA para roles de administración; con un admin universal, esa tarea deja de poder esperar a la Fase S.
 
 ---
 
