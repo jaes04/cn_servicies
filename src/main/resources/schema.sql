@@ -2,6 +2,15 @@
 --  SCHEMA - cn_servicies
 -- ============================================================
 
+-- CLUBS  (tenant raiz: toda entidad acabara colgando de un club)
+CREATE TABLE IF NOT EXISTS clubs (
+    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    name       VARCHAR(255) NOT NULL,
+    slug       VARCHAR(255) NOT NULL UNIQUE,
+    active     BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP
+);
+
 -- ROLES
 CREATE TABLE IF NOT EXISTS roles (
     id   BIGSERIAL PRIMARY KEY,

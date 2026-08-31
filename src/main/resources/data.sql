@@ -1,4 +1,13 @@
 -- =====================================================
+-- CLUB POR DEFECTO
+-- UUID fijo: es el club al que se asignaran las filas
+-- existentes en el backfill de club_id (Fase 0.2)
+-- =====================================================
+INSERT INTO clubs (id, name, slug, active, created_at)
+VALUES ('99999999-0000-0000-0000-000000000001', 'Club Natacion Sierra Oeste', 'sierra-oeste', true, now())
+    ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================
 -- ROLES
 -- =====================================================
 INSERT INTO roles (name) VALUES ('ROLE_ADMIN')
