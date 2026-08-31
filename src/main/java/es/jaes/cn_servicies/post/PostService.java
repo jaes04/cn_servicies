@@ -38,6 +38,9 @@ public class PostService {
                 .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado"));
 
         Post post = new Post();
+        // El post pertenece al club de quien lo escribe. Aqui no hace falta el
+        // club por defecto: el autor ya trae el suyo.
+        post.setClub(author.getClub());
         post.setTitle(request.getTitle());
         post.setContent(request.getContent());
         post.setSlug(generateSlug(request.getTitle()));

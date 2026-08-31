@@ -112,6 +112,59 @@ CREATE TABLE IF NOT EXISTS athlete_documents (
 );
 
 -- ============================================================
+--  MULTI-TENANCY — club_id en las entidades raiz (tarea 0.2)
+-- ============================================================
+--  Idempotente y en este orden: la columna nace nullable, se rellena con el
+--  club por defecto y solo despues pasa a NOT NULL. Anadirla NOT NULL de golpe
+--  falla en cuanto la tabla tiene una sola fila.
+--
+--  Solo llevan club_id las entidades raiz: users, athletes y posts. Las hijas
+--  (comments, post_images, competition_results, athlete_documents,
+--  user_athletes, athlete_invite_keys) llegan a su club por el padre.
+-- ============================================================
+
+-- USERS
+ALTER TABLE users ADD COLUMN IF NOT EXISTS club_id UUID;
+UPDATE users SET club_id = (SELECT id FROM clubs WHERE slug = 'sierra-oeste')
+    WHERE club_id IS NULL;
+ALTER TABLE users ALTER COLUMN club_id SET NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_club_id ON users (club_id);
+
+-- El username pasa a ser unico por club: cada club necesita poder tener su
+-- propio 'admin'. El email sigue siendo unico global (decision abierta).
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_key;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_users_club_username ON users (club_id, username);
+
+-- ATHLETES
+ALTER TABLE athletes ADD COLUMN IF NOT EXISTS club_id UUID;
+UPDATE athletes SET club_id = (SELECT id FROM clubs WHERE slug = 'sierra-oeste')
+    WHERE club_id IS NULL;
+ALTER TABLE athletes ALTER COLUMN club_id SET NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_athletes_club_id ON athletes (club_id);
+
+-- POSTS
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS club_id UUID;
+UPDATE posts SET club_id = (SELECT id FROM clubs WHERE slug = 'sierra-oeste')
+    WHERE club_id IS NULL;
+ALTER TABLE posts ALTER COLUMN club_id SET NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_posts_club_id ON posts (club_id);
+
+-- Claves foraneas hacia club. Van al final, cuando las columnas ya estan
+-- rellenas. ADD CONSTRAINT no admite IF NOT EXISTS, asi que se borra antes: el
+-- par DROP IF EXISTS + ADD es idempotente y vale para las dos situaciones.
+--
+-- Sin bloque DO a proposito: Spring parte estos scripts por `;` y no entiende
+-- el entrecomillado con $$, aunque psql lo ejecute sin problema.
+ALTER TABLE users DROP CONSTRAINT IF EXISTS fk_users_club;
+ALTER TABLE users ADD CONSTRAINT fk_users_club FOREIGN KEY (club_id) REFERENCES clubs (id);
+
+ALTER TABLE athletes DROP CONSTRAINT IF EXISTS fk_athletes_club;
+ALTER TABLE athletes ADD CONSTRAINT fk_athletes_club FOREIGN KEY (club_id) REFERENCES clubs (id);
+
+ALTER TABLE posts DROP CONSTRAINT IF EXISTS fk_posts_club;
+ALTER TABLE posts ADD CONSTRAINT fk_posts_club FOREIGN KEY (club_id) REFERENCES clubs (id);
+
+-- ============================================================
 --  DATOS INICIALES
 -- ============================================================
 

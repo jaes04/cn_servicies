@@ -100,16 +100,22 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 ### 0.2 Añadir club_id a las entidades existentes — 5 h
 
-- [ ] Añadir columna `club_id` (nullable de momento) a `usuario` y `atleta` — `1h · Baja · Crítica`
-- [ ] Backfill: asignar todas las filas existentes al club por defecto — `1h · Media · Crítica`
-- [ ] Poner la columna `NOT NULL` **después** del backfill — `30min · Baja · Crítica`
-- [ ] Foreign key hacia `club` — `30min · Baja · Alta`
-- [ ] Índice sobre `club_id` en cada tabla — `30min · Baja · Alta`
-- [ ] Migrar el índice único de `username` a `(club_id, username)` — `1h · Media · Crítica`
+- [x] Añadir columna `club_id` (nullable de momento) a `usuario` y `atleta` — `1h · Baja · Crítica`
+- [x] Backfill: asignar todas las filas existentes al club por defecto — `1h · Media · Crítica`
+- [x] Poner la columna `NOT NULL` **después** del backfill — `30min · Baja · Crítica`
+- [x] Foreign key hacia `club` — `30min · Baja · Alta`
+- [x] Índice sobre `club_id` en cada tabla — `30min · Baja · Alta`
+- [x] Migrar el índice único de `username` a `(club_id, username)` — `1h · Media · Crítica`
 
 > Sin ese último cambio, el segundo club no puede tener un usuario llamado "admin".
 
 > Las tablas hijas (`atleta_grupo`, `horario_grupo`, `asistencia`) no llevan `club_id`: siempre se llega a ellas por el padre.
+
+> **Ejecutado sobre tres tablas, no dos.** A `users` y `athletes` se sumó `posts`, que también es entidad raíz: el blog es del club y no cuelga de ninguna otra. `comments`, `post_images`, `competition_results`, `athlete_documents`, `user_athletes` y `athlete_invite_keys` son hijas y llegan a su club por el padre, siguiendo la regla de arriba.
+
+> **Mismo problema que `username`, sin resolver:** `athletes.dni` y `posts.slug` siguen siendo únicos globales, así que dos clubes no pueden tener al mismo atleta ni un post con el mismo slug. En `dni` la pregunta es si un atleta que cambia de club se duplica o se comparte; en `slug` depende de cómo se sirva el blog multi-club, que es decisión abierta. Ninguno se ha tocado.
+
+> **Deuda que deja esta tarea:** `ClubService.getDefaultClub()` es un puente temporal. `UserService`, `AthleteService` y `AdminInitializer` lo usan para satisfacer el `NOT NULL` mientras no exista contexto de tenant; desaparece en la 0.4. `PostService` no lo necesita, porque el post hereda el club de su autor.
 
 ### 0.3 club_id en el JWT — 3,5 h
 

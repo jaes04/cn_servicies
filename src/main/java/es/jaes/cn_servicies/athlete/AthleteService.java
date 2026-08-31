@@ -2,6 +2,7 @@ package es.jaes.cn_servicies.athlete;
 
 import es.jaes.cn_servicies.athlete_link.UserAthleteRepository;
 import es.jaes.cn_servicies.athlete_link.UserAthleteType;
+import es.jaes.cn_servicies.club.ClubService;
 import es.jaes.cn_servicies.user.User;
 import es.jaes.cn_servicies.user.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -25,12 +26,15 @@ public class AthleteService {
     private final GenderRepository genderRepository;
     private final UserAthleteRepository userAthleteRepository;
     private final UserRepository userRepository;
+    private final ClubService clubService;
 
     public AthleteResponse create(AthleteRequest request) {
         if (athleteRepository.existsByDni(request.getDni())) {
             throw new IllegalArgumentException("Ya existe un atleta con ese DNI");
         }
         Athlete athlete = new Athlete();
+        // TODO (tarea 0.4): el club saldra del TenantContext, no del club por defecto.
+        athlete.setClub(clubService.getDefaultClub());
         athlete.setFirstName(request.getFirstName());
         athlete.setLastName(request.getLastName());
         athlete.setBirthDate(request.getBirthDate());

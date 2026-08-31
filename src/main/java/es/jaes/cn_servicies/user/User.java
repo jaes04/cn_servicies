@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.user;
 
+import es.jaes.cn_servicies.club.Club;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Getter;
@@ -26,7 +27,16 @@ public class User {
     @GeneratedValue(strategy = GenerationType.UUID)
      private UUID id;
 
-    @Column(unique = true, nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "club_id", nullable = false)
+    private Club club;
+
+    /**
+     * Unico por club, no global: cada club necesita poder tener su propio
+     * 'admin'. La restriccion la impone el indice uk_users_club_username; aqui
+     * no se declara unique porque eso seria unicidad global.
+     */
+    @Column(nullable = false)
     @Getter @Setter private String username;
 
     @Column(unique = true, nullable = false)

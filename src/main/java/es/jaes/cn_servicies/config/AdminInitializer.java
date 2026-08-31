@@ -1,5 +1,7 @@
 package es.jaes.cn_servicies.config;
 
+import es.jaes.cn_servicies.club.Club;
+import es.jaes.cn_servicies.club.ClubService;
 import es.jaes.cn_servicies.user.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,7 @@ public class AdminInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ClubService clubService;
 
     @Value("${ADMIN_USERNAME:}")
     private String adminUsername;
@@ -31,7 +34,13 @@ public class AdminInitializer implements CommandLineRunner {
             return;
         }
 
-        if (userRepository.existsByUsername(adminUsername)) {
+        // TODO (tarea 0.8): esta cuenta pasara a crearse junto con el club, en
+        // ClubService.create(). Mientras tanto cuelga del club por defecto y la
+        // existencia se comprueba dentro de ese club, porque el username es
+        // unico por club y no global.
+        Club club = clubService.getDefaultClub();
+
+        if (userRepository.existsByClubAndUsername(club, adminUsername)) {
             log.info("Admin user '{}' already exists — skipping creation.", adminUsername);
             return;
         }
@@ -40,6 +49,7 @@ public class AdminInitializer implements CommandLineRunner {
                 .orElseThrow(() -> new IllegalStateException("ROLE_ADMIN not found in database"));
 
         User admin = new User();
+        admin.setClub(club);
         admin.setUsername(adminUsername);
         admin.setEmail(adminUsername + "@admin.local");
         admin.setPasswordHash(passwordEncoder.encode(adminPassword));

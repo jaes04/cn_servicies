@@ -36,12 +36,12 @@ INSERT INTO genders (name) VALUES ('FEMALE')
 -- USUARIOS  (contraseña de todos: "Admin1234!")
 -- Hash BCrypt generado con strength 10
 -- =====================================================
-INSERT INTO users (id, username, email, password_hash, blocked, created_at, updated_at)
+INSERT INTO users (id, club_id, username, email, password_hash, blocked, created_at, updated_at)
 VALUES
-    ('00000000-0000-0000-0000-000000000001', 'admin',   'admin@clubnatacion.es',   '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', false, now(), now()),
-    ('00000000-0000-0000-0000-000000000002', 'editor',  'editor@clubnatacion.es',  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', false, now(), now()),
-    ('00000000-0000-0000-0000-000000000003', 'tecnico', 'tecnico@clubnatacion.es', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', false, now(), now()),
-    ('00000000-0000-0000-0000-000000000004', 'usuario', 'usuario@clubnatacion.es', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', false, now(), now())
+    ('00000000-0000-0000-0000-000000000001', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'), 'admin',   'admin@clubnatacion.es',   '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', false, now(), now()),
+    ('00000000-0000-0000-0000-000000000002', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'), 'editor',  'editor@clubnatacion.es',  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', false, now(), now()),
+    ('00000000-0000-0000-0000-000000000003', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'), 'tecnico', 'tecnico@clubnatacion.es', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', false, now(), now()),
+    ('00000000-0000-0000-0000-000000000004', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'), 'usuario', 'usuario@clubnatacion.es', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', false, now(), now())
 ON CONFLICT DO NOTHING;
 
 -- =====================================================
@@ -73,24 +73,24 @@ INSERT INTO user_roles (user_id, role_id)
 -- =====================================================
 -- ATLETAS
 -- =====================================================
-INSERT INTO athletes (id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
-    SELECT '10000000-0000-0000-0000-000000000001', 'Carlos',  'García López',      '2005-03-15', '12345678A', g.id, now(), now() FROM genders g WHERE g.name = 'MALE'
+INSERT INTO athletes (id, club_id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
+    SELECT '10000000-0000-0000-0000-000000000001', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'), 'Carlos',  'García López',      '2005-03-15', '12345678A', g.id, now(), now() FROM genders g WHERE g.name = 'MALE'
     ON CONFLICT DO NOTHING;
 
-INSERT INTO athletes (id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
-    SELECT '10000000-0000-0000-0000-000000000002', 'Laura',   'Martínez Sánchez',  '2007-06-22', '23456789B', g.id, now(), now() FROM genders g WHERE g.name = 'FEMALE'
+INSERT INTO athletes (id, club_id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
+    SELECT '10000000-0000-0000-0000-000000000002', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'), 'Laura',   'Martínez Sánchez',  '2007-06-22', '23456789B', g.id, now(), now() FROM genders g WHERE g.name = 'FEMALE'
     ON CONFLICT DO NOTHING;
 
-INSERT INTO athletes (id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
-    SELECT '10000000-0000-0000-0000-000000000003', 'Miguel',  'Fernández Torres',  '2004-11-08', '34567890C', g.id, now(), now() FROM genders g WHERE g.name = 'MALE'
+INSERT INTO athletes (id, club_id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
+    SELECT '10000000-0000-0000-0000-000000000003', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'), 'Miguel',  'Fernández Torres',  '2004-11-08', '34567890C', g.id, now(), now() FROM genders g WHERE g.name = 'MALE'
     ON CONFLICT DO NOTHING;
 
-INSERT INTO athletes (id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
-    SELECT '10000000-0000-0000-0000-000000000004', 'Ana',     'Ruiz Moreno',       '2006-09-30', '45678901D', g.id, now(), now() FROM genders g WHERE g.name = 'FEMALE'
+INSERT INTO athletes (id, club_id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
+    SELECT '10000000-0000-0000-0000-000000000004', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'), 'Ana',     'Ruiz Moreno',       '2006-09-30', '45678901D', g.id, now(), now() FROM genders g WHERE g.name = 'FEMALE'
     ON CONFLICT DO NOTHING;
 
-INSERT INTO athletes (id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
-    SELECT '10000000-0000-0000-0000-000000000005', 'Pablo',   'López Jiménez',     '2003-07-12', '56789012E', g.id, now(), now() FROM genders g WHERE g.name = 'MALE'
+INSERT INTO athletes (id, club_id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
+    SELECT '10000000-0000-0000-0000-000000000005', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'), 'Pablo',   'López Jiménez',     '2003-07-12', '56789012E', g.id, now(), now() FROM genders g WHERE g.name = 'MALE'
     ON CONFLICT DO NOTHING;
 
 -- =====================================================
@@ -111,9 +111,9 @@ INSERT INTO user_athletes (id, user_id, athlete_id, type, created_at)
 -- =====================================================
 -- POSTS
 -- =====================================================
-INSERT INTO posts (id, title, content, slug, status, published_at, author_id, created_at, updated_at)
+INSERT INTO posts (id, club_id, title, content, slug, status, published_at, author_id, created_at, updated_at)
 VALUES
-    ('30000000-0000-0000-0000-000000000001',
+    ('30000000-0000-0000-0000-000000000001', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'),
      'Bienvenidos al Club de Natación',
      '<p>¡Bienvenidos a la nueva web del club! Aquí encontraréis noticias, resultados de competiciones y toda la información del club.</p>',
      'bienvenidos-club-natacion',
@@ -121,7 +121,7 @@ VALUES
      (SELECT id FROM users WHERE username = 'admin'),
      now(), now()),
 
-    ('30000000-0000-0000-0000-000000000002',
+    ('30000000-0000-0000-0000-000000000002', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'),
      'Resultados Campeonato Regional 2025',
      '<p>Nuestros atletas han conseguido excelentes resultados en el Campeonato Regional. Enhorabuena a todos los participantes.</p>',
      'resultados-campeonato-regional-2025',
@@ -129,7 +129,7 @@ VALUES
      (SELECT id FROM users WHERE username = 'editor'),
      now(), now()),
 
-    ('30000000-0000-0000-0000-000000000003',
+    ('30000000-0000-0000-0000-000000000003', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'),
      'Próxima competición - Liga Autonómica',
      '<p>Os informamos de los detalles de la próxima competición de liga autonómica.</p>',
      'proxima-competicion-liga-autonomica',
@@ -137,7 +137,7 @@ VALUES
      (SELECT id FROM users WHERE username = 'editor'),
      now(), now()),
 
-    ('30000000-0000-0000-0000-000000000004',
+    ('30000000-0000-0000-0000-000000000004', (SELECT id FROM clubs WHERE slug = 'sierra-oeste'),
      'Noticia eliminada de ejemplo',
      '<p>Contenido eliminado.</p>',
      'noticia-eliminada-ejemplo',

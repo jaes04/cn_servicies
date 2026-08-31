@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.athlete;
 
+import es.jaes.cn_servicies.club.Club;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -21,6 +22,10 @@ public class Athlete {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "club_id", nullable = false)
+    private Club club;
 
     @Column(nullable = false)
     private String firstName;

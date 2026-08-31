@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.post;
 
+import es.jaes.cn_servicies.club.Club;
 import es.jaes.cn_servicies.user.User;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -21,6 +22,10 @@ public class Post {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "club_id", nullable = false)
+    private Club club;
 
     @Column(nullable = false)
     private String title;

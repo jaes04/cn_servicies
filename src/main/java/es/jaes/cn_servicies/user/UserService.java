@@ -1,5 +1,7 @@
 package es.jaes.cn_servicies.user;
 
+import es.jaes.cn_servicies.club.Club;
+import es.jaes.cn_servicies.club.ClubService;
 import es.jaes.cn_servicies.post.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,12 +24,18 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final ImageStorageService imageStorageService;
+    private final ClubService clubService;
 
     @Value("${app.base-url}")
     private String baseUrl;
 
     public UserResponse create(UserRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) {
+        // TODO (tarea 0.4): el club saldra del TenantContext, no del club por defecto.
+        Club club = clubService.getDefaultClub();
+
+        // El username es unico por club, asi que la comprobacion va acotada al
+        // club. El email sigue siendo unico global: decision abierta.
+        if (userRepository.existsByClubAndUsername(club, request.getUsername())) {
             throw new IllegalArgumentException("El username ya está en uso");
         }
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -35,6 +43,7 @@ public class UserService {
         }
 
         User user = new User();
+        user.setClub(club);
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
