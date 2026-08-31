@@ -143,8 +143,12 @@ Puntos que van a doler y conviene tener presentes desde ya:
 - **`Role` es global.** `RoleName` no está scopeado por club. Un ADMIN hoy es ADMIN de
   todo. Habrá que decidir si el rol pasa a ser por club o si se introduce una entidad
   intermedia usuario–club–rol.
-- **`User.username`** con unicidad global impide que una persona pertenezca a dos clubes
-  con la misma cuenta. Decisión pendiente.
+- **`User.username` pasa a ser único por club** — decidido. El índice único se migra a
+  `(club_id, username)`, de forma que cada club pueda tener su propio `admin`. La
+  contrapartida es que una cuenta pertenece a un solo club: quien esté en dos clubes
+  tendrá dos cuentas. Y el login ya no se resuelve solo con el username, hay que
+  determinar el club antes de autenticar. `User.email`, que sigue siendo único global,
+  queda como la siguiente decisión de este mismo bloque.
 - **`Post` y `Comment`** son contenido público. El blog multi-club implica resolver qué
   club sirve cada dominio o ruta.
 - Los datos existentes habrá que asignarlos a un club por defecto en la migración.

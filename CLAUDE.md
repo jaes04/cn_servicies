@@ -161,6 +161,21 @@ Se hace como tarea propia, en un solo bloque, con el proyecto compilando al fina
 Pendiente de verificar en el código antes de tocar nada: si el campo de borrado lógico se
 llama `deleteAt` o `deletedAt`. Si es lo primero, se renombra en la misma pasada.
 
+**`User.username` pasa a ser único por club, no único global.** Decisión tomada; se
+ejecuta en la tarea 0.2 del roadmap. El índice único de `username` se migra a
+`(club_id, username)`. Arrastra:
+
+- Cada cuenta pertenece a **un** club. Una persona en dos clubes necesita dos cuentas:
+  no hay cuenta compartida entre clubes.
+- **El login deja de poder resolverse solo con el username**, porque puede haber un
+  `admin` por club. `UserDetailsServiceImpl.loadUserByUsername` recibe hoy solo la
+  cadena y llama a `findByUsername`, que pasará a devolver varias filas. Hay que
+  resolver el club antes de autenticar — por subdominio, por slug en la petición o por
+  un selector en el formulario. Es la tarea 0.3, y **afecta al contrato de login**:
+  cambio de API que hay que coordinar con el frontend.
+- `UserRepository.findByUsername` y `existsByUsername` quedan ambiguos: pasan a
+  necesitar el club como parámetro.
+
 ---
 
 ## Decisiones abiertas
@@ -172,8 +187,9 @@ No las cierres tú. Si una tarea depende de una, pregunta.
 - **Documentos médicos**: si `AthleteDocument` sigue almacenando archivos de tipo
   `MEDICAL` tal cual, o si el certificado federativo pasa a ser una entidad aparte solo
   con metadatos. Ver `docs/rgpd.md` §1.
-- **`User.username`**: ¿único global o único por club? Determina si una persona puede
-  pertenecer a dos clubes. Sin resolver.
+- **`User.email`**: hoy es único global, igual que lo era `username`. Al pasar el
+  username a único por club, el email queda como el nuevo obstáculo para que una
+  persona use el mismo correo en dos clubes. Sin resolver.
 - **Roles**: `Role` es global hoy. Con multi-tenancy hará falta que sean por club.
 - **Dominio de producción**: pendiente de decisión del club.
 

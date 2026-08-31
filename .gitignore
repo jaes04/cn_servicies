@@ -32,6 +32,11 @@ build/
 ### VS Code ###
 .vscode/
 
+### Claude Code ###
+# settings.json si se versiona (permisos compartidos por el equipo).
+# settings.local.json es por maquina y puede llevar credenciales de pruebas.
+.claude/settings.local.json
+
 ### Secrets ###
 .env
 docker-compose.override.yml
