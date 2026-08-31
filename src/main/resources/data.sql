@@ -1,3 +1,8 @@
+-- Nota: los INSERT de este archivo usan `ON CONFLICT DO NOTHING` sin indicar
+-- columna. Con `ON CONFLICT (id)` la clausula solo cubre la clave primaria y el
+-- arranque revienta si la fila choca por otra restriccion unica (username,
+-- email, dni, slug), que es justo lo que pasa cuando la base ya tiene datos.
+
 -- =====================================================
 -- CLUB POR DEFECTO
 -- UUID fijo: es el club al que se asignaran las filas
@@ -5,7 +10,7 @@
 -- =====================================================
 INSERT INTO clubs (id, name, slug, active, created_at)
 VALUES ('99999999-0000-0000-0000-000000000001', 'Club Natacion Sierra Oeste', 'sierra-oeste', true, now())
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT DO NOTHING;
 
 -- =====================================================
 -- ROLES
@@ -37,25 +42,32 @@ VALUES
     ('00000000-0000-0000-0000-000000000002', 'editor',  'editor@clubnatacion.es',  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', false, now(), now()),
     ('00000000-0000-0000-0000-000000000003', 'tecnico', 'tecnico@clubnatacion.es', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', false, now(), now()),
     ('00000000-0000-0000-0000-000000000004', 'usuario', 'usuario@clubnatacion.es', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', false, now(), now())
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- =====================================================
 -- ASIGNACIÓN DE ROLES
 -- =====================================================
+-- El usuario se resuelve por `username`, no por el UUID de arriba: si la fila ya
+-- existia con otro id, el INSERT anterior se salta y un UUID fijo aqui apuntaria
+-- a un usuario inexistente, rompiendo la clave foranea.
 INSERT INTO user_roles (user_id, role_id)
-    SELECT '00000000-0000-0000-0000-000000000001', id FROM roles WHERE name = 'ROLE_ADMIN'
+    SELECT u.id, r.id FROM users u, roles r
+    WHERE u.username = 'admin' AND r.name = 'ROLE_ADMIN'
     ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id)
-    SELECT '00000000-0000-0000-0000-000000000002', id FROM roles WHERE name = 'ROLE_EDITOR'
+    SELECT u.id, r.id FROM users u, roles r
+    WHERE u.username = 'editor' AND r.name = 'ROLE_EDITOR'
     ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id)
-    SELECT '00000000-0000-0000-0000-000000000003', id FROM roles WHERE name = 'ROLE_TECHNICAL_STAFF'
+    SELECT u.id, r.id FROM users u, roles r
+    WHERE u.username = 'tecnico' AND r.name = 'ROLE_TECHNICAL_STAFF'
     ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id)
-    SELECT '00000000-0000-0000-0000-000000000004', id FROM roles WHERE name = 'ROLE_USER'
+    SELECT u.id, r.id FROM users u, roles r
+    WHERE u.username = 'usuario' AND r.name = 'ROLE_USER'
     ON CONFLICT DO NOTHING;
 
 -- =====================================================
@@ -63,23 +75,23 @@ INSERT INTO user_roles (user_id, role_id)
 -- =====================================================
 INSERT INTO athletes (id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
     SELECT '10000000-0000-0000-0000-000000000001', 'Carlos',  'García López',      '2005-03-15', '12345678A', g.id, now(), now() FROM genders g WHERE g.name = 'MALE'
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT DO NOTHING;
 
 INSERT INTO athletes (id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
     SELECT '10000000-0000-0000-0000-000000000002', 'Laura',   'Martínez Sánchez',  '2007-06-22', '23456789B', g.id, now(), now() FROM genders g WHERE g.name = 'FEMALE'
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT DO NOTHING;
 
 INSERT INTO athletes (id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
     SELECT '10000000-0000-0000-0000-000000000003', 'Miguel',  'Fernández Torres',  '2004-11-08', '34567890C', g.id, now(), now() FROM genders g WHERE g.name = 'MALE'
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT DO NOTHING;
 
 INSERT INTO athletes (id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
     SELECT '10000000-0000-0000-0000-000000000004', 'Ana',     'Ruiz Moreno',       '2006-09-30', '45678901D', g.id, now(), now() FROM genders g WHERE g.name = 'FEMALE'
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT DO NOTHING;
 
 INSERT INTO athletes (id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)
     SELECT '10000000-0000-0000-0000-000000000005', 'Pablo',   'López Jiménez',     '2003-07-12', '56789012E', g.id, now(), now() FROM genders g WHERE g.name = 'MALE'
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT DO NOTHING;
 
 -- =====================================================
 -- VÍNCULOS USUARIO-ATLETA  (UserAthleteType: ATHLETE, TUTOR)
@@ -87,10 +99,14 @@ INSERT INTO athletes (id, first_name, last_name, birth_date, dni, gender_id, cre
 -- tecnico actúa como tutor de Laura Martínez
 -- =====================================================
 INSERT INTO user_athletes (id, user_id, athlete_id, type, created_at)
-VALUES
-    ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'ATHLETE', now()),
-    ('20000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', 'TUTOR',   now())
-ON CONFLICT DO NOTHING;
+    SELECT '20000000-0000-0000-0000-000000000001', u.id, a.id, 'ATHLETE', now()
+    FROM users u, athletes a WHERE u.username = 'usuario' AND a.dni = '12345678A'
+    ON CONFLICT DO NOTHING;
+
+INSERT INTO user_athletes (id, user_id, athlete_id, type, created_at)
+    SELECT '20000000-0000-0000-0000-000000000002', u.id, a.id, 'TUTOR', now()
+    FROM users u, athletes a WHERE u.username = 'tecnico' AND a.dni = '23456789B'
+    ON CONFLICT DO NOTHING;
 
 -- =====================================================
 -- POSTS
@@ -102,7 +118,7 @@ VALUES
      '<p>¡Bienvenidos a la nueva web del club! Aquí encontraréis noticias, resultados de competiciones y toda la información del club.</p>',
      'bienvenidos-club-natacion',
      'PUBLISHED', now(),
-     '00000000-0000-0000-0000-000000000001',
+     (SELECT id FROM users WHERE username = 'admin'),
      now(), now()),
 
     ('30000000-0000-0000-0000-000000000002',
@@ -110,7 +126,7 @@ VALUES
      '<p>Nuestros atletas han conseguido excelentes resultados en el Campeonato Regional. Enhorabuena a todos los participantes.</p>',
      'resultados-campeonato-regional-2025',
      'PUBLISHED', now(),
-     '00000000-0000-0000-0000-000000000002',
+     (SELECT id FROM users WHERE username = 'editor'),
      now(), now()),
 
     ('30000000-0000-0000-0000-000000000003',
@@ -118,7 +134,7 @@ VALUES
      '<p>Os informamos de los detalles de la próxima competición de liga autonómica.</p>',
      'proxima-competicion-liga-autonomica',
      'DRAFT', null,
-     '00000000-0000-0000-0000-000000000002',
+     (SELECT id FROM users WHERE username = 'editor'),
      now(), now()),
 
     ('30000000-0000-0000-0000-000000000004',
@@ -126,33 +142,33 @@ VALUES
      '<p>Contenido eliminado.</p>',
      'noticia-eliminada-ejemplo',
      'DELETED', null,
-     '00000000-0000-0000-0000-000000000001',
+     (SELECT id FROM users WHERE username = 'admin'),
      now(), now())
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- =====================================================
 -- DOCUMENTOS DE ATLETA  (AthleteDocumentType: MEDICAL, TRAINING, COMPETITION, CONSENT, IDENTIFICATION, OTHER)
 -- =====================================================
 INSERT INTO athlete_documents (id, title, type, filename, original_filename, athlete_id, uploaded_by_id, created_at)
 VALUES
-    ('50000000-0000-0000-0000-000000000001', 'Reconocimiento médico 2025',     'MEDICAL',        'doc-medico-carlos-2025.pdf',     'reconocimiento_medico_2025.pdf',  '10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003', now()),
-    ('50000000-0000-0000-0000-000000000002', 'Plan de entrenamiento T1 2025',  'TRAINING',       'plan-entrenamiento-laura-t1.pdf', 'plan_entrenamiento_T1.pdf',       '10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', now()),
-    ('50000000-0000-0000-0000-000000000003', 'Acta Campeonato Regional 2025',  'COMPETITION',    'acta-campeonato-regional-25.pdf', 'acta_campeonato_regional.pdf',    '10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', now()),
-    ('50000000-0000-0000-0000-000000000004', 'Consentimiento imagen menor',    'CONSENT',        'consentimiento-imagen-ana.pdf',   'consentimiento_imagen.pdf',       '10000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', now()),
-    ('50000000-0000-0000-0000-000000000005', 'DNI Carlos García',              'IDENTIFICATION', 'dni-carlos-garcia.pdf',           'dni_carlos_garcia.pdf',           '10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', now()),
-    ('50000000-0000-0000-0000-000000000006', 'Autorización desplazamiento',    'OTHER',          'autorizacion-desplazamiento.pdf', 'autorizacion_desplazamiento.pdf', '10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000003', now())
-ON CONFLICT (id) DO NOTHING;
+    ('50000000-0000-0000-0000-000000000001', 'Reconocimiento médico 2025',     'MEDICAL',        'doc-medico-carlos-2025.pdf',     'reconocimiento_medico_2025.pdf',  (SELECT id FROM athletes WHERE dni = '12345678A'), (SELECT id FROM users WHERE username = 'tecnico'), now()),
+    ('50000000-0000-0000-0000-000000000002', 'Plan de entrenamiento T1 2025',  'TRAINING',       'plan-entrenamiento-laura-t1.pdf', 'plan_entrenamiento_T1.pdf',       (SELECT id FROM athletes WHERE dni = '23456789B'), (SELECT id FROM users WHERE username = 'tecnico'), now()),
+    ('50000000-0000-0000-0000-000000000003', 'Acta Campeonato Regional 2025',  'COMPETITION',    'acta-campeonato-regional-25.pdf', 'acta_campeonato_regional.pdf',    (SELECT id FROM athletes WHERE dni = '12345678A'), (SELECT id FROM users WHERE username = 'admin'), now()),
+    ('50000000-0000-0000-0000-000000000004', 'Consentimiento imagen menor',    'CONSENT',        'consentimiento-imagen-ana.pdf',   'consentimiento_imagen.pdf',       (SELECT id FROM athletes WHERE dni = '45678901D'), (SELECT id FROM users WHERE username = 'admin'), now()),
+    ('50000000-0000-0000-0000-000000000005', 'DNI Carlos García',              'IDENTIFICATION', 'dni-carlos-garcia.pdf',           'dni_carlos_garcia.pdf',           (SELECT id FROM athletes WHERE dni = '12345678A'), (SELECT id FROM users WHERE username = 'admin'), now()),
+    ('50000000-0000-0000-0000-000000000006', 'Autorización desplazamiento',    'OTHER',          'autorizacion-desplazamiento.pdf', 'autorizacion_desplazamiento.pdf', (SELECT id FROM athletes WHERE dni = '34567890C'), (SELECT id FROM users WHERE username = 'tecnico'), now())
+ON CONFLICT DO NOTHING;
 
 -- =====================================================
 -- RESULTADOS DE COMPETICIÓN
 -- =====================================================
 INSERT INTO competition_results (id, athlete_id, competition_date, distance_meters, stroke, pool_length, result_time_millis, partial, created_at, updated_at)
 VALUES
-    ('40000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '2025-03-10', 100, 'FREESTYLE',    25,  58320,  false, now(), now()),
-    ('40000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '2025-05-20', 200, 'BACKSTROKE',   50, 142500,  false, now(), now()),
-    ('40000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', '2025-03-10', 100, 'BUTTERFLY',    25,  67800,  false, now(), now()),
-    ('40000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000002', '2025-05-20',  50, 'BREASTSTROKE', 50,  41200,  false, now(), now()),
-    ('40000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000003', '2025-06-15',  50, 'FREESTYLE',    50,  26100,  false, now(), now()),
-    ('40000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000004', '2025-06-15', 200, 'MEDLEY',       50, 158900,  false, now(), now()),
-    ('40000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000005', '2025-07-01', 400, 'FREESTYLE',    50, 258000,  false, now(), now())
-ON CONFLICT (id) DO NOTHING;
+    ('40000000-0000-0000-0000-000000000001', (SELECT id FROM athletes WHERE dni = '12345678A'), '2025-03-10', 100, 'FREESTYLE',    25,  58320,  false, now(), now()),
+    ('40000000-0000-0000-0000-000000000002', (SELECT id FROM athletes WHERE dni = '12345678A'), '2025-05-20', 200, 'BACKSTROKE',   50, 142500,  false, now(), now()),
+    ('40000000-0000-0000-0000-000000000003', (SELECT id FROM athletes WHERE dni = '23456789B'), '2025-03-10', 100, 'BUTTERFLY',    25,  67800,  false, now(), now()),
+    ('40000000-0000-0000-0000-000000000004', (SELECT id FROM athletes WHERE dni = '23456789B'), '2025-05-20',  50, 'BREASTSTROKE', 50,  41200,  false, now(), now()),
+    ('40000000-0000-0000-0000-000000000005', (SELECT id FROM athletes WHERE dni = '34567890C'), '2025-06-15',  50, 'FREESTYLE',    50,  26100,  false, now(), now()),
+    ('40000000-0000-0000-0000-000000000006', (SELECT id FROM athletes WHERE dni = '45678901D'), '2025-06-15', 200, 'MEDLEY',       50, 158900,  false, now(), now()),
+    ('40000000-0000-0000-0000-000000000007', (SELECT id FROM athletes WHERE dni = '56789012E'), '2025-07-01', 400, 'FREESTYLE',    50, 258000,  false, now(), now())
+ON CONFLICT DO NOTHING;
