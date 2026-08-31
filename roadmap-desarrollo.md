@@ -36,7 +36,7 @@ Cada tarea lleva tres etiquetas: `tiempo · dificultad · importancia`
 | Grupos y temporadas | `Grupo` cuelga de `Temporada` | Entrenador, horario y composición cambian cada año |
 | Sesiones | Filas reales generadas desde horario recurrente | Necesitas cancelar sesiones concretas y colgarles asistencia |
 | Datos de salud | Solo metadatos del certificado médico | Sin veredicto ni diagnóstico, la minimización evita casi todo el problema |
-| Administrador de plataforma | `adminjaes`, rol propio `ROLE_PLATFORM_ADMIN` | Alguien tiene que dar de alta clubes y dar soporte; separarlo de `ROLE_ADMIN` mantiene el agujero en un único sitio, visible y auditable |
+| Administrador de club | `adminjaes` por club, creado con el club | La necesidad real es crear los demás admins del club, no ver todos los clubes. Resuelta así, el aislamiento no necesita ninguna excepción |
 
 ### Orden de las fases
 
@@ -51,7 +51,7 @@ Hecho eso, la división por clubes va **primera**, aunque el móvil sea lo últi
 | Fase | Contenido | Tiempo | Cuándo |
 |---|---|---|---|
 | S.0 | Agujeros de autenticación abiertos | ~4 h | **Lo primero de todo** |
-| 0 | Multi-tenancy | ~40 h (5–6 días) | Bloquea todo lo demás |
+| 0 | Multi-tenancy | ~35 h (4–5 días) | Bloquea todo lo demás |
 | S.1 | Consentimiento y certificado médico | ~16 h (2 días) | Antes de la Fase 1 |
 | 1 | Temporadas y grupos | ~38 h (5 días) | |
 | 2 | Horarios y asistencia | ~52 h (6–7 días) | |
@@ -60,7 +60,7 @@ Hecho eso, la división por clubes va **primera**, aunque el móvil sea lo últi
 | Transversal | Backups y monitorización | ~14 h | Antes del primer cliente |
 | 4 | App móvil | ~120 h (4 semanas) | |
 
-**Total hasta producto vendible sin móvil:** unas 250 horas. A 15 horas semanales, en torno a 4 meses. Con la app móvil, 6 meses.
+**Total hasta producto vendible sin móvil:** unas 245 horas. A 15 horas semanales, en torno a 4 meses. Con la app móvil, 6 meses.
 
 Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software que sobrara.
 
@@ -155,23 +155,21 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 ---
 
-### 0.8 Administrador de plataforma — 7 h
+### 0.8 Alta de club con su administrador — 2 h
 
-**Decisión tomada:** `adminjaes` es administrador universal, con acceso a todos los clubes. Es quien da de alta clubes y quien puede entrar a dar soporte sin que el club le cree una cuenta.
+**Decisión tomada:** el alta de un club crea, en la misma transacción, el usuario `adminjaes` como `ROLE_ADMIN` **de ese club**. Nada más. No hay administrador que vea varios clubes.
 
-Esto es, por definición, **un agujero deliberado en el aislamiento** que las tareas 0.4 a 0.6 construyen. Que sea deliberado no lo hace menos peligroso: es la ruta que un atacante buscará primero, porque es la única que existe. De ahí que sea un rol propio y no un `ROLE_ADMIN` con superpoderes.
+Como `username` es único por club (ver 0.2), `adminjaes` puede existir una vez en cada club sin colisionar. Cada uno es un administrador corriente del suyo: el filtro de la 0.5 y las policies de la 0.6 le tratan igual que a cualquier otro usuario. **Ninguna excepción al aislamiento, en ningún sitio.**
 
-- [ ] `ROLE_PLATFORM_ADMIN` nuevo en `RoleName`, distinto de `ROLE_ADMIN` — `1h · Baja · Crítica`
-- [ ] `users.club_id` sigue **NOT NULL** también para él: cuelga del club por defecto. Lo que le da acceso cruzado es el rol, nunca la ausencia de club — `1h · Alta · Crítica`
-- [ ] `TenantContext` admite un estado "todos los clubes", que solo puede originarse en ese rol y jamás en un parámetro de petición — `1h · Alta · Crítica`
-- [ ] Filtro de Hibernate desactivado para ese rol (aplica sobre 0.5) — `1h · Alta · Crítica`
-- [ ] Policy RLS con la excepción vía `current_setting('app.platform_admin')` (aplica sobre 0.6) — `1h · Alta · Crítica`
-- [ ] Todo acceso cruzado de este rol queda auditado: quién, qué club, cuándo — `1h · Media · Crítica`
-- [ ] Test: un `ROLE_ADMIN` de club **no** obtiene acceso cruzado; solo `ROLE_PLATFORM_ADMIN` — `1h · Media · Crítica`
+- [ ] `ClubService.create()` crea club y administrador en una sola transacción — `1h · Media · Crítica`
+- [ ] Si falla el alta del administrador, no se crea el club — `30min · Media · Crítica`
+- [ ] Adaptar `AdminInitializer`: hoy crea `adminjaes` al arrancar sin club y **dejará de funcionar en cuanto `club_id` sea NOT NULL**. Pasa a apoyarse en el alta conjunta — `30min · Media · Crítica`
 
-> El primer punto es el que decide todo lo demás, y hay que resolverlo **durante la 0.2**, no después: si `club_id` se deja nullable "para el admin", el NOT NULL deja de ser una garantía en toda la tabla y cualquier fila mal insertada se cuela sin club.
+> El propósito de esta cuenta es **poder crear los demás administradores del club**, no ver sus datos desde fuera. Es una necesidad de aprovisionamiento, puntual y por club, no un privilegio permanente. Confundir las dos cosas es lo que lleva a construir un administrador global, que es un agujero en el aislamiento que aquí no hace falta.
 
-> MFA para este rol no es opcional. Está en S.3.1 como MFA para roles de administración; con un admin universal, esa tarea deja de poder esperar a la Fase S.
+> Contrapartida que queda viva: mantienes una cuenta con acceso permanente a cada club. Si te la comprometen, el alcance es total. La diferencia con un rol global es que ese acceso son filas que puedes listar, no una rama de código que puede fallar sola. MFA para estas cuentas (S.3.1) sigue siendo obligatorio.
+
+> **Migrar antes del primer cliente que pague.** El destino es que el club ponga su propio primer administrador mediante enlace de un solo uso —el patrón de `AthleteInviteKey` ya está en el proyecto— y que tú no conserves cuenta en ningún club, con un acceso de emergencia temporal y auditado para el caso de que un club se quede sin administrador. El momento natural es al redactar el bloque S.2: es cuando hay que poner por escrito a qué datos accedes como encargado del tratamiento, y llegar ahí sin acceso permanente vale más que lo que cuesta.
 
 ---
 

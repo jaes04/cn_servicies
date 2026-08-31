@@ -15,9 +15,10 @@ módulos por funcionalidad, de forma que uno pueda extraerse como servicio indep
 alguna vez necesita escalar aparte. La regla que sostiene eso: **un módulo nunca usa el
 repositorio de otro módulo**, pasa por su servicio. Ver `docs/arquitectura.md` §1.
 
-**Estado real: es todavía una aplicación mono-club.** El objetivo es multi-tenant, pero
-no está implementado. No asumas que existe aislamiento entre clubes — no existe. Ver
-`docs/arquitectura.md` §2.
+**Estado real: es todavía una aplicación mono-club.** El objetivo es multi-tenant y la
+Fase 0 está en marcha —existe la entidad `Club` y un club por defecto—, pero **ninguna
+otra entidad tiene `club_id` todavía**, no hay filtro, no hay Row Level Security y no hay
+aislamiento. No asumas que existe. Ver `docs/arquitectura.md` §2.
 
 El sistema maneja datos personales de menores y almacena documentos que pueden contener
 datos de salud. Eso condiciona decisiones técnicas en todo el proyecto — ver
@@ -176,22 +177,21 @@ ejecuta en la tarea 0.2 del roadmap. El índice único de `username` se migra a
 - `UserRepository.findByUsername` y `existsByUsername` quedan ambiguos: pasan a
   necesitar el club como parámetro.
 
-**`adminjaes` es administrador universal de todos los clubes.** Decisión tomada; se
-implementa en la tarea 0.8 del roadmap. Da de alta clubes y entra a dar soporte sin que
-el club le cree cuenta. Cómo se hace:
+**El alta de un club crea también su administrador.** Decisión tomada; se implementa en
+la tarea 0.8 del roadmap. `ClubService.create()` inserta el club y un usuario `adminjaes`
+con `ROLE_ADMIN` **de ese club**, en la misma transacción: si falla el segundo, no hay
+club. Como `username` es único por club, `adminjaes` puede existir una vez en cada uno.
 
-- Rol propio **`ROLE_PLATFORM_ADMIN`**, separado de `ROLE_ADMIN`. Un `ROLE_ADMIN` sigue
-  siendo administrador **de su club y solo de su club**.
-- `users.club_id` sigue **NOT NULL** también para él: cuelga del club por defecto. Lo que
-  le da acceso cruzado es el rol, nunca la ausencia de club. Dejar la columna nullable
-  "para el admin" convertiría el NOT NULL en papel mojado para toda la tabla.
-- El estado "todos los clubes" del `TenantContext` solo puede originarse en ese rol.
-  **Nunca en un parámetro de petición**, cabecera ni cuerpo.
-- Todo acceso cruzado suyo se audita: quién, a qué club, cuándo.
-
-Es un agujero deliberado en el aislamiento que construyen las tareas 0.4–0.6, y será lo
-primero que busque quien ataque el sistema, porque es la única vía que existe. Cualquier
-cambio que amplíe lo que este rol puede hacer se piensa dos veces y se dice en voz alta.
+- **No hay administrador global.** Ese `adminjaes` es un administrador corriente de su
+  club. El filtro de tenancy y las policies de RLS le tratan como a cualquiera, sin
+  excepción en el código ni en la base de datos.
+- El propósito de la cuenta es **poder crear los demás administradores del club**. Es
+  aprovisionamiento, no un privilegio de lectura sobre los datos del club.
+- `AdminInitializer` crea hoy `adminjaes` al arrancar sin club: **dejará de funcionar en
+  cuanto `club_id` sea NOT NULL** (tarea 0.2). Hay que adaptarlo en la misma pasada.
+- Destino, antes del primer cliente que pague: que el club ponga su primer administrador
+  con un enlace de un solo uso (el patrón de `AthleteInviteKey`) y no conservar cuenta en
+  ningún club. Ver la nota de la 0.8.
 
 ---
 
@@ -199,8 +199,6 @@ cambio que amplíe lo que este rol puede hacer se piensa dos veces y se dice en 
 
 No las cierres tú. Si una tarea depende de una, pregunta.
 
-- **Multi-tenancy**: cuándo se introduce `Club` y se migran las entidades existentes.
-  Cuanto más código se acumule antes, más cara es. Ver `docs/arquitectura.md` §1.
 - **Documentos médicos**: si `AthleteDocument` sigue almacenando archivos de tipo
   `MEDICAL` tal cual, o si el certificado federativo pasa a ser una entidad aparte solo
   con metadatos. Ver `docs/rgpd.md` §1.
@@ -208,8 +206,7 @@ No las cierres tú. Si una tarea depende de una, pregunta.
   username a único por club, el email queda como el nuevo obstáculo para que una
   persona use el mismo correo en dos clubes. Sin resolver.
 - **Roles de club**: `Role` es global hoy. Con multi-tenancy hará falta que `ROLE_ADMIN`,
-  `ROLE_EDITOR`, `ROLE_USER` y `ROLE_TECHNICAL_STAFF` sean por club. Sin resolver — lo
-  que sí está decidido es el rol de plataforma, ver más abajo.
+  `ROLE_EDITOR`, `ROLE_USER` y `ROLE_TECHNICAL_STAFF` sean por club. Sin resolver.
 - **Dominio de producción**: pendiente de decisión del club.
 
 ---
