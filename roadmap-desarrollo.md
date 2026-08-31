@@ -72,10 +72,10 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 **Bloquea:** nada técnicamente, pero cualquier despliegue fuera de local.
 
-- [ ] Cerrar `POST /api/auth/signup/with-role` — `1h · Baja · Crítica`
-- [ ] Validar en servidor qué roles puede asignar quien llama, sin fiarse del cuerpo — `1h · Media · Crítica`
-- [ ] Eliminar `GET /api/auth/hash` — `15min · Baja · Alta`
-- [ ] Repasar uno a uno los `permitAll` restantes de `SecurityConfig` — `1h · Media · Alta`
+- [x] Cerrar `POST /api/auth/signup/with-role` — `1h · Baja · Crítica`
+- [x] Validar en servidor qué roles puede asignar quien llama, sin fiarse del cuerpo — `1h · Media · Crítica`
+- [x] Eliminar `GET /api/auth/hash` — `15min · Baja · Alta`
+- [x] Repasar uno a uno los `permitAll` restantes de `SecurityConfig` — `1h · Media · Alta`
 - [ ] Rotar el secreto JWT, la contraseña de Postgres y la del administrador **antes del primer despliegue fuera de local** — `1h · Baja · Crítica`
 
 > `signup/with-role` está hoy en `permitAll` y acepta un `Set<RoleName>` arbitrario en el cuerpo, que pasa a `userService.create()` sin comprobación, devolviendo además el JWT ya emitido. Una sola petición anónima basta para obtener `ROLE_ADMIN`.

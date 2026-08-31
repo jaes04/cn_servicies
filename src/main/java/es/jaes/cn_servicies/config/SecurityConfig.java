@@ -44,8 +44,15 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers(POST, "/api/auth/signup/with-role").permitAll()
+                        // El orden importa: la regla mas especifica va primero, o la
+                        // siguiente se la come. signup/with-role recibe los roles en el
+                        // cuerpo, asi que publico equivale a regalar ROLE_ADMIN.
+                        .requestMatchers(POST, "/api/auth/signup/with-role").hasRole("ADMIN")
+                        // Publico solo lo que tiene que serlo, nunca /api/auth/** entero:
+                        // con el comodin, cualquier endpoint que se anada aqui nace abierto.
+                        .requestMatchers(POST, "/api/auth/login").permitAll()
+                        .requestMatchers(POST, "/api/auth/refresh").permitAll()
+                        .requestMatchers(POST, "/api/auth/signup").permitAll()
                         .requestMatchers(GET, "/api/posts/published/**").permitAll()
                         .requestMatchers(GET, "/api/images/**").permitAll()
                         .requestMatchers("/error").permitAll()
