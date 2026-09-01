@@ -2,6 +2,7 @@ package es.jaes.cn_servicies.athlete;
 
 import es.jaes.cn_servicies.athlete_link.UserAthleteRepository;
 import es.jaes.cn_servicies.athlete_link.UserAthleteType;
+import es.jaes.cn_servicies.club.Club;
 import es.jaes.cn_servicies.club.ClubService;
 import es.jaes.cn_servicies.user.User;
 import es.jaes.cn_servicies.user.UserRepository;
@@ -29,12 +30,16 @@ public class AthleteService {
     private final ClubService clubService;
 
     public AthleteResponse create(AthleteRequest request) {
-        if (athleteRepository.existsByDni(request.getDni())) {
+        // TODO (tarea 0.4): el club saldra del TenantContext, no del club por defecto.
+        Club club = clubService.getDefaultClub();
+
+        // El dni es unico por club, asi que la comprobacion va acotada: que el
+        // mismo nadador este fichado en otro club no impide darlo de alta aqui.
+        if (athleteRepository.existsByClubAndDni(club, request.getDni())) {
             throw new IllegalArgumentException("Ya existe un atleta con ese DNI");
         }
         Athlete athlete = new Athlete();
-        // TODO (tarea 0.4): el club saldra del TenantContext, no del club por defecto.
-        athlete.setClub(clubService.getDefaultClub());
+        athlete.setClub(club);
         athlete.setFirstName(request.getFirstName());
         athlete.setLastName(request.getLastName());
         athlete.setBirthDate(request.getBirthDate());
@@ -58,7 +63,10 @@ public class AthleteService {
 
     public AthleteResponse update(UUID id, AthleteRequest request) {
         Athlete athlete = findOrThrow(id);
-        if (!athlete.getDni().equals(request.getDni()) && athleteRepository.existsByDni(request.getDni())) {
+        // Acotado al club del propio atleta, no al club por defecto: es el suyo
+        // el que no puede tener dos fichas con el mismo dni.
+        if (!athlete.getDni().equals(request.getDni())
+                && athleteRepository.existsByClubAndDni(athlete.getClub(), request.getDni())) {
             throw new IllegalArgumentException("Ya existe un atleta con ese DNI");
         }
         athlete.setFirstName(request.getFirstName());

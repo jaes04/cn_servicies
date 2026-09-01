@@ -142,6 +142,12 @@ UPDATE athletes SET club_id = (SELECT id FROM clubs WHERE slug = 'sierra-oeste')
 ALTER TABLE athletes ALTER COLUMN club_id SET NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_athletes_club_id ON athletes (club_id);
 
+-- El dni pasa a ser unico por club, igual que el username: el mismo nadador
+-- puede estar en dos clubes, y cada uno tiene su propia ficha. Dentro de un
+-- mismo club dos fichas con el mismo dni siguen siendo un error.
+ALTER TABLE athletes DROP CONSTRAINT IF EXISTS athletes_dni_key;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_athletes_club_dni ON athletes (club_id, dni);
+
 -- POSTS
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS club_id UUID;
 UPDATE posts SET club_id = (SELECT id FROM clubs WHERE slug = 'sierra-oeste')

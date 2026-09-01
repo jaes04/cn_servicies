@@ -115,7 +115,9 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 > **`posts.slug` deja de ser único** — decidido. Puede repetirse entre clubes y el post se identifica por su `id`. Arrastra un cambio que **hay que hacer antes del segundo club**: `PostRepository.findBySlug` devuelve `Optional<Post>` y reventará con `NonUniqueResultException` en cuanto haya dos posts con el mismo slug. El endpoint público `GET /api/posts/published/{slug}` pasa a resolver por id, y con él la ruta `/noticia/:slug` del frontend. Es cambio de contrato: ver 0.2.b.
 
-> **`athletes.dni` sigue siendo único global**, así que dos clubes no pueden tener al mismo atleta. Pendiente de decidir.
+> **`athletes.dni` pasa a ser único por club** — decidido, mismo patrón que `username`. Se retira `athletes_dni_key` y entra `uk_athletes_club_dni`. El mismo nadador puede estar fichado en dos clubes, y cada uno tiene su propia ficha independiente: no se comparten datos entre clubes, que además es lo correcto teniendo dos responsables del tratamiento distintos. Dentro de un mismo club, dos fichas con el mismo DNI siguen siendo un error.
+
+> **Queda abierto en `dni`:** la columna es `NOT NULL`. Muchos atletas son menores de 14 y pueden no tener DNI, y los extranjeros tienen NIE. Con la columna obligatoria alguien acaba tecleando un valor inventado, y con el índice único el segundo atleta sin DNI ya no se puede dar de alta. Hacerla nullable lo resuelve —un índice único de Postgres ignora los nulos— pero obliga a decidir cómo se detectan duplicados sin DNI y a tocar la validación de `AthleteRequest`.
 
 > **Deuda que deja esta tarea:** `ClubService.getDefaultClub()` es un puente temporal. `UserService`, `AthleteService` y `AdminInitializer` lo usan para satisfacer el `NOT NULL` mientras no exista contexto de tenant; desaparece en la 0.4. `PostService` no lo necesita, porque el post hereda el club de su autor.
 

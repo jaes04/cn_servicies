@@ -36,7 +36,12 @@ public class Athlete {
     @Column(nullable = false)
     private LocalDate birthDate;
 
-    @Column(unique = true, nullable = false, length = 9)
+    /**
+     * Unico por club, no global: el mismo nadador puede estar en dos clubes y
+     * cada uno tiene su ficha. La restriccion la impone el indice
+     * uk_athletes_club_dni; aqui no se declara unique porque seria global.
+     */
+    @Column(nullable = false, length = 9)
     private String dni;
 
     @ManyToOne(fetch = FetchType.EAGER)
