@@ -113,9 +113,26 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 > **Ejecutado sobre tres tablas, no dos.** A `users` y `athletes` se sumó `posts`, que también es entidad raíz: el blog es del club y no cuelga de ninguna otra. `comments`, `post_images`, `competition_results`, `athlete_documents`, `user_athletes` y `athlete_invite_keys` son hijas y llegan a su club por el padre, siguiendo la regla de arriba.
 
-> **Mismo problema que `username`, sin resolver:** `athletes.dni` y `posts.slug` siguen siendo únicos globales, así que dos clubes no pueden tener al mismo atleta ni un post con el mismo slug. En `dni` la pregunta es si un atleta que cambia de club se duplica o se comparte; en `slug` depende de cómo se sirva el blog multi-club, que es decisión abierta. Ninguno se ha tocado.
+> **`posts.slug` deja de ser único** — decidido. Puede repetirse entre clubes y el post se identifica por su `id`. Arrastra un cambio que **hay que hacer antes del segundo club**: `PostRepository.findBySlug` devuelve `Optional<Post>` y reventará con `NonUniqueResultException` en cuanto haya dos posts con el mismo slug. El endpoint público `GET /api/posts/published/{slug}` pasa a resolver por id, y con él la ruta `/noticia/:slug` del frontend. Es cambio de contrato: ver 0.2.b.
+
+> **`athletes.dni` sigue siendo único global**, así que dos clubes no pueden tener al mismo atleta. Pendiente de decidir.
 
 > **Deuda que deja esta tarea:** `ClubService.getDefaultClub()` es un puente temporal. `UserService`, `AthleteService` y `AdminInitializer` lo usan para satisfacer el `NOT NULL` mientras no exista contexto de tenant; desaparece en la 0.4. `PostService` no lo necesita, porque el post hereda el club de su autor.
+
+### 0.2.b Identificar el post por id, no por slug — 3 h
+
+**Decisión tomada:** `posts.slug` puede repetirse entre clubes; el post se distingue por su `id`. Queda como campo descriptivo, útil para la URL, pero deja de ser identificador.
+
+**Hay que hacerlo antes de que exista el segundo club**, no en cuanto se pueda: mientras haya uno solo, los slugs no colisionan y nada falla. Con dos, `findBySlug` lanza `NonUniqueResultException` y la noticia deja de abrirse.
+
+- [ ] Retirar la restricción única de `posts.slug` — `30min · Baja · Alta`
+- [ ] `GET /api/posts/published/{slug}` pasa a resolver por id — `1h · Media · Alta`
+- [ ] Frontend: la ruta `/noticia/:slug` pasa a `/noticia/:id` — `1h · Media · Alta`
+- [ ] Revisar que ningún enlace publicado dependa del slug — `30min · Baja · Media`
+
+> **Cambio de contrato de API**, hay que coordinarlo con el repositorio del frontend.
+
+> Los enlaces antiguos por slug dejan de funcionar. Con el blog recién estrenado no importa; si alguna noticia ya está compartida fuera, conviene mantener la resolución por slug como alternativa mientras haya un solo club.
 
 ### 0.3 club_id en el JWT — 3,5 h
 
