@@ -3,6 +3,7 @@ package es.jaes.cn_servicies.user;
 import es.jaes.cn_servicies.club.Club;
 import es.jaes.cn_servicies.club.ClubService;
 import es.jaes.cn_servicies.post.ImageStorageService;
+import es.jaes.cn_servicies.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,8 +31,16 @@ public class UserService {
     private String baseUrl;
 
     public UserResponse create(UserRequest request) {
-        // TODO (tarea 0.4): el club saldra del TenantContext, no del club por defecto.
-        Club club = clubService.getDefaultClub();
+        // Dos caminos llegan aqui: el panel de administracion, autenticado y con
+        // club en contexto, y el alta publica, que es anonima y no lo tiene.
+        //
+        // Para la segunda, en que club se registra alguien que llega de fuera es
+        // la misma decision abierta que la del login: depende de como se sirva
+        // cada club. Mientras solo haya uno, el club por defecto es la respuesta
+        // correcta. Con dos, esto hay que resolverlo antes.
+        Club club = TenantContext.get()
+                .map(clubService::getById)
+                .orElseGet(clubService::getDefaultClub);
 
         // El username es unico por club, asi que la comprobacion va acotada al
         // club. El email sigue siendo unico global: decision abierta.

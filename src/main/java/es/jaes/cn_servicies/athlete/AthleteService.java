@@ -4,6 +4,7 @@ import es.jaes.cn_servicies.athlete_link.UserAthleteRepository;
 import es.jaes.cn_servicies.athlete_link.UserAthleteType;
 import es.jaes.cn_servicies.club.Club;
 import es.jaes.cn_servicies.club.ClubService;
+import es.jaes.cn_servicies.tenant.TenantContext;
 import es.jaes.cn_servicies.user.User;
 import es.jaes.cn_servicies.user.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -30,8 +31,10 @@ public class AthleteService {
     private final ClubService clubService;
 
     public AthleteResponse create(AthleteRequest request) {
-        // TODO (tarea 0.4): el club saldra del TenantContext, no del club por defecto.
-        Club club = clubService.getDefaultClub();
+        // Del contexto, no del club por defecto: los endpoints de atletas van
+        // siempre autenticados, asi que la peticion trae club. Si no lo trae,
+        // require() revienta en vez de inventarse uno.
+        Club club = clubService.getById(TenantContext.require());
 
         // El dni es unico por club, asi que la comprobacion va acotada: que el
         // mismo nadador este fichado en otro club no impide darlo de alta aqui.

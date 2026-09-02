@@ -157,10 +157,20 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 ### 0.4 TenantContext — 4,5 h
 
-- [ ] Clase `TenantContext` con `ThreadLocal<UUID>` — `1h · Media · Crítica`
-- [ ] Filtro o interceptor que lo rellena desde el claim en cada petición — `2h · Media · Crítica`
-- [ ] **Limpiarlo en un `finally`** — `30min · Media · Crítica`
-- [ ] Definir el comportamiento en endpoints públicos: contexto vacío, nunca club por defecto — `1h · Media · Alta`
+- [x] Clase `TenantContext` con `ThreadLocal<UUID>` — `1h · Media · Crítica`
+- [x] Filtro o interceptor que lo rellena desde el claim en cada petición — `2h · Media · Crítica`
+- [x] **Limpiarlo en un `finally`** — `30min · Media · Crítica`
+- [x] Definir el comportamiento en endpoints públicos: contexto vacío, nunca club por defecto — `1h · Media · Alta`
+
+> **Paquete nuevo `tenant/`**, en vez de meterlo en `config/`. La 0.5 y la 0.6 van a añadir más piezas de tenancy —activación del filtro de Hibernate, `SET LOCAL app.club_id`— y `CLAUDE.md` avisa de no convertir `config/` en un cajón.
+
+> `TenantFilter` va **después** de `JwtAuthFilter`: necesita el `SecurityContext` ya poblado. Toma el club de `AuthenticatedUser`, que lo trae del claim ya verificado.
+
+> **`TenantContext.get()` devuelve `Optional` y `require()` revienta si no hay club.** No existe forma de obtener un club por defecto desde el contexto: quien no tiene club, no tiene club. Vacío no es "el club por defecto".
+
+> **Hay tests**, en `TenantFilterTest`, los primeros del proyecto aparte del `contextLoads`. El `finally` no se puede comprobar desde fuera —ningún endpoint expone el contexto y el fallo que evita es intermitente por naturaleza—, así que se prueba ahí: que se limpia al terminar, que se limpia **también cuando la petición revienta**, y que una petición anónima en el mismo hilo no hereda el club de la anterior. Se ejecutan con `./mvnw test -Dtest=TenantFilterTest`.
+
+> **Deuda de la 0.2 saldada a medias.** `AthleteService` ya toma el club del contexto. `UserService` no puede del todo: lo llaman el panel autenticado y el alta pública anónima, y en qué club se registra alguien que llega de fuera es la misma decisión abierta que la del login. `AdminInitializer` tampoco: se ejecuta al arrancar, sin petición, y desaparece en la 0.8. Los dos siguen usando `getDefaultClub()`.
 
 > El `finally` cuesta cinco minutos y es el bug de multi-tenancy más difícil de reproducir que existe. Tomcat reutiliza los hilos del pool: sin limpieza, la siguiente petición hereda el club de la anterior de forma intermitente.
 

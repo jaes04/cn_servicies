@@ -3,6 +3,7 @@ package es.jaes.cn_servicies.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.jaes.cn_servicies.auth.JwtAuthFilter;
 import es.jaes.cn_servicies.auth.UserDetailsServiceImpl;
+import es.jaes.cn_servicies.tenant.TenantFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,10 +31,14 @@ import static org.springframework.http.HttpMethod.*;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final TenantFilter tenantFilter;
     private final UserDetailsServiceImpl userDetailsService;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, UserDetailsServiceImpl userDetailsService) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter,
+                          TenantFilter tenantFilter,
+                          UserDetailsServiceImpl userDetailsService) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.tenantFilter = tenantFilter;
         this.userDetailsService = userDetailsService;
     }
 
@@ -117,6 +122,9 @@ public class SecurityConfig {
                 )
                 .userDetailsService(userDetailsService)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // Despues del de JWT: necesita el SecurityContext ya poblado
+                // para saber de que club es la peticion.
+                .addFilterAfter(tenantFilter, JwtAuthFilter.class)
                 .build();
     }
 
