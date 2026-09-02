@@ -127,10 +127,14 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 **Hay que hacerlo antes de que exista el segundo club**, no en cuanto se pueda: mientras haya uno solo, los slugs no colisionan y nada falla. Con dos, `findBySlug` lanza `NonUniqueResultException` y la noticia deja de abrirse.
 
-- [ ] Retirar la restricción única de `posts.slug` — `30min · Baja · Alta`
-- [ ] `GET /api/posts/published/{slug}` pasa a resolver por id — `1h · Media · Alta`
-- [ ] Frontend: la ruta `/noticia/:slug` pasa a `/noticia/:id` — `1h · Media · Alta`
-- [ ] Revisar que ningún enlace publicado dependa del slug — `30min · Baja · Media`
+- [x] Retirar la restricción única de `posts.slug` — `30min · Baja · Alta`
+- [x] `GET /api/posts/published/{slug}` pasa a resolver por id — `1h · Media · Alta`
+- [x] Frontend: la ruta `/noticia/:slug` pasa a `/noticia/:id` — `1h · Media · Alta`
+- [x] Revisar que ningún enlace publicado dependa del slug — `30min · Baja · Media`
+
+> **Corregido de paso:** el endpoint público servía borradores. `findBySlug` no comprobaba el estado, así que cualquiera que adivinara el slug —que se genera del título— leía un `DRAFT`. Ahora exige `PUBLISHED`. Los borradores siguen siendo visibles por `GET /api/posts/{id}`, que va detrás de autenticación.
+
+> **Corregido de paso:** un id mal formado en la ruta acababa en el manejador genérico y devolvía 500. `GlobalExceptionHandler` trata ahora `MethodArgumentTypeMismatchException` y devuelve 400. Afecta a todos los endpoints con id en la ruta, no solo a este.
 
 > **Cambio de contrato de API**, hay que coordinarlo con el repositorio del frontend.
 

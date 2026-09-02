@@ -11,6 +11,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -39,6 +40,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleForbidden(HttpServletRequest request) {
         return buildResponse(HttpStatus.FORBIDDEN,
                 "No tienes los permisos necesarios para acceder a este recurso", request.getRequestURI());
+    }
+
+    /**
+     * Un valor de la ruta que no encaja con su tipo, tipicamente un id que no
+     * es un UUID valido. Sin esto acaba en el manejador generico y sale un 500.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST,
+                "El valor de '" + ex.getName() + "' no tiene el formato esperado",
+                request.getRequestURI());
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

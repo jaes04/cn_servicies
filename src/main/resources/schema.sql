@@ -155,6 +155,11 @@ UPDATE posts SET club_id = (SELECT id FROM clubs WHERE slug = 'sierra-oeste')
 ALTER TABLE posts ALTER COLUMN club_id SET NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_posts_club_id ON posts (club_id);
 
+-- El slug deja de ser unico: es descriptivo y puede repetirse entre clubes. El
+-- post se identifica por su id. No se sustituye por un unico (club_id, slug):
+-- ni siquiera dentro de un club se exige que no se repita.
+ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_slug_key;
+
 -- Claves foraneas hacia club. Van al final, cuando las columnas ya estan
 -- rellenas. ADD CONSTRAINT no admite IF NOT EXISTS, asi que se borra antes: el
 -- par DROP IF EXISTS + ADD es idempotente y vale para las dos situaciones.

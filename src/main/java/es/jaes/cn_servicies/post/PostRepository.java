@@ -10,5 +10,10 @@ import java.util.UUID;
 
 public interface PostRepository extends JpaRepository<Post, UUID>, JpaSpecificationExecutor<Post> {
 
-    Optional<Post> findBySlug(String slug);
+    /**
+     * El post se identifica por id. No hay findBySlug: el slug puede repetirse
+     * entre clubes, asi que devolver un Optional seria mentir — con dos
+     * coincidencias lanzaria NonUniqueResultException.
+     */
+    Optional<Post> findByIdAndStatus(UUID id, PostStatus status);
 }

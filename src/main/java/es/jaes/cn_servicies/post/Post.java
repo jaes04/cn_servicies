@@ -33,7 +33,11 @@ public class Post {
     @Column(columnDefinition = "TEXT")
     private String content;
 
-    @Column(unique = true)
+    /**
+     * Descriptivo, no identificador. Puede repetirse entre clubes: el post se
+     * distingue por su id. Sin unique a proposito.
+     */
+    @Column
     private String slug;
 
     @Enumerated(EnumType.STRING)

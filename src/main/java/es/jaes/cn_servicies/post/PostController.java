@@ -32,9 +32,13 @@ public class PostController {
         return ResponseEntity.ok(postService.listPublished(q, author, pageable));
     }
 
-    @GetMapping("/published/{slug}")
-    public ResponseEntity<PostResponse> getBySlug(@PathVariable String slug) {
-        return ResponseEntity.ok(postService.findBySlug(slug));
+    /**
+     * Detalle publico de una noticia, por id. Antes recibia el slug, que dejo
+     * de identificar al post cuando se permitio repetirlo entre clubes.
+     */
+    @GetMapping("/published/{id}")
+    public ResponseEntity<PostResponse> getPublishedById(@PathVariable UUID id) {
+        return ResponseEntity.ok(postService.findPublishedById(id));
     }
 
     @GetMapping

@@ -106,9 +106,17 @@ public class PostService {
         return postRepository.findAll(spec, pageable).map(this::toResponse);
     }
 
+    /**
+     * Resolucion publica del post, por id. Antes era por slug, que dejo de ser
+     * identificador al poder repetirse entre clubes.
+     *
+     * <p>Exige que este PUBLISHED: este metodo lo sirve un endpoint anonimo y
+     * un borrador no puede salir por ahi. Para ver uno sin publicar esta
+     * {@link #findById}, detras de autenticacion.
+     */
     @Transactional(readOnly = true)
-    public PostResponse findBySlug(String slug) {
-        Post post = postRepository.findBySlug(slug)
+    public PostResponse findPublishedById(UUID id) {
+        Post post = postRepository.findByIdAndStatus(id, PostStatus.PUBLISHED)
                 .orElseThrow(() -> new EntityNotFoundException("Post no encontrado"));
         return toResponse(post);
     }
