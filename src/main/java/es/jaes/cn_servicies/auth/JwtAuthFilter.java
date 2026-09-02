@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.UUID;
 
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
@@ -41,7 +42,19 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (jwtTokenProvider.isValid(token)) {
                 try {
                     String username = jwtTokenProvider.extractUsername(token);
+                    UUID tokenClubId = jwtTokenProvider.extractClubId(token);
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+                    // El club del token tiene que ser el del usuario. La firma
+                    // ya impide falsificarlo, pero un token puede quedar obsoleto
+                    // y no se autentica a nadie en un club que no es el suyo.
+                    if (!(userDetails instanceof AuthenticatedUser authenticated)
+                            || !authenticated.getClubId().equals(tokenClubId)) {
+                        log.warn("El club del token no coincide con el del usuario en {}",
+                                request.getRequestURI());
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
 
                     UsernamePasswordAuthenticationToken auth =
                             new UsernamePasswordAuthenticationToken(

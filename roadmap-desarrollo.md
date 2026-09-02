@@ -142,10 +142,18 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 ### 0.3 club_id en el JWT — 3,5 h
 
-- [ ] Añadir el claim `club_id` al generar el token — `1h · Baja · Crítica`
-- [ ] Extraerlo y validarlo al parsear — `1h · Media · Crítica`
-- [ ] Rechazar cualquier token sin el claim — `30min · Baja · Crítica`
-- [ ] Actualizar el login para resolver el club del usuario — `1h · Media · Crítica`
+- [x] Añadir el claim `club_id` al generar el token — `1h · Baja · Crítica`
+- [x] Extraerlo y validarlo al parsear — `1h · Media · Crítica`
+- [x] Rechazar cualquier token sin el claim — `30min · Baja · Crítica`
+- [x] Actualizar el login para resolver el club del usuario — `1h · Media · Crítica`
+
+> `AuthenticatedUser` es el `UserDetails` del proyecto y lleva el `clubId`. Existe para que el club llegue hasta la emisión del token sin arrastrarlo como parámetro por todas las firmas del camino. `JwtTokenProvider` revienta si recibe otro `UserDetails`: mejor fallar al emitir que soltar un token sin club, que el filtro rechazaría después lejos de la causa.
+
+> `JwtAuthFilter` comprueba además que el club del token sea el del usuario. La firma ya impide falsificarlo, pero un token puede quedar obsoleto, y así **no se autentica a nadie en un club que no es el suyo**. Eso adelanta el criterio de aceptación de la 0.7 "token manipulado con otro `club_id` no da acceso", verificado con tokens firmados a mano con el secreto real.
+
+> **Los tokens emitidos antes de este cambio dejan de valer**: no traen el claim y se rechazan. Todo el mundo vuelve a iniciar sesión. Es el mismo efecto que tendrá rotar el secreto JWT, así que conviene hacer las dos cosas a la vez.
+
+> **Lo que NO resuelve, y sigue siendo el punto abierto:** el login recibe solo `username` y `password`, así que `loadUserByUsername` resuelve por username a secas. Correcto mientras haya un club; con dos, la consulta es ambigua. Determinar el club *antes* de autenticar depende de cómo se sirva cada uno —subdominio, slug en la petición o selector en el formulario—, que es decisión abierta y arrastra cambio de contrato en el login. Hay que cerrarla antes del segundo club.
 
 ### 0.4 TenantContext — 4,5 h
 
