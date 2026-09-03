@@ -9,12 +9,20 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
 
+/**
+ * {@code @Transactional} no esta por la atomicidad, que aqui es de una sola
+ * fila: esta para que el aspecto de tenancy entre y fije {@code app.club_id}.
+ * Sin el, la insercion ocurre con la variable sin poner y las policies de Row
+ * Level Security la rechazan.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Transactional
 public class AdminInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;

@@ -195,13 +195,21 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 ### 0.6 Row Level Security en PostgreSQL — 8 h
 
-- [ ] `ENABLE ROW LEVEL SECURITY` en cada tabla con `club_id` — `1h · Media · Crítica`
-- [ ] Policy por tabla usando `current_setting('app.club_id')` — `2h · Alta · Crítica`
-- [ ] `SET LOCAL app.club_id` al inicio de cada transacción — `3h · Alta · Crítica`
+- [x] `ENABLE ROW LEVEL SECURITY` en cada tabla con `club_id` — `1h · Media · Crítica`
+- [x] Policy por tabla usando `current_setting('app.club_id')` — `2h · Alta · Crítica`
+- [x] `SET LOCAL app.club_id` al inicio de cada transacción — `3h · Alta · Crítica`
 - [ ] Usuario de aplicación **sin** `BYPASSRLS` — `1h · Media · Crítica`
 - [ ] Usuario separado para migraciones, con permisos para saltarse las policies — `1h · Alta · Crítica`
 
 > Lo más difícil es el `SET LOCAL`: hay que engancharlo al ciclo de vida de la transacción de Spring, no al de la petición. Cuenta con perder una tarde aquí.
+
+> **El `SET LOCAL` salió gratis**, porque la 0.5 ya había pagado esa tarde: el aspecto sobre transacciones creado allí es exactamente el sitio donde engancharlo. Se usa `set_config(..., true)`, que es `SET LOCAL` en forma de función y admite parámetro enlazado.
+
+> **`app.club_id` tiene tres estados y el tercero es el que importa:** un UUID limita a ese club; `public` lo abre todo, y es lo que se pone en las peticiones anónimas —login, alta de usuario, blog—; **sin poner no se ve ninguna fila**. Si un día el aspecto deja de ejecutarse, o alguien abre una transacción por otra vía, el síntoma es "no aparecen datos", no "aparecen los del otro club". Falla cerrado.
+
+> **Las dos últimas casillas están sin marcar y son las que hacen que todo lo demás sirva.** Hoy la aplicación se conecta como `postgres`, superusuario con `BYPASSRLS`: las policies existen y están verificadas, pero con ese usuario Postgres se las salta enteras. **Mientras no se cambie el usuario de conexión, la Fase 0 no tiene segunda capa.** El rol `cn_app` ya está creado, sin contraseña, con permisos y sin `BYPASSRLS`.
+
+> **Cambiar el usuario arrastra la inicialización del esquema.** Con `cn_app`, los `INSERT` de `data.sql` chocan contra el `WITH CHECK` de las policies, porque el script no pasa por el aspecto y la variable no está puesta. Al cambiar `PGUSER` hay que pasar `schema.sql` y `data.sql` a ejecutarse fuera del arranque, con el rol de migraciones — que es justo lo que pide la quinta casilla. Es decir: las dos últimas van juntas, en un solo bloque.
 
 ### 0.7 Criterio de aceptación — 6 h
 

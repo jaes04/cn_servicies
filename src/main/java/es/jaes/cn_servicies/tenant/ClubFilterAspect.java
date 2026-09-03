@@ -41,15 +41,39 @@ public class ClubFilterAspect {
     @PersistenceContext
     private EntityManager entityManager;
 
+    /**
+     * Valor de {@code app.club_id} para las transacciones sin club: peticiones
+     * anonimas —login, alta de usuario, blog— y arranque de la aplicacion.
+     * Tiene que ponerse explicitamente: si la variable no se fija, las policies
+     * no dejan ver ninguna fila.
+     */
+    private static final String SIN_CLUB = "public";
+
     @Before("@within(org.springframework.transaction.annotation.Transactional)"
             + " && within(es.jaes.cn_servicies..*)")
     public void activarFiltroDeClub() {
         UUID clubId = TenantContext.get().orElse(null);
-        if (clubId == null) {
-            return;
+
+        // Capa 1: el filtro de Hibernate. Solo cuando hay club; sin el, no hay
+        // nada que filtrar y la consulta va sin condicion.
+        if (clubId != null) {
+            entityManager.unwrap(Session.class)
+                    .enableFilter(Club.CLUB_FILTER)
+                    .setParameter(Club.CLUB_FILTER_PARAM, clubId);
         }
-        entityManager.unwrap(Session.class)
-                .enableFilter(Club.CLUB_FILTER)
-                .setParameter(Club.CLUB_FILTER_PARAM, clubId);
+
+        // Capa 2: la variable que leen las policies de Row Level Security.
+        // Se fija SIEMPRE, tambien sin club: dejarla sin poner significa "no ver
+        // nada", que es el estado que protege de un olvido, no el que quiere una
+        // peticion anonima legitima.
+        //
+        // El tercer parametro de set_config es `is_local`: la variable dura lo
+        // que la transaccion, igual que un SET LOCAL. Sin eso se quedaria pegada
+        // a la conexion, y como el pool las reutiliza, la siguiente transaccion
+        // heredaria el club de la anterior — el mismo fallo que evita el
+        // finally del TenantFilter, pero un piso mas abajo.
+        entityManager.createNativeQuery("SELECT set_config('app.club_id', :valor, true)")
+                .setParameter("valor", clubId != null ? clubId.toString() : SIN_CLUB)
+                .getSingleResult();
     }
 }
