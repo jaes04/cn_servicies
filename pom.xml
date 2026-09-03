@@ -37,6 +37,13 @@
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
+        <!-- AOP: activa el filtro de tenancy al inicio de cada transaccion.
+             Ver es.jaes.cn_servicies.tenant.ClubFilterAspect -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
         <!-- Validation -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

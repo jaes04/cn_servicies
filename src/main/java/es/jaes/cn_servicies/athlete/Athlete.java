@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -17,6 +18,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @SQLRestriction("deleted_at IS NULL")
+@Filter(name = Club.CLUB_FILTER, condition = Club.CLUB_FILTER_CONDITION)
 public class Athlete {
 
     @Id

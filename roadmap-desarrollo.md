@@ -176,12 +176,22 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 ### 0.5 Filtro automático de Hibernate — 6 h
 
-- [ ] `@FilterDef` con parámetro `clubId` — `1h · Media · Crítica`
-- [ ] `@Filter` en cada entidad con `club_id` — `1h · Baja · Crítica`
-- [ ] Activarlo por petición desde el `TenantContext` — `2h · Alta · Crítica`
-- [ ] Auditar todas las queries nativas y `@Query` con SQL nativo — `2h · Alta · Crítica`
+- [x] `@FilterDef` con parámetro `clubId` — `1h · Media · Crítica`
+- [x] `@Filter` en cada entidad con `club_id` — `1h · Baja · Crítica`
+- [x] Activarlo por petición desde el `TenantContext` — `2h · Alta · Crítica`
+- [x] Auditar todas las queries nativas y `@Query` con SQL nativo — `2h · Alta · Crítica`
 
 > Las queries nativas **no** pasan por el filtro. Son la vía de escape más habitual.
+
+> **Auditoría: limpia.** Cero queries nativas y cero `@Query` en todo el proyecto. El acceso a datos es Spring Data derivado y Specifications. Esa vía de escape no existe todavía, y conviene que siga sin existir: cualquier `@Query` nativo que se añada a partir de ahora hay que escribirlo con su `WHERE club_id`.
+
+> **Se activa con un aspecto, no con un filtro de servlet.** El filtro vive en la sesión de Hibernate, que nace con la transacción, no con la petición. Spring Boot engancha OSIV como interceptor del `DispatcherServlet`, así que un filtro de servlet corre antes de que exista sesión alguna. Enganchado a la transacción, funciona con OSIV activo o desactivado. Dependencia nueva: `spring-boot-starter-aop`.
+
+> **El orden del consejo transaccional está invertido** en `TenantTransactionConfig`. Por defecto Spring lo pone como el más interno, y entonces el aspecto correría antes de que la transacción empezara. Afecta al orden de todos los consejos de la aplicación: recordarlo si algún día entran `@Async`, `@Cacheable` o validación por aspectos.
+
+> **`findById` se salta el filtro, verificado.** Los filtros de Hibernate no se aplican a las cargas por clave primaria. Con dos clubes montados, el admin del club B obtuvo por id la ficha completa de un atleta del club A —nombre, fecha de nacimiento y DNI— con un 200. **Lo cierra la 0.6**, porque Postgres filtra la fila sea cual sea la vía por la que Hibernate la pida. Hasta entonces, esa fuga está abierta.
+
+> **Lo que sí aísla ya**, verificado con dos clubes reales: listados y búsquedas. El admin del club A vio 8 atletas y 16 usuarios; el del club B, 1 y 1. Ninguno vio un registro del otro.
 
 ### 0.6 Row Level Security en PostgreSQL — 8 h
 
