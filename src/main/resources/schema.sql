@@ -2,6 +2,11 @@
 --  SCHEMA - cn_servicies
 -- ============================================================
 
+-- Lo ejecuta la aplicacion al arrancar, con su propio usuario, sujeto a las
+-- policies de Row Level Security. Los UPDATE del backfill de club_id no verian
+-- ninguna fila sin fijar antes `app.club_id`. Se restablece al final.
+SELECT set_config('app.club_id', 'public', false);
+
 -- CLUBS  (tenant raiz: toda entidad acabara colgando de un club)
 CREATE TABLE IF NOT EXISTS clubs (
     id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -185,3 +190,5 @@ INSERT INTO roles (name) VALUES
     ('ROLE_USER'),
     ('ROLE_TECHNICAL_STAFF')
 ON CONFLICT (name) DO NOTHING;
+-- La conexion vuelve al pool: no debe llevar 'public' pegado.
+SELECT set_config('app.club_id', '', false);

@@ -97,7 +97,52 @@ CREATE POLICY club_isolation ON posts
 
 
 -- ------------------------------------------------------------
---  3. Comprobacion
+--  3. cn_app es dueño del esquema, y aun asi le aplican las policies
+-- ------------------------------------------------------------
+--  Hibernate sigue gestionando el esquema con ddl-auto, y para eso el rol de la
+--  aplicacion tiene que ser dueño de las tablas: un rol sin propiedad no puede
+--  alterarlas.
+--
+--  Pero el dueño de una tabla se salta sus propias policies salvo que se diga
+--  lo contrario. Eso es lo que hace FORCE ROW LEVEL SECURITY: sin el, ser dueño
+--  equivaldria a tener BYPASSRLS y todo esto no serviria de nada.
+--
+--  LO QUE ESTO NO PROTEGE: cn_app, por ser dueño, puede ejecutar
+--  `ALTER TABLE ... DISABLE ROW LEVEL SECURITY`. Es decir, protege de un error
+--  en el codigo —que es la amenaza real hoy: una consulta que se olvida del
+--  club— pero no de la aplicacion comprometida. Separar de verdad el rol de
+--  aplicacion del de esquema exige sacar las migraciones de Hibernate, y ese es
+--  un bloque propio, pendiente antes de produccion.
+
+GRANT CREATE ON SCHEMA public TO cn_app;
+
+DO $$
+DECLARE
+    t text;
+BEGIN
+    FOR t IN
+        SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+    LOOP
+        EXECUTE format('ALTER TABLE public.%I OWNER TO cn_app', t);
+    END LOOP;
+
+    FOR t IN
+        SELECT sequencename FROM pg_sequences WHERE schemaname = 'public'
+    LOOP
+        EXECUTE format('ALTER SEQUENCE public.%I OWNER TO cn_app', t);
+    END LOOP;
+END $$;
+
+ALTER FUNCTION app_club_visible(uuid) OWNER TO cn_app;
+
+-- Las policies se aplican tambien al dueño.
+ALTER TABLE users    FORCE ROW LEVEL SECURITY;
+ALTER TABLE athletes FORCE ROW LEVEL SECURITY;
+ALTER TABLE posts    FORCE ROW LEVEL SECURITY;
+
+
+-- ------------------------------------------------------------
+--  4. Comprobacion
 -- ------------------------------------------------------------
 --  Las policies no se aplican a superusuarios. Para verlas actuar hay que
 --  adoptar el rol de aplicacion dentro de la sesion:

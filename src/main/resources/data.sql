@@ -1,3 +1,10 @@
+-- Este script lo ejecuta la aplicacion al arrancar, con su propio usuario, que
+-- esta sujeto a las policies de Row Level Security. Sin fijar `app.club_id`,
+-- el WITH CHECK rechaza cada INSERT y el arranque falla. `public` es el estado
+-- que significa "todos los clubes". Se restablece al final del archivo: dejarlo
+-- puesto lo heredaria la conexion, que vuelve al pool.
+SELECT set_config('app.club_id', 'public', false);
+
 -- Nota: los INSERT de este archivo usan `ON CONFLICT DO NOTHING` sin indicar
 -- columna. Con `ON CONFLICT (id)` la clausula solo cubre la clave primaria y el
 -- arranque revienta si la fila choca por otra restriccion unica (username,
@@ -172,3 +179,6 @@ VALUES
     ('40000000-0000-0000-0000-000000000006', (SELECT id FROM athletes WHERE dni = '45678901D'), '2025-06-15', 200, 'MEDLEY',       50, 158900,  false, now(), now()),
     ('40000000-0000-0000-0000-000000000007', (SELECT id FROM athletes WHERE dni = '56789012E'), '2025-07-01', 400, 'FREESTYLE',    50, 258000,  false, now(), now())
 ON CONFLICT DO NOTHING;
+-- Se deja sin valor: la conexion vuelve al pool y no debe llevar "public"
+-- pegado. Cada transaccion fija el suyo desde ClubFilterAspect.
+SELECT set_config('app.club_id', '', false);

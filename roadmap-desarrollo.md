@@ -198,7 +198,7 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 - [x] `ENABLE ROW LEVEL SECURITY` en cada tabla con `club_id` — `1h · Media · Crítica`
 - [x] Policy por tabla usando `current_setting('app.club_id')` — `2h · Alta · Crítica`
 - [x] `SET LOCAL app.club_id` al inicio de cada transacción — `3h · Alta · Crítica`
-- [ ] Usuario de aplicación **sin** `BYPASSRLS` — `1h · Media · Crítica`
+- [x] Usuario de aplicación **sin** `BYPASSRLS` — `1h · Media · Crítica`
 - [ ] Usuario separado para migraciones, con permisos para saltarse las policies — `1h · Alta · Crítica`
 
 > Lo más difícil es el `SET LOCAL`: hay que engancharlo al ciclo de vida de la transacción de Spring, no al de la petición. Cuenta con perder una tarde aquí.
@@ -207,9 +207,15 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 > **`app.club_id` tiene tres estados y el tercero es el que importa:** un UUID limita a ese club; `public` lo abre todo, y es lo que se pone en las peticiones anónimas —login, alta de usuario, blog—; **sin poner no se ve ninguna fila**. Si un día el aspecto deja de ejecutarse, o alguien abre una transacción por otra vía, el síntoma es "no aparecen datos", no "aparecen los del otro club". Falla cerrado.
 
-> **Las dos últimas casillas están sin marcar y son las que hacen que todo lo demás sirva.** Hoy la aplicación se conecta como `postgres`, superusuario con `BYPASSRLS`: las policies existen y están verificadas, pero con ese usuario Postgres se las salta enteras. **Mientras no se cambie el usuario de conexión, la Fase 0 no tiene segunda capa.** El rol `cn_app` ya está creado, sin contraseña, con permisos y sin `BYPASSRLS`.
+> **`ddl-auto` y RLS se estorban, y esa es la decisión de fondo.** Para que las policies actúen la aplicación no puede ser superusuario; pero sin ser dueña de las tablas, Hibernate no puede seguir gestionando el esquema; y si deja de hacerlo, la única fuente pasa a ser `schema.sql`, que estaba desfasado —le faltaba `genders` y describía `athletes` con columnas que no existen—. Nunca se notó porque Hibernate creaba las tablas primero y esos `CREATE TABLE IF NOT EXISTS` no llegaban a ejecutarse.
 
-> **Cambiar el usuario arrastra la inicialización del esquema.** Con `cn_app`, los `INSERT` de `data.sql` chocan contra el `WITH CHECK` de las policies, porque el script no pasa por el aspecto y la variable no está puesta. Al cambiar `PGUSER` hay que pasar `schema.sql` y `data.sql` a ejecutarse fuera del arranque, con el rol de migraciones — que es justo lo que pide la quinta casilla. Es decir: las dos últimas van juntas, en un solo bloque.
+> **Resuelto haciendo a `cn_app` dueño de las tablas con `FORCE ROW LEVEL SECURITY`.** El dueño de una tabla se salta sus policies salvo que se fuerce lo contrario; con `FORCE`, `ddl-auto` sigue funcionando y las policies se aplican igual. Verificado: `cn_app` es dueño de las tres tablas y aun así ve cero filas sin la variable puesta.
+
+> **Lo que esta solución no protege.** `cn_app`, por ser dueño, puede ejecutar `ALTER TABLE ... DISABLE ROW LEVEL SECURITY`. Protege de un error en el código —una consulta que se olvida del club, que es la amenaza real hoy— pero no de la aplicación comprometida. Separar de verdad el rol de aplicación del de esquema exige sacar las migraciones de Hibernate, probablemente con Flyway: es la quinta casilla, un bloque propio de un día largo, y hay que hacerlo antes de producción.
+
+> **`schema.sql` y `data.sql` fijan `app.club_id` a `public` al empezar y lo dejan sin valor al terminar.** Los ejecuta la aplicación con su propio usuario, sujeto a las policies: sin eso, el `WITH CHECK` rechaza cada `INSERT` y los `UPDATE` del backfill no ven ninguna fila. Restablecerlo al final importa porque la conexión vuelve al pool y no debe llevar `public` pegado.
+
+> **Falta un paso manual para que esto entre en vigor**, porque supone una credencial y la pone quien despliega: `\password cn_app` y luego `PGUSER=cn_app` en el `.env`. Hasta entonces la aplicación sigue conectándose como `postgres` y saltándose las policies.
 
 ### 0.7 Criterio de aceptación — 6 h
 
