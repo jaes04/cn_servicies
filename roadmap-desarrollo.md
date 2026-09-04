@@ -246,9 +246,15 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 Como `username` es único por club (ver 0.2), `adminjaes` puede existir una vez en cada club sin colisionar. Cada uno es un administrador corriente del suyo: el filtro de la 0.5 y las policies de la 0.6 le tratan igual que a cualquier otro usuario. **Ninguna excepción al aislamiento, en ningún sitio.**
 
-- [ ] `ClubService.create()` crea club y administrador en una sola transacción — `1h · Media · Crítica`
-- [ ] Si falla el alta del administrador, no se crea el club — `30min · Media · Crítica`
-- [ ] Adaptar `AdminInitializer`: hoy crea `adminjaes` al arrancar sin club y **dejará de funcionar en cuanto `club_id` sea NOT NULL**. Pasa a apoyarse en el alta conjunta — `30min · Media · Crítica`
+- [x] `ClubService.create()` crea club y administrador en una sola transacción — `1h · Media · Crítica`
+- [x] Si falla el alta del administrador, no se crea el club — `30min · Media · Crítica`
+- [x] Adaptar `AdminInitializer`: hoy crea `adminjaes` al arrancar sin club y **dejará de funcionar en cuanto `club_id` sea NOT NULL**. Pasa a apoyarse en el alta conjunta — `30min · Media · Crítica`
+
+> **El club dejó de ser estado ambiental.** `UserService.create` lo recibe como parámetro en vez de sacarlo del `TenantContext`. Por diseño —quien da de alta a alguien sabe en qué club lo hace— y por necesidad: si `UserService` dependiera de `ClubService` y este de aquel para crear al administrador, la dependencia sería circular. Ahora quien conoce el club lo resuelve y lo pasa: `UserController` desde el contexto, `AuthService` desde el contexto o el club por defecto para el alta pública.
+
+> **No hay endpoint de alta de club, y es a propósito.** Sin rol que atraviese clubes, protegerlo con `ROLE_ADMIN` dejaría que el administrador de cualquier club creara otros. Es una operación de aprovisionamiento: vive en el servicio, la usa `AdminInitializer` y la usará la herramienta de administración cuando exista.
+
+> **Tests en `ClubCreationTest`.** La suite pasa de 16 a 19. Verificado que el del rollback falla cuando debe: quitando `@Transactional` de `ClubService.create`, el club queda creado sin administrador y solo ese test se pone en rojo.
 
 > El propósito de esta cuenta es **poder crear los demás administradores del club**, no ver sus datos desde fuera. Es una necesidad de aprovisionamiento, puntual y por club, no un privilegio permanente. Confundir las dos cosas es lo que lleva a construir un administrador global, que es un agujero en el aislamiento que aquí no hace falta.
 

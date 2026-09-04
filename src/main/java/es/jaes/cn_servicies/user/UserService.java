@@ -1,9 +1,7 @@
 package es.jaes.cn_servicies.user;
 
 import es.jaes.cn_servicies.club.Club;
-import es.jaes.cn_servicies.club.ClubService;
 import es.jaes.cn_servicies.post.ImageStorageService;
-import es.jaes.cn_servicies.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,23 +23,20 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final ImageStorageService imageStorageService;
-    private final ClubService clubService;
 
     @Value("${app.base-url}")
     private String baseUrl;
 
-    public UserResponse create(UserRequest request) {
-        // Dos caminos llegan aqui: el panel de administracion, autenticado y con
-        // club en contexto, y el alta publica, que es anonima y no lo tiene.
-        //
-        // Para la segunda, en que club se registra alguien que llega de fuera es
-        // la misma decision abierta que la del login: depende de como se sirva
-        // cada club. Mientras solo haya uno, el club por defecto es la respuesta
-        // correcta. Con dos, esto hay que resolverlo antes.
-        Club club = TenantContext.get()
-                .map(clubService::getById)
-                .orElseGet(clubService::getDefaultClub);
-
+    /**
+     * El club llega como parametro, no del contexto.
+     *
+     * <p>Por dos motivos. Uno de diseno: quien da de alta a alguien sabe en que
+     * club lo hace, y dejarlo implicito solo esconde la pregunta. Y otro
+     * practico: el alta de un club crea a su administrador, asi que
+     * {@code ClubService} necesita llamar aqui — si este servicio dependiera a
+     * su vez de aquel, la dependencia seria circular.
+     */
+    public UserResponse create(UserRequest request, Club club) {
         // El username es unico por club, asi que la comprobacion va acotada al
         // club. El email sigue siendo unico global: decision abierta.
         if (userRepository.existsByClubAndUsername(club, request.getUsername())) {
@@ -69,6 +64,12 @@ public class UserService {
         user.setRoles(roles);
 
         return toResponse(userRepository.saveAndFlush(user));
+    }
+
+    /** Si ya hay alguien con ese username en ese club. Unico por club, no global. */
+    @Transactional(readOnly = true)
+    public boolean existsInClub(Club club, String username) {
+        return userRepository.existsByClubAndUsername(club, username);
     }
 
     public UserResponse findByUsername(String username) {

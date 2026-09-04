@@ -1,7 +1,10 @@
 package es.jaes.cn_servicies.user;
 
+import es.jaes.cn_servicies.club.Club;
+import es.jaes.cn_servicies.club.ClubService;
 import es.jaes.cn_servicies.comment.CommentResponse;
 import es.jaes.cn_servicies.comment.CommentService;
+import es.jaes.cn_servicies.tenant.TenantContext;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -23,6 +26,7 @@ public class UserController {
 
     private final UserService userService;
     private final CommentService commentService;
+    private final ClubService clubService;
 
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me(java.security.Principal principal) {
@@ -40,7 +44,10 @@ public class UserController {
 
     @PostMapping
     public ResponseEntity<UserResponse> create(@Valid @RequestBody UserRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(userService.create(request));
+        // Endpoint de administracion: siempre autenticado, asi que la peticion
+        // trae club. Si no lo trajera, require() revienta en vez de elegir uno.
+        Club club = clubService.getById(TenantContext.require());
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.create(request, club));
     }
 
     @PatchMapping("/{id}")

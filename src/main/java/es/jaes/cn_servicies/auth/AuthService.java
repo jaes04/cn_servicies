@@ -1,5 +1,8 @@
 package es.jaes.cn_servicies.auth;
 
+import es.jaes.cn_servicies.club.Club;
+import es.jaes.cn_servicies.club.ClubService;
+import es.jaes.cn_servicies.tenant.TenantContext;
 import es.jaes.cn_servicies.user.UserRequest;
 import es.jaes.cn_servicies.user.UserResponse;
 import es.jaes.cn_servicies.user.UserService;
@@ -17,6 +20,7 @@ public class AuthService {
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtTokenProvider jwtTokenProvider;
     private final UserService userService;
+    private final ClubService clubService;
 
     public LoginResponse login(LoginRequest request) {
         authenticationManager.authenticate(
@@ -54,7 +58,7 @@ public class AuthService {
         userRequest.setUsername(request.getUsername());
         userRequest.setEmail(request.getEmail());
         userRequest.setPassword(request.getPassword());
-        userService.create(userRequest);
+        userService.create(userRequest, clubDeLaPeticion());
 
         UserDetails user = userDetailsService.loadUserByUsername(request.getUsername());
         return new LoginResponse(jwtTokenProvider.generateAccessToken(user), jwtTokenProvider.generateRefreshToken(user));
@@ -66,9 +70,24 @@ public class AuthService {
         userRequest.setEmail(request.getEmail());
         userRequest.setPassword(request.getPassword());
         userRequest.setRoles(request.getRoles());
-        userService.create(userRequest);
+        userService.create(userRequest, clubDeLaPeticion());
 
         UserDetails user = userDetailsService.loadUserByUsername(request.getUsername());
         return new LoginResponse(jwtTokenProvider.generateAccessToken(user), jwtTokenProvider.generateRefreshToken(user));
+    }
+
+    /**
+     * Club en el que se da de alta la cuenta.
+     *
+     * <p>El alta con rol la hace un administrador y trae club en contexto. El
+     * alta publica es anonima y no lo trae: en que club se registra alguien que
+     * llega de fuera depende de como se sirva cada club, que es la misma
+     * decision abierta que la del login. Mientras solo haya uno, el club por
+     * defecto es la respuesta correcta; con dos, hay que resolverlo antes.
+     */
+    private Club clubDeLaPeticion() {
+        return TenantContext.get()
+                .map(clubService::getById)
+                .orElseGet(clubService::getDefaultClub);
     }
 }

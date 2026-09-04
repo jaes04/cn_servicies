@@ -2,22 +2,30 @@ package es.jaes.cn_servicies.config;
 
 import es.jaes.cn_servicies.club.Club;
 import es.jaes.cn_servicies.club.ClubService;
-import es.jaes.cn_servicies.user.*;
+import es.jaes.cn_servicies.user.RoleName;
+import es.jaes.cn_servicies.user.UserRequest;
+import es.jaes.cn_servicies.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.Set;
 
 /**
- * {@code @Transactional} no esta por la atomicidad, que aqui es de una sola
- * fila: esta para que el aspecto de tenancy entre y fije {@code app.club_id}.
- * Sin el, la insercion ocurre con la variable sin poner y las policies de Row
- * Level Security la rechazan.
+ * Deja la aplicacion utilizable en el primer arranque: un club y alguien que
+ * pueda entrar en el.
+ *
+ * <p>Si no hay club por defecto, lo crea junto con su administrador en una sola
+ * transaccion (tarea 0.8). Si ya lo hay, se limita a asegurar que ese
+ * administrador existe.
+ *
+ * <p>{@code @Transactional} no esta por la atomicidad de una sola fila: esta
+ * para que el aspecto de tenancy entre y fije {@code app.club_id}. Sin esa
+ * variable, las policies de Row Level Security rechazan la insercion.
  */
 @Slf4j
 @Component
@@ -25,10 +33,8 @@ import java.util.Set;
 @Transactional
 public class AdminInitializer implements CommandLineRunner {
 
-    private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
-    private final PasswordEncoder passwordEncoder;
     private final ClubService clubService;
+    private final UserService userService;
 
     @Value("${ADMIN_USERNAME:}")
     private String adminUsername;
@@ -42,29 +48,34 @@ public class AdminInitializer implements CommandLineRunner {
             return;
         }
 
-        // TODO (tarea 0.8): esta cuenta pasara a crearse junto con el club, en
-        // ClubService.create(). Mientras tanto cuelga del club por defecto y la
-        // existencia se comprueba dentro de ese club, porque el username es
-        // unico por club y no global.
-        Club club = clubService.getDefaultClub();
+        Optional<Club> existente = clubService.findDefault();
 
-        if (userRepository.existsByClubAndUsername(club, adminUsername)) {
+        if (existente.isEmpty()) {
+            clubService.createDefault(adminUsername, correoDelAdmin(), adminPassword);
+            log.info("Club por defecto creado junto con su administrador '{}'.", adminUsername);
+            return;
+        }
+
+        Club club = existente.get();
+
+        // Acotado al club: el username es unico por club, no global, asi que
+        // preguntar solo por el nombre no distingue nada.
+        if (userService.existsInClub(club, adminUsername)) {
             log.info("Admin user '{}' already exists — skipping creation.", adminUsername);
             return;
         }
 
-        Role adminRole = roleRepository.findByName(RoleName.ROLE_ADMIN)
-                .orElseThrow(() -> new IllegalStateException("ROLE_ADMIN not found in database"));
-
-        User admin = new User();
-        admin.setClub(club);
+        UserRequest admin = new UserRequest();
         admin.setUsername(adminUsername);
-        admin.setEmail(adminUsername + "@admin.local");
-        admin.setPasswordHash(passwordEncoder.encode(adminPassword));
-        admin.setBlocked(false);
-        admin.setRoles(Set.of(adminRole));
+        admin.setEmail(correoDelAdmin());
+        admin.setPassword(adminPassword);
+        admin.setRoles(Set.of(RoleName.ROLE_ADMIN));
+        userService.create(admin, club);
 
-        userRepository.save(admin);
         log.info("Admin user '{}' created successfully.", adminUsername);
+    }
+
+    private String correoDelAdmin() {
+        return adminUsername + "@admin.local";
     }
 }
