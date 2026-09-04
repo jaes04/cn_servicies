@@ -215,7 +215,11 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 > **`schema.sql` y `data.sql` fijan `app.club_id` a `public` al empezar y lo dejan sin valor al terminar.** Los ejecuta la aplicación con su propio usuario, sujeto a las policies: sin eso, el `WITH CHECK` rechaza cada `INSERT` y los `UPDATE` del backfill no ven ninguna fila. Restablecerlo al final importa porque la conexión vuelve al pool y no debe llevar `public` pegado.
 
-> **Falta un paso manual para que esto entre en vigor**, porque supone una credencial y la pone quien despliega: `\password cn_app` y luego `PGUSER=cn_app` en el `.env`. Hasta entonces la aplicación sigue conectándose como `postgres` y saltándose las policies.
+> **En vigor y verificado de punta a punta.** Con la aplicación conectada como `cn_app` y dos clubes montados: el admin de cada uno ve solo sus atletas (8 y 1), y **el `findById` cruzado que en la 0.5 devolvía la ficha completa de un atleta ajeno ahora devuelve 404**, mientras el propio sigue dando 200. Blog anónimo y login siguen funcionando.
+
+> **El aspecto necesitaba `@annotation` además de `@within`.** Con solo `@within` —anotaciones de clase— se escapaba `UserDetailsServiceImpl`, que lleva `@Transactional` en el método. Sin la variable puesta, las policies ocultaban todos los usuarios y **nadie podía iniciar sesión**. Es el fallo cerrado funcionando: el síntoma fue "no se puede entrar", no "se ven datos ajenos". Solo apareció al ejecutar de verdad con RLS activo.
+
+> **Cuidado con las contraseñas que contienen `$`.** No las leas con `source` en un script: bash expande `$`, comillas y backticks, y lo que llega no es lo que hay escrito en el archivo. Perdí un rato diagnosticando un fallo de autenticación que era mío.
 
 ### 0.7 Criterio de aceptación — 6 h
 

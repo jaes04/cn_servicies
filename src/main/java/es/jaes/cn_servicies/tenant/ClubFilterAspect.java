@@ -49,7 +49,12 @@ public class ClubFilterAspect {
      */
     private static final String SIN_CLUB = "public";
 
-    @Before("@within(org.springframework.transaction.annotation.Transactional)"
+    // Las dos formas: @Transactional en la clase y @Transactional en el metodo.
+    // Con solo @within se escapaba UserDetailsServiceImpl, que la lleva en el
+    // metodo — y sin la variable puesta las policies ocultan hasta al usuario
+    // que intenta iniciar sesion.
+    @Before("(@within(org.springframework.transaction.annotation.Transactional)"
+            + " || @annotation(org.springframework.transaction.annotation.Transactional))"
             + " && within(es.jaes.cn_servicies..*)")
     public void activarFiltroDeClub() {
         UUID clubId = TenantContext.get().orElse(null);
