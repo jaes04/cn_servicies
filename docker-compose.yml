@@ -3,13 +3,16 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
+      # El superusuario del contenedor es el rol de migraciones, NO el de la
+      # aplicacion. Con PGUSER aqui, un volumen nuevo crearia a cn_app como
+      # superusuario y se saltaria sus propias policies de Row Level Security.
       POSTGRES_DB: ${PGDATABASE}
-      POSTGRES_USER: ${PGUSER}
-      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_USER: ${MIGRATION_USER}
+      POSTGRES_PASSWORD: ${MIGRATION_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PGUSER} -d ${PGDATABASE}"]
+      test: ["CMD-SHELL", "pg_isready -U ${MIGRATION_USER} -d ${PGDATABASE}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,6 +24,9 @@ services:
       db:
         condition: service_healthy
     environment:
+      # La aplicacion se conecta con cn_app: sin BYPASSRLS y sujeto a las
+      # policies. Si aqui vuelve a aparecer el rol de migraciones, el
+      # aislamiento entre clubes deja de existir.
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${PGDATABASE}
       SPRING_DATASOURCE_USERNAME: ${PGUSER}
       SPRING_DATASOURCE_PASSWORD: ${PGPASSWORD}
