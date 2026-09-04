@@ -223,10 +223,20 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 ### 0.7 Criterio de aceptación — 6 h
 
-- [ ] Test de integración: usuario del club A no ve ni un registro del club B — `2h · Media · Crítica`
-- [ ] Test negativo: query sin filtro **sigue** sin devolver datos ajenos gracias a RLS — `2h · Alta · Crítica`
-- [ ] Test: token manipulado con otro `club_id` no da acceso — `1h · Media · Crítica`
-- [ ] Regresión: login y funcionalidad actual siguen funcionando — `1h · Baja · Crítica`
+- [x] Test de integración: usuario del club A no ve ni un registro del club B — `2h · Media · Crítica`
+- [x] Test negativo: query sin filtro **sigue** sin devolver datos ajenos gracias a RLS — `2h · Alta · Crítica`
+- [x] Test: token manipulado con otro `club_id` no da acceso — `1h · Media · Crítica`
+- [x] Regresión: login y funcionalidad actual siguen funcionando — `1h · Baja · Crítica`
+
+> Los cuatro viven en `TenantIsolationTest`, 10 tests. La suite pasa de 6 a 16.
+
+> **El primer test comprueba que la conexión no es superusuario.** Postgres deja que los superusuarios se salten las policies, así que ejecutados como `postgres` la mitad de estos tests pasarían en verde sin demostrar nada — peor que no tenerlos. Si alguien ejecuta la suite sin `PGUSER=cn_app`, ese test falla y explica por qué.
+
+> **Los datos los crea el propio test**, dos clubes suyos, y los borra al terminar. No depende de lo que haya en la base ni de conteos absolutos, así que no se rompe cuando cambian los datos de desarrollo.
+
+> **Verificado que los tests fallan cuando deben.** Quitando `FORCE ROW LEVEL SECURITY` —con lo que `cn_app`, al ser dueño, vuelve a saltarse las policies— fallan exactamente los dos que dependen de RLS, `findById` y el 404 por HTTP, mientras los listados siguen pasando porque a esos los cubre el filtro de Hibernate. Las dos capas quedan distinguidas por los tests, no solo sobre el papel.
+
+> **Corren contra la base de desarrollo**, no contra una propia. Crear `cn_test_it` exige `CREATE DATABASE` y el rol de la aplicación no puede: hace falta el de migraciones. Pendiente, y con él pasar la suite a una base aislada.
 
 ---
 
