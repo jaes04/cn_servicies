@@ -300,6 +300,8 @@ En España la edad de consentimiento son **14 años** (LOPDGDD art. 7), no 16. L
 > **El bloqueo va en la transacción del alta.** `AthleteRequest` acepta un bloque opcional con el tutor y sus consentimientos, y `AthleteService.create` lo exige por debajo de 14. Es **cambio de contrato de `POST /api/athletes`**: el frontend tiene que enviarlo. Obligatorio el de tratamiento; el de imagen hay que preguntarlo, pero un 
 o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del club, así que el segundo hermano no crea ficha nueva. La modificación **rechaza** el bloque en vez de ignorarlo.
 
+> **Endpoints en `/api/consents`**, ruta propia y no anidada bajo `/api/athletes/**`, que está cerrada en bloque. El **entrenador ve el estado** por finalidad —lo necesita antes de publicar una foto— **pero no el historial**: quién firmó y con qué papel es información del club. Registrar y revocar es solo de `ADMIN` hasta que exista un portal donde el tutor conteste por sí mismo. Revocar es `POST /{id}/revocation`, no `DELETE`: la fila no desaparece.
+
 > **Migraciones `S.1-guardians-rls.sql` y `S.1-consents-rls.sql`, ejecutadas con `cn_app`** y no con `postgres`: `ENABLE ROW LEVEL SECURITY`, `CREATE POLICY` y `FORCE` los puede el dueño de la tabla, y hoy el dueño es `cn_app` porque las crea Hibernate. Cuando el esquema salga de Hibernate volverán a necesitar el rol de migraciones, que es el objetivo.
 
 ### S.1.b Certificado médico anual (FMN) — 5 h
