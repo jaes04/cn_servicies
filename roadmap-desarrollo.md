@@ -344,10 +344,24 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 
 ### 1.1 Temporada — 5 h
 
-- [ ] Entidad `Temporada`: `id`, `club_id`, `nombre`, `fecha_inicio`, `fecha_fin`, `activa` — `1h · Baja · Crítica`
-- [ ] Regla: solo una temporada activa por club — `1h · Media · Alta`
-- [ ] CRUD y endpoint para marcar la temporada activa — `2h · Baja · Alta`
-- [ ] Crear la temporada actual en el seed — `1h · Baja · Media`
+- [x] Entidad `Temporada`: `id`, `club_id`, `nombre`, `fecha_inicio`, `fecha_fin`, `activa` — `1h · Baja · Crítica`
+- [x] Regla: solo una temporada activa por club — `1h · Media · Alta`
+- [x] CRUD y endpoint para marcar la temporada activa — `2h · Baja · Alta`
+- [x] Crear la temporada actual en el seed — `1h · Baja · Media`
+
+> **Entidad `Season`**, en inglés como el resto. Con `club_id` y policy de RLS propia (`migrations/1.1-seasons-rls.sql`).
+
+> **Una sola activa por club, impuesto en dos capas.** El servicio apaga la anterior antes de encender la nueva, y la base lo sostiene con un índice único **parcial** sobre `(club_id) WHERE active`. Un único normal sobre `(club_id, active)` dejaría tener una sola temporada pasada.
+
+> **Activar es endpoint propio** (`POST /api/seasons/{id}/activation`) y no un campo del `PUT`: tiene efecto sobre otra fila y no puede pasar de rebote al editar unas fechas. `SeasonRequest` no lleva `active`, así que una temporada **nace apagada**.
+
+> **No hay borrado, ni lógico ni físico**, a propósito: conservar las temporadas anteriores es el motivo de que la entidad exista. Una temporada terminada se queda con `active = false`. La `D` del CRUD no está y no debería estar.
+
+> **Permisos:** el entrenador consulta (`GET`), el administrador crea, edita y activa.
+
+> **Siembra en `AdminInitializer`, no en `data.sql`**: el club por defecto lo crea un runner que va después de `data.sql`, así que allí todavía no existe a qué colgarla. Septiembre a agosto, idempotente, y no toca nada si el club ya tiene temporadas.
+
+> **Queda abierto:** nada impide que dos temporadas del mismo club se solapen en fechas. Hoy sería un error de tecleo sin consecuencias, pero cuando los grupos y la asistencia cuelguen de la temporada conviene decidir si se valida.
 
 ### 1.2 Grupo — 8 h
 
