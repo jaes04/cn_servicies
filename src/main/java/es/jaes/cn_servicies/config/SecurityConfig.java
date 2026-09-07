@@ -85,6 +85,20 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/athlete-links/by-athlete/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(POST, "/api/athlete-links/redeem").authenticated()
                         .requestMatchers(GET, "/api/athlete-links/my-athletes").authenticated()
+                        // Consentimientos. El orden importa dos veces aqui: /status
+                        // va antes que el historial porque si no se lo come la
+                        // regla de ADMIN, y la revocacion antes que nada por
+                        // legibilidad.
+                        //
+                        // El entrenador ve el ESTADO —si puede sacar una foto—
+                        // pero no el historial: quien firmo, cuando y con que
+                        // papel es informacion del club, no suya. Registrar y
+                        // revocar es solo de ADMIN mientras no exista un portal
+                        // donde el tutor conteste por si mismo.
+                        .requestMatchers(POST, "/api/consents/*/revocation").hasRole("ADMIN")
+                        .requestMatchers(GET, "/api/consents/athlete/*/status").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers(GET, "/api/consents/athlete/**").hasRole("ADMIN")
+                        .requestMatchers(POST, "/api/consents/athlete/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/athlete-documents/athlete/**").authenticated()
                         .requestMatchers(GET, "/api/athlete-documents/athlete/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/athlete-documents/my").authenticated()

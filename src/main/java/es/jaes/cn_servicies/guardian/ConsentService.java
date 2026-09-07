@@ -12,7 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -95,6 +97,48 @@ public class ConsentService {
     @Transactional(readOnly = true)
     public List<Consent> findByAthlete(UUID athleteId) {
         return consentRepository.findByAthleteIdOrderByDecisionDateDesc(athleteId);
+    }
+
+    /** Historial completo, con la evidencia. Es la vista del administrador. */
+    @Transactional(readOnly = true)
+    public List<ConsentResponse> historyForAthlete(UUID athleteId) {
+        return consentRepository.findByAthleteIdOrderByDecisionDateDesc(athleteId).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    /**
+     * Que se puede hacer hoy con este atleta, una linea por finalidad. Es la
+     * vista del entrenador: para saber si un nino puede salir en una foto no
+     * hace falta saber quien firmo, cuando, ni con que papel.
+     *
+     * <p>Devuelve todas las finalidades, tambien las que nadie ha contestado
+     * nunca: ausencia es {@code false}, que es lo que corresponde. Un
+     * consentimiento que no consta no ampara nada.
+     */
+    @Transactional(readOnly = true)
+    public Map<ConsentType, Boolean> statusForAthlete(UUID athleteId) {
+        Map<ConsentType, Boolean> status = new EnumMap<>(ConsentType.class);
+        for (ConsentType type : ConsentType.values()) {
+            status.put(type, hasActiveConsent(athleteId, type));
+        }
+        return status;
+    }
+
+    public ConsentResponse toResponse(Consent consent) {
+        ConsentResponse response = new ConsentResponse();
+        response.setId(consent.getId());
+        response.setType(consent.getType());
+        response.setGranted(consent.isGranted());
+        response.setDecisionDate(consent.getDecisionDate());
+        response.setEvidenceType(consent.getEvidenceType());
+        response.setEvidenceRef(consent.getEvidenceRef());
+        response.setRevokedAt(consent.getRevokedAt());
+        response.setActive(consent.isActive());
+        response.setGuardianId(consent.getGuardian().getId());
+        response.setGuardianName(
+                consent.getGuardian().getFirstName() + " " + consent.getGuardian().getLastName());
+        return response;
     }
 
     /** Si hay consentimiento vigente para esa finalidad concreta. */
