@@ -58,7 +58,7 @@ public class AthleteService {
         athlete.setGender(resolveGender(request.getGender()));
         Athlete saved = athleteRepository.save(athlete);
 
-        registerGuardianConsent(saved, request.getGuardian());
+        registerGuardianConsent(saved, request.getGuardianConsent());
 
         return toResponse(saved);
     }
@@ -132,7 +132,7 @@ public class AthleteService {
 
         // Se rechaza en vez de ignorarse: aceptar el bloque y no hacer nada con
         // el dejaria creer que el consentimiento quedo registrado.
-        if (request.getGuardian() != null) {
+        if (request.getGuardianConsent() != null) {
             throw new IllegalArgumentException(
                     "El tutor y sus consentimientos no se modifican desde la ficha del atleta");
         }

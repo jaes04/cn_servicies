@@ -42,5 +42,5 @@ public class AthleteRequest {
      * consentimiento no se edita, se otorga o se revoca.
      */
     @Valid
-    private AthleteGuardianRequest guardian;
+    private AthleteGuardianRequest guardianConsent;
 }

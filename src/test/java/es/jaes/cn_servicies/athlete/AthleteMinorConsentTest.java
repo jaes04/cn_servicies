@@ -159,7 +159,7 @@ class AthleteMinorConsentTest {
     @DisplayName("sin consentimiento de tratamiento no hay alta, aunque venga el tutor")
     void sinConsentimientoDeTratamientoNoHayAlta() {
         AthleteRequest request = atleta(DNI_MENOR, nacimientoDeMenor());
-        request.setGuardian(tutor(false, true));
+        request.setGuardianConsent(tutor(false, true));
 
         assertThatThrownBy(() -> athleteService.create(request))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -178,7 +178,7 @@ class AthleteMinorConsentTest {
     @DisplayName("con tutor y consentimiento, el alta crea ficha, vinculo y los dos consentimientos")
     void elAltaCompletaFunciona() {
         AthleteRequest request = atleta(DNI_MENOR, nacimientoDeMenor());
-        request.setGuardian(tutor(true, false));
+        request.setGuardianConsent(tutor(true, false));
 
         AthleteResponse creado = athleteService.create(request);
 
@@ -197,11 +197,11 @@ class AthleteMinorConsentTest {
     @DisplayName("el segundo hermano reutiliza la ficha del tutor, no crea otra")
     void elHermanoReutilizaElTutor() {
         AthleteRequest primero = atleta(DNI_MENOR, nacimientoDeMenor());
-        primero.setGuardian(tutor(true, true));
+        primero.setGuardianConsent(tutor(true, true));
         athleteService.create(primero);
 
         AthleteRequest hermano = atleta(DNI_HERMANO, nacimientoDeMenor());
-        hermano.setGuardian(tutor(true, true));
+        hermano.setGuardianConsent(tutor(true, true));
         athleteService.create(hermano);
 
         assertThat(tutoresEnElClub())
@@ -231,7 +231,7 @@ class AthleteMinorConsentTest {
         UUID id = athleteService.create(alta).getId();
 
         AthleteRequest cambio = atleta("66666665E", LocalDate.now().minusYears(20));
-        cambio.setGuardian(tutor(true, true));
+        cambio.setGuardianConsent(tutor(true, true));
 
         assertThatThrownBy(() -> athleteService.update(id, cambio))
                 .isInstanceOf(IllegalArgumentException.class);
