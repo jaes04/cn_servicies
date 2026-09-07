@@ -200,6 +200,35 @@ CREATE INDEX IF NOT EXISTS idx_consents_guardian ON consents (guardian_id);
 -- el tutor tiene borrado logico y no se borra nunca fisicamente, asi que la
 -- restriccion es la red que avisaria si alguien lo intentara.
 
+-- CERTIFICADOS MEDICOS (tarea S.1.b, opcion A: solo metadatos)
+--  Sin veredicto, sin diagnostico, sin campo `apto` y sin texto libre: si hay
+--  certificado en plazo, esa es la aptitud. El estado no se almacena, se
+--  calcula desde expires_on.
+--
+--  Sin season_id: la vigencia la definen sus fechas, y `seasons` no existe
+--  hasta la Fase 1.
+--
+--  Lleva club_id y policy propia, misma decision explicita que en consents.
+CREATE TABLE IF NOT EXISTS medical_certificates (
+    id               UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
+    club_id          UUID      NOT NULL REFERENCES clubs(id),
+    athlete_id       UUID      NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+    issued_on        DATE      NOT NULL,
+    expires_on       DATE      NOT NULL,
+    validated_by_id  UUID      NOT NULL REFERENCES users(id),
+    validated_at     TIMESTAMP NOT NULL,
+    created_at       TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_medical_certificates_club_id ON medical_certificates (club_id);
+
+-- Las dos consultas reales: el vigente de un atleta —el que mas lejos caduca—
+-- y los que vencen pronto en todo el club.
+CREATE INDEX IF NOT EXISTS idx_medical_certificates_athlete
+    ON medical_certificates (athlete_id, expires_on DESC);
+CREATE INDEX IF NOT EXISTS idx_medical_certificates_expires
+    ON medical_certificates (expires_on);
+
 -- ============================================================
 --  MULTI-TENANCY — club_id en las entidades raiz (tarea 0.2)
 -- ============================================================

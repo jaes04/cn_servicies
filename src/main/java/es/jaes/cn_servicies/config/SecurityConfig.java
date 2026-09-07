@@ -99,6 +99,14 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/consents/athlete/*/status").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/consents/athlete/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/consents/athlete/**").hasRole("ADMIN")
+                        // Certificados medicos. Mismo criterio que arriba: el
+                        // entrenador ve si el nadador esta cubierto, porque lo
+                        // necesita antes de meterlo al agua, pero las fechas y
+                        // quien valido el papel son del club.
+                        .requestMatchers(GET, "/api/medical-certificates/athlete/*/status").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers(GET, "/api/medical-certificates/expiring").hasRole("ADMIN")
+                        .requestMatchers(GET, "/api/medical-certificates/athlete/**").hasRole("ADMIN")
+                        .requestMatchers(POST, "/api/medical-certificates/athlete/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/athlete-documents/athlete/**").authenticated()
                         .requestMatchers(GET, "/api/athlete-documents/athlete/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/athlete-documents/my").authenticated()

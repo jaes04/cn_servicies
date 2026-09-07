@@ -73,9 +73,19 @@ public class UserService {
     }
 
     public UserResponse findByUsername(String username) {
-        User user = userRepository.findByUsername(username)
+        return toResponse(findEntityByUsername(username));
+    }
+
+    /**
+     * La entidad, para quien necesita la referencia y no el DTO —tipicamente
+     * para guardarla como clave foranea. Es la misma puerta que
+     * {@code AthleteService.findOrThrow}: los modulos que la usan siguen
+     * pasando por el servicio y no por el repositorio.
+     */
+    @Transactional(readOnly = true)
+    public User findEntityByUsername(String username) {
+        return userRepository.findByUsername(username)
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Usuario no encontrado"));
-        return toResponse(user);
     }
 
     @Transactional(readOnly = true)

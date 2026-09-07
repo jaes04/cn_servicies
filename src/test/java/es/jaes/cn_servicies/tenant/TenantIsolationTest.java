@@ -5,6 +5,8 @@ import es.jaes.cn_servicies.athlete.AthleteRepository;
 import es.jaes.cn_servicies.guardian.Consent;
 import es.jaes.cn_servicies.guardian.ConsentRepository;
 import es.jaes.cn_servicies.guardian.Guardian;
+import es.jaes.cn_servicies.medical_certificate.MedicalCertificate;
+import es.jaes.cn_servicies.medical_certificate.MedicalCertificateRepository;
 import es.jaes.cn_servicies.guardian.GuardianRepository;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -73,6 +75,7 @@ class TenantIsolationTest {
     @Autowired private AthleteRepository athleteRepository;
     @Autowired private GuardianRepository guardianRepository;
     @Autowired private ConsentRepository consentRepository;
+    @Autowired private MedicalCertificateRepository certificateRepository;
 
     @Value("${app.jwt.secret}")
     private String jwtSecret;
@@ -83,6 +86,8 @@ class TenantIsolationTest {
     private UUID tutorB;
     private UUID consentimientoA;
     private UUID consentimientoB;
+    private UUID certificadoA;
+    private UUID certificadoB;
 
     // ----------------------------------------------------------------
     //  Datos de prueba
@@ -103,6 +108,8 @@ class TenantIsolationTest {
         tutorB = crearTutor(CLUB_B, "TutorDeB", DNI_TUTOR_B);
         consentimientoA = crearConsentimiento(CLUB_A, atletaA, tutorA);
         consentimientoB = crearConsentimiento(CLUB_B, atletaB, tutorB);
+        certificadoA = crearCertificado(CLUB_A, atletaA);
+        certificadoB = crearCertificado(CLUB_B, atletaB);
     }
 
     @AfterAll
@@ -122,6 +129,9 @@ class TenantIsolationTest {
     }
 
     private void borrarDatos() {
+        // Antes que users: el certificado apunta a quien lo valido, y esa clave
+        // foranea no es en cascada a proposito.
+        jdbc.update("DELETE FROM medical_certificates WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM user_roles WHERE user_id IN"
                 + " (SELECT id FROM users WHERE club_id IN (?, ?))", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM users WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
@@ -270,6 +280,17 @@ class TenantIsolationTest {
         assertThat(propio).as("el tutor del propio club si debe verse").isPresent();
     }
 
+    private UUID crearCertificado(UUID clubId, UUID atletaId) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO medical_certificates"
+                        + " (id, club_id, athlete_id, issued_on, expires_on,"
+                        + "  validated_by_id, validated_at, created_at)"
+                        + " SELECT ?, ?, ?, CURRENT_DATE, CURRENT_DATE + 365, u.id, now(), now()"
+                        + " FROM users u WHERE u.club_id = ? LIMIT 1",
+                id, clubId, atletaId, clubId);
+        return id;
+    }
+
     /**
      * El consentimiento es la anotacion que sostiene la licitud del tratamiento
      * de los datos de un menor. Si algo no puede cruzar clubes, es esto.
@@ -292,6 +313,26 @@ class TenantIsolationTest {
                 .as("el consentimiento del club B no puede verse desde el club A").isFalse();
         assertThat(propio.isPresent())
                 .as("el consentimiento del propio club si debe verse").isTrue();
+    }
+
+    /**
+     * Saber si un menor tiene certificado en plazo no cruza clubes, aunque la
+     * tabla no guarde ningun dato clinico.
+     */
+    @Test
+    @DisplayName("findById tampoco devuelve el certificado medico de otro club")
+    @Transactional(readOnly = true)
+    void findByIdNoDevuelveCertificadosDeOtroClub() {
+        jdbc.queryForObject("SELECT set_config('app.club_id', ?, false)",
+                String.class, CLUB_A.toString());
+
+        Optional<MedicalCertificate> ajeno = certificateRepository.findById(certificadoB);
+        Optional<MedicalCertificate> propio = certificateRepository.findById(certificadoA);
+
+        assertThat(ajeno.isPresent())
+                .as("el certificado del club B no puede verse desde el club A").isFalse();
+        assertThat(propio.isPresent())
+                .as("el certificado del propio club si debe verse").isTrue();
     }
 
     @Test
