@@ -117,6 +117,90 @@ CREATE TABLE IF NOT EXISTS athlete_documents (
 );
 
 -- ============================================================
+--  TUTORES (tarea S.1.a)
+-- ============================================================
+--  Nacen con club_id NOT NULL: la regla es que toda entidad nueva lo lleve
+--  desde el principio, asi que aqui no hay backfill que hacer.
+--
+--  guardians es entidad raiz —un tutor pertenece al club, no cuelga de un
+--  atleta, porque puede tener varios hijos en el mismo club— y por eso lleva
+--  club_id y policy de RLS propia. athlete_guardians es tabla hija y llega a
+--  su club por cualquiera de sus dos padres.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS guardians (
+    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    club_id    UUID         NOT NULL REFERENCES clubs(id),
+    first_name VARCHAR(255) NOT NULL,
+    last_name  VARCHAR(255) NOT NULL,
+    dni        VARCHAR(9)   NOT NULL,
+    email      VARCHAR(255) NOT NULL,
+    phone      VARCHAR(255),
+    user_id    UUID         REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_guardians_club_id ON guardians (club_id);
+
+-- El dni del tutor es unico por club, no global: la misma persona puede ser
+-- tutora en dos clubes y cada uno tiene su ficha.
+CREATE UNIQUE INDEX IF NOT EXISTS uk_guardians_club_dni ON guardians (club_id, dni);
+
+-- Una cuenta corresponde a una sola ficha de tutor. El indice unico de Postgres
+-- ignora los nulos, asi que esto no estorba a los tutores sin cuenta, que son
+-- la mayoria al principio.
+CREATE UNIQUE INDEX IF NOT EXISTS uk_guardians_user ON guardians (user_id);
+
+CREATE TABLE IF NOT EXISTS athlete_guardians (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    athlete_id   UUID        NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+    guardian_id  UUID        NOT NULL REFERENCES guardians(id) ON DELETE CASCADE,
+    relationship VARCHAR(20) NOT NULL,
+    created_at   TIMESTAMP,
+    CONSTRAINT uk_athlete_guardians UNIQUE (athlete_id, guardian_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_athlete_guardians_athlete ON athlete_guardians (athlete_id);
+CREATE INDEX IF NOT EXISTS idx_athlete_guardians_guardian ON athlete_guardians (guardian_id);
+
+-- CONSENTIMIENTOS
+--  Registro append-only: ni se actualiza ni se borra. Revocar es escribir
+--  revoked_at, y volver a consentir es una fila nueva. Por eso no hay unico
+--  sobre (athlete_id, type): el historial completo es la prueba.
+--
+--  Lleva club_id aunque se llegue por el atleta, apartandose del criterio de
+--  la 0.2 para tablas hijas. Es lo que sostiene la licitud del tratamiento de
+--  un menor: que el aislamiento lo imponga Postgres y no la confianza en que
+--  toda consulta futura pase por el atleta.
+CREATE TABLE IF NOT EXISTS consents (
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    club_id       UUID        NOT NULL REFERENCES clubs(id),
+    athlete_id    UUID        NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+    guardian_id   UUID        NOT NULL REFERENCES guardians(id),
+    type          VARCHAR(30) NOT NULL,
+    granted       BOOLEAN     NOT NULL,
+    decision_date DATE        NOT NULL,
+    evidence_type VARCHAR(20) NOT NULL,
+    evidence_ref  VARCHAR(100),
+    source_ip     VARCHAR(45),
+    revoked_at    TIMESTAMP,
+    created_at    TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_consents_club_id ON consents (club_id);
+
+-- La consulta que mas se hace es "¿tiene este atleta consentimiento vigente
+-- para esta finalidad?", y va por las dos columnas a la vez.
+CREATE INDEX IF NOT EXISTS idx_consents_athlete_type ON consents (athlete_id, type);
+CREATE INDEX IF NOT EXISTS idx_consents_guardian ON consents (guardian_id);
+
+-- guardian_id sin ON DELETE CASCADE, a proposito y a diferencia de athlete_id:
+-- el tutor tiene borrado logico y no se borra nunca fisicamente, asi que la
+-- restriccion es la red que avisaria si alguien lo intentara.
+
+-- ============================================================
 --  MULTI-TENANCY — club_id en las entidades raiz (tarea 0.2)
 -- ============================================================
 --  Idempotente y en este orden: la columna nace nullable, se rellena con el

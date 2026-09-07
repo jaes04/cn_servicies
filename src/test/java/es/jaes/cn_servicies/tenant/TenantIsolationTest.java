@@ -2,6 +2,10 @@ package es.jaes.cn_servicies.tenant;
 
 import es.jaes.cn_servicies.athlete.Athlete;
 import es.jaes.cn_servicies.athlete.AthleteRepository;
+import es.jaes.cn_servicies.guardian.Consent;
+import es.jaes.cn_servicies.guardian.ConsentRepository;
+import es.jaes.cn_servicies.guardian.Guardian;
+import es.jaes.cn_servicies.guardian.GuardianRepository;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -60,16 +64,25 @@ class TenantIsolationTest {
     private static final String DNI_A = "88888881A";
     private static final String DNI_B = "88888882B";
 
+    private static final String DNI_TUTOR_A = "88888883C";
+    private static final String DNI_TUTOR_B = "88888884D";
+
     @Autowired private TestRestTemplate rest;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private AthleteRepository athleteRepository;
+    @Autowired private GuardianRepository guardianRepository;
+    @Autowired private ConsentRepository consentRepository;
 
     @Value("${app.jwt.secret}")
     private String jwtSecret;
 
     private UUID atletaA;
     private UUID atletaB;
+    private UUID tutorA;
+    private UUID tutorB;
+    private UUID consentimientoA;
+    private UUID consentimientoB;
 
     // ----------------------------------------------------------------
     //  Datos de prueba
@@ -86,6 +99,10 @@ class TenantIsolationTest {
         crearAdmin(CLUB_B, ADMIN_B);
         atletaA = crearAtleta(CLUB_A, "AtletaDeA", DNI_A);
         atletaB = crearAtleta(CLUB_B, "AtletaDeB", DNI_B);
+        tutorA = crearTutor(CLUB_A, "TutorDeA", DNI_TUTOR_A);
+        tutorB = crearTutor(CLUB_B, "TutorDeB", DNI_TUTOR_B);
+        consentimientoA = crearConsentimiento(CLUB_A, atletaA, tutorA);
+        consentimientoB = crearConsentimiento(CLUB_B, atletaB, tutorB);
     }
 
     @AfterAll
@@ -108,6 +125,13 @@ class TenantIsolationTest {
         jdbc.update("DELETE FROM user_roles WHERE user_id IN"
                 + " (SELECT id FROM users WHERE club_id IN (?, ?))", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM users WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
+        // Antes que guardians y athletes: apunta a los dos.
+        jdbc.update("DELETE FROM consents WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
+        jdbc.update("DELETE FROM athlete_guardians WHERE guardian_id IN"
+                + " (SELECT id FROM guardians WHERE club_id IN (?, ?))", CLUB_A, CLUB_B);
+        // Antes que athletes: athlete_guardians cae por cascada desde los dos
+        // lados, pero guardians no cuelga de nadie.
+        jdbc.update("DELETE FROM guardians WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM athletes WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM clubs WHERE id IN (?, ?)", CLUB_A, CLUB_B);
     }
@@ -134,6 +158,31 @@ class TenantIsolationTest {
                         + " SELECT ?, ?, ?, 'Prueba', DATE '2010-01-01', ?, g.id, now(), now()"
                         + " FROM genders g WHERE g.name = 'MALE'",
                 id, clubId, nombre, dni);
+        return id;
+    }
+
+    private UUID crearTutor(UUID clubId, String nombre, String dni) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO guardians"
+                        + " (id, club_id, first_name, last_name, dni, email, created_at, updated_at)"
+                        + " VALUES (?, ?, ?, 'Prueba', ?, ?, now(), now())",
+                id, clubId, nombre, dni, nombre.toLowerCase() + "@it.local");
+        return id;
+    }
+
+    private UUID crearConsentimiento(UUID clubId, UUID atletaId, UUID tutorId) {
+        jdbc.update("INSERT INTO athlete_guardians"
+                        + " (id, athlete_id, guardian_id, relationship, created_at)"
+                        + " VALUES (?, ?, ?, 'MOTHER', now())",
+                UUID.randomUUID(), atletaId, tutorId);
+
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO consents"
+                        + " (id, club_id, athlete_id, guardian_id, type, granted,"
+                        + "  decision_date, evidence_type, created_at)"
+                        + " VALUES (?, ?, ?, ?, 'DATA_PROCESSING', true,"
+                        + "  CURRENT_DATE, 'PAPER_FORM', now())",
+                id, clubId, atletaId, tutorId);
         return id;
     }
 
@@ -199,6 +248,50 @@ class TenantIsolationTest {
 
         assertThat(ajeno).as("el atleta del club B no puede verse desde el club A").isEmpty();
         assertThat(propio).as("el atleta del propio club si debe verse").isPresent();
+    }
+
+    /**
+     * El mismo test que el de arriba, sobre la tabla que entra en la S.1. Es la
+     * comprobacion de que la migracion S.1-guardians-rls.sql esta aplicada: sin
+     * ella la tabla nace sin policy y este test se pone en rojo, que es
+     * justamente lo que tiene que pasar.
+     */
+    @Test
+    @DisplayName("findById tampoco devuelve el tutor de otro club")
+    @Transactional(readOnly = true)
+    void findByIdNoDevuelveTutoresDeOtroClub() {
+        jdbc.queryForObject("SELECT set_config('app.club_id', ?, false)",
+                String.class, CLUB_A.toString());
+
+        Optional<Guardian> ajeno = guardianRepository.findById(tutorB);
+        Optional<Guardian> propio = guardianRepository.findById(tutorA);
+
+        assertThat(ajeno).as("el tutor del club B no puede verse desde el club A").isEmpty();
+        assertThat(propio).as("el tutor del propio club si debe verse").isPresent();
+    }
+
+    /**
+     * El consentimiento es la anotacion que sostiene la licitud del tratamiento
+     * de los datos de un menor. Si algo no puede cruzar clubes, es esto.
+     */
+    @Test
+    @DisplayName("findById tampoco devuelve el consentimiento de otro club")
+    @Transactional(readOnly = true)
+    void findByIdNoDevuelveConsentimientosDeOtroClub() {
+        jdbc.queryForObject("SELECT set_config('app.club_id', ?, false)",
+                String.class, CLUB_A.toString());
+
+        Optional<Consent> ajeno = consentRepository.findById(consentimientoB);
+        Optional<Consent> propio = consentRepository.findById(consentimientoA);
+
+        // Sobre el booleano y no sobre el Optional: al fallar, AssertJ pondria
+        // la entidad en el mensaje, y el toString() de Lombok recorre las
+        // relaciones LAZY. La del atleta ajeno esta tapada por RLS, asi que el
+        // test moriria con EntityNotFoundException en vez de decir que fallo.
+        assertThat(ajeno.isPresent())
+                .as("el consentimiento del club B no puede verse desde el club A").isFalse();
+        assertThat(propio.isPresent())
+                .as("el consentimiento del propio club si debe verse").isTrue();
     }
 
     @Test
