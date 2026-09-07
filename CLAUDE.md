@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 Contexto permanente de `cn_servicies`. Léelo entero antes de tocar código.
-Documentos de apoyo en `docs/`.
+Documentos de apoyo en `docs/`. El plan de trabajo vivo está en
+`roadmap-desarrollo.md`.
 
 ---
 
@@ -15,10 +16,20 @@ módulos por funcionalidad, de forma que uno pueda extraerse como servicio indep
 alguna vez necesita escalar aparte. La regla que sostiene eso: **un módulo nunca usa el
 repositorio de otro módulo**, pasa por su servicio. Ver `docs/arquitectura.md` §1.
 
-**Estado real: es todavía una aplicación mono-club.** El objetivo es multi-tenant y la
-Fase 0 está en marcha —existe la entidad `Club` y un club por defecto—, pero **ninguna
-otra entidad tiene `club_id` todavía**, no hay filtro, no hay Row Level Security y no hay
-aislamiento. No asumas que existe. Ver `docs/arquitectura.md` §2.
+**Estado real: la multi-tenancy está activa.** La Fase 0 está completa. `users`,
+`athletes`, `posts`, `guardians` y `consents` llevan `club_id`, y el aislamiento se apoya
+en tres capas:
+
+1. **Filtro de Hibernate**, activado por `ClubFilterAspect` al entrar en cada método
+   transaccional, con el club del `TenantContext`.
+2. **Row Level Security en Postgres**, que es lo que tapa las cargas por clave primaria
+   —donde los filtros de Hibernate no se aplican— y por tanto lo que hace que un
+   `findById` no devuelva la fila de otro club.
+3. **El claim `club_id` del JWT**, puesto por `TenantFilter`. Nunca se resuelve el club
+   desde un parámetro, cabecera o cuerpo de la petición.
+
+La **Fase S.1.a** también está hecha: tutores, consentimientos granulares y el bloqueo del
+alta de menores de 14 sin consentimiento.
 
 El sistema maneja datos personales de menores y almacena documentos que pueden contener
 datos de salud. Eso condiciona decisiones técnicas en todo el proyecto — ver
@@ -31,13 +42,14 @@ datos de salud. Eso condiciona decisiones técnicas en todo el proyecto — ver
 **Backend**
 - Java 21, Spring Boot 3.4.0, Maven
 - `groupId: es.jaes` · `artifactId: cn_servicies`
-- PostgreSQL 16, Hibernate/JPA
+- PostgreSQL, Hibernate/JPA. Esquema gestionado por `ddl-auto=update` más `schema.sql`
 - Autenticación JWT
 
 **Frontend**
-- **Repositorio aparte.** Este repo es solo backend.
+- **Repositorio aparte**, en `C:\user\jorge\web\sierra_oeste`. Este repo es solo backend.
 - React + Vite, archivos `.jsx`
-- Todo cambio en un `*Response` es un cambio de contrato: avísalo en el reporte final
+- Todo cambio en un `*Request` o un `*Response` es un cambio de contrato: avísalo en el
+  reporte final
 
 **Infraestructura**
 - Docker Compose (API + PostgreSQL)
@@ -49,12 +61,41 @@ respuesta. Esto incluye utilidades pequeñas.
 
 ---
 
-## Comandos
+## Entorno local — cosas que ya han costado tiempo
 
-Verifica los scripts reales en `pom.xml` / `package.json` antes de asumir:
+**La base de desarrollo NO es la de Docker.** El `docker-compose.yml` no publica el puerto
+de `db`; el override solo expone el 8080 del `api`. Lo que responde en `localhost:5432` es
+un **PostgreSQL 18 nativo** instalado como servicio de Windows, y es contra ese que corren
+los tests.
+
+**No cargues el `.env` con `. ./.env` en bash.** Las contraseñas contienen `$` y bash las
+expande: llega a la aplicación un valor distinto del que hay en el archivo, y el síntoma es
+un `password authentication failed` que parece un problema de la base. Hay que leerlo línea
+a línea sin interpretar:
 
 ```bash
-# Backend
+while IFS= read -r line || [ -n "$line" ]; do
+  line=${line%$'\r'}; case "$line" in ''|'#'*) continue;; esac
+  k=${line%%=*}; v=${line#*=}; export "$k=$v"
+done < .env
+```
+
+Ese mismo `$` es un problema pendiente para el despliegue: **`docker compose` también
+interpreta `$` dentro de los valores del `.env`** y hay que escribirlo `$$`, o el
+contenedor de Postgres arrancará con una contraseña distinta de la esperada.
+
+**`MIGRATION_PASSWORD` del `.env` no es la contraseña real de `postgres`.** Hoy no bloquea
+nada, porque las migraciones de RLS las puede ejecutar `cn_app` —es dueño de las tablas, ya
+que las crea Hibernate—, pero bloqueará el paso a Flyway.
+
+---
+
+## Comandos
+
+Verifica los scripts reales en `pom.xml` antes de asumir:
+
+```bash
+# Backend (con el .env cargado como se explica arriba)
 ./mvnw spring-boot:run
 ./mvnw test
 ./mvnw clean package
@@ -63,9 +104,18 @@ Verifica los scripts reales en `pom.xml` / `package.json` antes de asumir:
 docker compose up -d
 docker compose logs -f
 docker compose down          # sin -v: borrar el volumen de Postgres rompe la inicialización
+
+# Migraciones de RLS: una vez por entorno, después de arrancar la aplicación
+"/c/Program Files/PostgreSQL/18/bin/psql.exe" -h localhost -U cn_app -d cn_test \
+  -f migrations/S.1-guardians-rls.sql
 ```
 
 Hay además `seed.sh` en la raíz para poblar datos. Revisa qué hace antes de ejecutarlo.
+
+**Los tests necesitan un PostgreSQL de verdad y conectarse como `cn_app`, no como
+superusuario.** Postgres deja que los superusuarios se salten las policies: ejecutados como
+`postgres`, los tests de aislamiento pasarían en verde sin demostrar nada. `TenantIsolationTest`
+comprueba eso lo primero.
 
 ---
 
@@ -74,38 +124,67 @@ Hay además `seed.sh` en la raíz para poblar datos. Revisa qué hace antes de e
 **El dominio está nombrado en inglés.** `Athlete`, no `Atleta`. Mantén ese idioma en todo
 el código nuevo; no mezcles.
 
-Entidades que existen hoy:
-
 | Entidad | Notas |
 |---|---|
-| `User` | Cuenta de acceso. `username`, `email`, `passwordHash`, `roles`, `blocked` |
-| `Role` | Rol global. Enum `RoleName`: ADMIN, EDITOR, USER, TECHNICAL_STAFF |
-| `Athlete` | Deportista. Incluye `dni` y `birthDate`. Frecuentemente menor |
-| `UserAthlete` | Vínculo usuario–atleta con tipo TUTOR o ATHLETE |
+| `Club` | Tenant raíz. `name`, `slug`, `active`. Sin borrado lógico: dar de baja es `active = false` |
+| `User` | Cuenta de acceso. Lleva `club_id`. `username` único **por club**; `email` todavía único global |
+| `Role` | Rol global. Enum `RoleName`: `ROLE_ADMIN`, `ROLE_EDITOR`, `ROLE_USER`, `ROLE_TECHNICAL_STAFF` |
+| `Athlete` | Deportista. Lleva `club_id`. `dni` único por club, `birthDate` es `LocalDate`. Frecuentemente menor |
+| `Gender` / `GenderEntity` | Enum `MALE`, `FEMALE` y su tabla de catálogo. `Athlete` apunta a la entidad, no al enum |
+| `UserAthlete` | Vínculo usuario–atleta con tipo `TUTOR` o `ATHLETE`. Es el vínculo de **acceso** |
 | `AthleteInviteKey` | Clave de invitación para vincular un usuario a un atleta |
-| `AthleteDocument` | Documento subido. Tipos: MEDICAL, TRAINING, COMPETITION, CONSENT, IDENTIFICATION, OTHER |
+| `Guardian` | Tutor legal. Lleva `club_id`. **Es una persona, no una cuenta**: `user` es opcional |
+| `AthleteGuardian` | Vínculo atleta–tutor con el parentesco. Varios por atleta y por tutor |
+| `Consent` | Consentimiento por finalidad. Lleva `club_id`. **Append-only**: ver abajo |
+| `AthleteDocument` | Documento subido. Tipos: `MEDICAL`, `TRAINING`, `COMPETITION`, `CONSENT`, `IDENTIFICATION`, `OTHER` |
 | `CompetitionResult` | Marca de competición. Soporta parciales vía autorreferencia |
-| `Post` / `PostImage` / `Comment` | Blog público del club |
+| `Post` / `PostImage` / `Comment` | Blog público del club. `Post` lleva `club_id`; su `slug` ya no es único |
 
 Detalle completo, relaciones y campos en `docs/arquitectura.md`.
 
-**No existen todavía**: `Club`, `Season`, `Group`, `GroupSchedule`, `Session`,
-`Attendance`. Todo el bloque de gestión de entrenamientos está sin construir.
+**No existen todavía**: `Season`, `Group`, `GroupSchedule`, `Session`, `Attendance`,
+`MedicalCertificate`. Todo el bloque de gestión de entrenamientos está sin construir.
+
+### Qué llevan `club_id` y qué no
+
+Solo las **entidades raíz**: `users`, `athletes`, `posts`, `guardians` y `consents`. Las
+hijas llegan a su club por el padre y no lo repiten: `comments`, `post_images`,
+`competition_results`, `athlete_documents`, `user_athletes`, `athlete_invite_keys` y
+`athlete_guardians`.
+
+`consents` es la excepción deliberada: es hija de `Athlete` y aun así lleva `club_id` y
+policy propia, porque sostiene la licitud de todo el tratamiento de un menor y merece que
+el aislamiento lo imponga Postgres.
+
+### Tutores y consentimiento
+
+`Guardian` y `UserAthlete` con `type = TUTOR` **no son lo mismo y no se sustituyen**:
+`UserAthlete` es quién puede *ver* los datos del atleta; `Guardian` es quién *otorga* el
+consentimiento, tenga cuenta o no.
+
+El registro de `Consent` es **append-only**: nada se actualiza ni se borra. Revocar es
+escribir `revokedAt`, y volver a consentir es una fila nueva. El historial completo es la
+prueba que exige el RGPD art. 7.1. Una negativa se guarda igual que una concesión.
+
+La edad de consentimiento en España son **14 años** (LOPDGDD art. 7), no 16, y se mide
+**en la fecha de la decisión, no en la de hoy**: `ConsentService.requiresGuardianConsent`
+para la primera pregunta, `wasUnderConsentAgeAtDecision` para la segunda.
 
 ---
 
 ## Reglas innegociables
 
-1. **Toda entidad nueva nace con `club_id`.** Aunque la multi-tenancy no esté activa
-   todavía, añadirlo después cuesta mucho más. Not null, con índice.
+1. **Toda entidad raíz nueva nace con `club_id`**, not null y con índice, **y con su
+   migración de RLS**. Sin la policy, la tabla nace fuera del aislamiento: el filtro de
+   Hibernate la tapa en las consultas normales, pero un `findById` devuelve la fila ajena.
+   Las tablas hijas no lo llevan, salvo decisión explícita como la de `consents`.
 
 2. **Un módulo no toca el repositorio de otro módulo.** Pasa por su `Service`. Es la
    regla que hace que la separación en paquetes signifique algo.
 
-3. **Ninguna consulta puede cruzar clubes.** Cuando el filtro de tenancy esté activo,
-   esto lo garantiza Hibernate; hasta entonces, no introduzcas patrones que lo pongan
-   difícil (queries nativas sin `WHERE`, joins amplios, endpoints que aceptan IDs sin
-   validar propiedad).
+3. **Ninguna consulta puede cruzar clubes.** Hoy lo garantizan el filtro de Hibernate y
+   RLS, pero no introduzcas patrones que lo pongan difícil: queries nativas sin `WHERE`,
+   joins amplios, endpoints que aceptan IDs sin validar propiedad.
 
 4. **`AthleteDocument` de tipo `MEDICAL` es la pieza más sensible del sistema.** No
    amplíes su funcionalidad, no añadas campos de texto libre, no lo expongas en listados
@@ -128,7 +207,53 @@ Detalle completo, relaciones y campos en `docs/arquitectura.md`.
    siempre que cambies un nombre de campo.
 
 10. **Cambios de esquema se proponen antes de aplicarse**, incluidos los que Hibernate
-    haría automáticamente.
+    haría automáticamente. Ten en cuenta que **arrancar la aplicación o pasar los tests ya
+    los aplica**: con `ddl-auto=update`, proponer y ejecutar están a un `./mvnw test` de
+    distancia.
+
+---
+
+## Trampas conocidas
+
+**`@Data` de Lombok genera un `toString()` que recorre las relaciones `LAZY`.** En cuanto
+una de esas relaciones está tapada por RLS, cualquier cosa que imprima la entidad —un log,
+un mensaje de fallo de un test, el depurador— revienta con `EntityNotFoundException` en vez
+de decir lo que pasaba. Está en todas las entidades del proyecto. En los tests, asierta
+sobre `Optional.isPresent()` y no sobre el `Optional`, o el mensaje de fallo se lo lleva
+por delante.
+
+**El login sigue resolviéndose solo por `username`.** Es correcto mientras haya un único
+club; con dos, `UserRepository.findByUsername` se vuelve ambiguo, porque el username es
+único por club. Es la decisión abierta de más abajo.
+
+---
+
+## Decisiones abiertas
+
+No las cierres tú. Si una tarea depende de una, pregunta.
+
+- **Cómo se determina el club en lo público.** Afecta al login, al alta pública de usuario
+  y al blog. Hoy el login resuelve por username a secas y el alta pública cae en el club
+  por defecto. Con el segundo club, las dos cosas se rompen. Subdominio, slug en la
+  petición o selector en el formulario: sin decidir. **Es cambio de contrato de login.**
+- **`athletes.dni` es `NOT NULL`.** Muchos atletas son menores de 14 y pueden no tener DNI,
+  y los extranjeros tienen NIE. Con la columna obligatoria y el índice único por club, el
+  segundo atleta sin DNI no se puede dar de alta. Hacerla nullable lo resuelve —Postgres
+  ignora los nulos en un índice único— pero obliga a decidir cómo se detectan duplicados
+  sin DNI.
+- **Documentos médicos**: si `AthleteDocument` sigue almacenando archivos de tipo `MEDICAL`
+  tal cual. Para el certificado federativo ya está decidido que sea una entidad aparte solo
+  con metadatos (S.1.b), pero qué pasa con lo que ya hay sigue abierto. Ver
+  `docs/rgpd.md` §1.
+- **`User.email`**: único global, igual que lo era `username`. Al pasar el username a único
+  por club, el email queda como el nuevo obstáculo para que una persona use el mismo correo
+  en dos clubes. Sin resolver.
+- **Roles de club**: `Role` es global. Con multi-tenancy hará falta que `ROLE_ADMIN`,
+  `ROLE_EDITOR`, `ROLE_USER` y `ROLE_TECHNICAL_STAFF` sean por club. Sin resolver.
+- **Sacar el esquema de `ddl-auto`**, probablemente con Flyway. Mientras `cn_app` sea dueño
+  de las tablas puede desactivar sus propias policies, así que la separación entre el rol
+  de aplicación y el de migraciones no es real todavía. Pendiente antes de producción.
+- **Dominio de producción**: pendiente de decisión del club.
 
 ---
 
@@ -139,6 +264,9 @@ Detalle completo, relaciones y campos en `docs/arquitectura.md`.
   seguridad.
 - **Bloques pequeños.** El trabajo se organiza en bloques de 2–6 tareas relacionadas que
   terminan en algo probable a mano.
+- **Un test que no has visto fallar no demuestra nada.** Cuando escribas uno que protege
+  una regla —una transacción que deshace, una policy que tapa—, comprueba que se pone en
+  rojo al quitar lo que protege, y déjalo dicho en el reporte.
 - **Termina con un reporte breve**: archivos tocados, cómo probarlo, qué queda pendiente.
 - **Si algo de este contexto contradice el código real, dilo** en vez de seguirlo a
   ciegas.
@@ -147,74 +275,15 @@ Detalle completo, relaciones y campos en `docs/arquitectura.md`.
 
 ---
 
-## Cambios acordados — PENDIENTES DE EJECUTAR
-
-**`Athlete.birthDate` pasa de `LocalDateTime` a `LocalDate`.** Es un cambio de tipo, no de
-nombre. Arrastra:
-
-- La serialización JSON (desaparece la parte horaria) → contrato de API, afecta al
-  frontend
-- `AthleteSpecification`, si filtra por fecha de nacimiento
-- Cualquier cálculo de edad o categoría deportiva
-
-Se hace como tarea propia, en un solo bloque, con el proyecto compilando al final.
-
-Pendiente de verificar en el código antes de tocar nada: si el campo de borrado lógico se
-llama `deleteAt` o `deletedAt`. Si es lo primero, se renombra en la misma pasada.
-
-**`User.username` pasa a ser único por club, no único global.** Decisión tomada; se
-ejecuta en la tarea 0.2 del roadmap. El índice único de `username` se migra a
-`(club_id, username)`. Arrastra:
-
-- Cada cuenta pertenece a **un** club. Una persona en dos clubes necesita dos cuentas:
-  no hay cuenta compartida entre clubes.
-- **El login deja de poder resolverse solo con el username**, porque puede haber un
-  `admin` por club. `UserDetailsServiceImpl.loadUserByUsername` recibe hoy solo la
-  cadena y llama a `findByUsername`, que pasará a devolver varias filas. Hay que
-  resolver el club antes de autenticar — por subdominio, por slug en la petición o por
-  un selector en el formulario. Es la tarea 0.3, y **afecta al contrato de login**:
-  cambio de API que hay que coordinar con el frontend.
-- `UserRepository.findByUsername` y `existsByUsername` quedan ambiguos: pasan a
-  necesitar el club como parámetro.
-
-**El alta de un club crea también su administrador.** Decisión tomada; se implementa en
-la tarea 0.8 del roadmap. `ClubService.create()` inserta el club y un usuario `adminjaes`
-con `ROLE_ADMIN` **de ese club**, en la misma transacción: si falla el segundo, no hay
-club. Como `username` es único por club, `adminjaes` puede existir una vez en cada uno.
-
-- **No hay administrador global.** Ese `adminjaes` es un administrador corriente de su
-  club. El filtro de tenancy y las policies de RLS le tratan como a cualquiera, sin
-  excepción en el código ni en la base de datos.
-- El propósito de la cuenta es **poder crear los demás administradores del club**. Es
-  aprovisionamiento, no un privilegio de lectura sobre los datos del club.
-- `AdminInitializer` crea hoy `adminjaes` al arrancar sin club: **dejará de funcionar en
-  cuanto `club_id` sea NOT NULL** (tarea 0.2). Hay que adaptarlo en la misma pasada.
-- Destino, antes del primer cliente que pague: que el club ponga su primer administrador
-  con un enlace de un solo uso (el patrón de `AthleteInviteKey`) y no conservar cuenta en
-  ningún club. Ver la nota de la 0.8.
-
----
-
-## Decisiones abiertas
-
-No las cierres tú. Si una tarea depende de una, pregunta.
-
-- **Documentos médicos**: si `AthleteDocument` sigue almacenando archivos de tipo
-  `MEDICAL` tal cual, o si el certificado federativo pasa a ser una entidad aparte solo
-  con metadatos. Ver `docs/rgpd.md` §1.
-- **`User.email`**: hoy es único global, igual que lo era `username`. Al pasar el
-  username a único por club, el email queda como el nuevo obstáculo para que una
-  persona use el mismo correo en dos clubes. Sin resolver.
-- **Roles de club**: `Role` es global hoy. Con multi-tenancy hará falta que `ROLE_ADMIN`,
-  `ROLE_EDITOR`, `ROLE_USER` y `ROLE_TECHNICAL_STAFF` sean por club. Sin resolver.
-- **Dominio de producción**: pendiente de decisión del club.
-
----
-
 ## Documentos de apoyo
 
 | Archivo | Cuándo leerlo |
 |---|---|
-| `docs/arquitectura.md` | Modelo de datos real, multi-tenancy pendiente, despliegue |
+| `roadmap-desarrollo.md` | Qué toca hacer, en qué orden, y las decisiones ya tomadas en cada fase |
+| `docs/arquitectura.md` | Modelo de datos y despliegue |
 | `docs/convenciones.md` | Estructura de paquetes, naming, DTOs, errores, tests |
 | `docs/rgpd.md` | Cualquier cosa que toque datos personales, menores, documentos o logs |
+
+> **`docs/arquitectura.md` y `docs/convenciones.md` tienen partes desactualizadas**, las
+> mismas que tenía este archivo: describen la multi-tenancy como pendiente y dicen que solo
+> existe un archivo de tests, cuando hay seis clases y 36 tests. Están sin repasar.
