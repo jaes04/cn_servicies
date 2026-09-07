@@ -99,6 +99,11 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/consents/athlete/*/status").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/consents/athlete/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/consents/athlete/**").hasRole("ADMIN")
+                        // Temporadas: el entrenador las consulta —necesita saber
+                        // en cual esta trabajando— pero crearlas y activarlas es
+                        // del club. No hay DELETE que proteger: no existe.
+                        .requestMatchers(GET, "/api/seasons/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers("/api/seasons/**").hasRole("ADMIN")
                         // Certificados medicos. Mismo criterio que arriba: el
                         // entrenador ve si el nadador esta cubierto, porque lo
                         // necesita antes de meterlo al agua, pero las fechas y

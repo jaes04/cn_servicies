@@ -7,6 +7,8 @@ import es.jaes.cn_servicies.guardian.ConsentRepository;
 import es.jaes.cn_servicies.guardian.Guardian;
 import es.jaes.cn_servicies.medical_certificate.MedicalCertificate;
 import es.jaes.cn_servicies.medical_certificate.MedicalCertificateRepository;
+import es.jaes.cn_servicies.season.Season;
+import es.jaes.cn_servicies.season.SeasonRepository;
 import es.jaes.cn_servicies.guardian.GuardianRepository;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -76,6 +78,7 @@ class TenantIsolationTest {
     @Autowired private GuardianRepository guardianRepository;
     @Autowired private ConsentRepository consentRepository;
     @Autowired private MedicalCertificateRepository certificateRepository;
+    @Autowired private SeasonRepository seasonRepository;
 
     @Value("${app.jwt.secret}")
     private String jwtSecret;
@@ -88,6 +91,8 @@ class TenantIsolationTest {
     private UUID consentimientoB;
     private UUID certificadoA;
     private UUID certificadoB;
+    private UUID temporadaA;
+    private UUID temporadaB;
 
     // ----------------------------------------------------------------
     //  Datos de prueba
@@ -110,6 +115,8 @@ class TenantIsolationTest {
         consentimientoB = crearConsentimiento(CLUB_B, atletaB, tutorB);
         certificadoA = crearCertificado(CLUB_A, atletaA);
         certificadoB = crearCertificado(CLUB_B, atletaB);
+        temporadaA = crearTemporada(CLUB_A, "Temporada de A");
+        temporadaB = crearTemporada(CLUB_B, "Temporada de B");
     }
 
     @AfterAll
@@ -131,6 +138,7 @@ class TenantIsolationTest {
     private void borrarDatos() {
         // Antes que users: el certificado apunta a quien lo valido, y esa clave
         // foranea no es en cascada a proposito.
+        jdbc.update("DELETE FROM seasons WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM medical_certificates WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM user_roles WHERE user_id IN"
                 + " (SELECT id FROM users WHERE club_id IN (?, ?))", CLUB_A, CLUB_B);
@@ -291,6 +299,15 @@ class TenantIsolationTest {
         return id;
     }
 
+    private UUID crearTemporada(UUID clubId, String nombre) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO seasons"
+                        + " (id, club_id, name, start_date, end_date, active, created_at, updated_at)"
+                        + " VALUES (?, ?, ?, DATE '2026-09-01', DATE '2027-08-31', true, now(), now())",
+                id, clubId, nombre);
+        return id;
+    }
+
     /**
      * El consentimiento es la anotacion que sostiene la licitud del tratamiento
      * de los datos de un menor. Si algo no puede cruzar clubes, es esto.
@@ -333,6 +350,29 @@ class TenantIsolationTest {
                 .as("el certificado del club B no puede verse desde el club A").isFalse();
         assertThat(propio.isPresent())
                 .as("el certificado del propio club si debe verse").isTrue();
+    }
+
+    /**
+     * De las temporadas colgaran los grupos y la asistencia: es la raiz del
+     * historico deportivo y no puede cruzar clubes.
+     *
+     * <p>Los dos clubes tienen la suya ACTIVA a la vez, y eso es correcto: el
+     * indice unico parcial es por club, no global.
+     */
+    @Test
+    @DisplayName("findById tampoco devuelve la temporada de otro club")
+    @Transactional(readOnly = true)
+    void findByIdNoDevuelveTemporadasDeOtroClub() {
+        jdbc.queryForObject("SELECT set_config('app.club_id', ?, false)",
+                String.class, CLUB_A.toString());
+
+        Optional<Season> ajena = seasonRepository.findById(temporadaB);
+        Optional<Season> propia = seasonRepository.findById(temporadaA);
+
+        assertThat(ajena.isPresent())
+                .as("la temporada del club B no puede verse desde el club A").isFalse();
+        assertThat(propia.isPresent())
+                .as("la temporada del propio club si debe verse").isTrue();
     }
 
     @Test

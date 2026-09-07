@@ -229,6 +229,30 @@ CREATE INDEX IF NOT EXISTS idx_medical_certificates_athlete
 CREATE INDEX IF NOT EXISTS idx_medical_certificates_expires
     ON medical_certificates (expires_on);
 
+-- TEMPORADAS (tarea 1.1)
+--  Sin borrado: el historico por temporada es el motivo de que la tabla exista.
+--  Una temporada terminada se queda con active = false.
+CREATE TABLE IF NOT EXISTS seasons (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    club_id    UUID        NOT NULL REFERENCES clubs(id),
+    name       VARCHAR(50) NOT NULL,
+    start_date DATE        NOT NULL,
+    end_date   DATE        NOT NULL,
+    active     BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_seasons_club_id ON seasons (club_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_seasons_club_name ON seasons (club_id, name);
+
+-- Solo una activa por club, impuesto por la base y no solo por el servicio.
+-- Indice unico PARCIAL: la restriccion aplica a las filas con active = true, y
+-- las apagadas pueden ser tantas como haga falta. Un unique normal sobre
+-- (club_id, active) dejaria tener una sola temporada pasada, que es absurdo.
+CREATE UNIQUE INDEX IF NOT EXISTS uk_seasons_club_active
+    ON seasons (club_id) WHERE active;
+
 -- ============================================================
 --  MULTI-TENANCY — club_id en las entidades raiz (tarea 0.2)
 -- ============================================================
