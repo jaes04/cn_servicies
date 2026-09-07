@@ -308,11 +308,23 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 
 Único dato de salud del sistema. **No se almacena el veredicto**: nadie presenta un certificado de "no apto", así que la existencia de un certificado en plazo *es* la aptitud. Un campo `apto` sería un juicio clínico; una fecha de caducidad no lo es.
 
-- [ ] Entidad `CertificadoMedico`: `id`, `atleta_id`, `temporada_id`, `fecha_emision`, `fecha_caducidad`, `estado`, `validado_por`, `validado_en` — `1h · Baja · Crítica`
-- [ ] **Sin diagnóstico, sin observaciones médicas, sin campo `apto`** — `0h · Baja · Crítica`
-- [ ] Estado calculado desde `fecha_caducidad`, no almacenado a mano — `1h · Baja · Alta`
+- [x] Entidad `CertificadoMedico`: `id`, `atleta_id`, `temporada_id`, `fecha_emision`, `fecha_caducidad`, `estado`, `validado_por`, `validado_en` — `1h · Baja · Crítica`
+- [x] **Sin diagnóstico, sin observaciones médicas, sin campo `apto`** — `0h · Baja · Crítica`
+- [x] Estado calculado desde `fecha_caducidad`, no almacenado a mano — `1h · Baja · Alta`
 - [ ] Aviso al alta en grupo si no hay certificado vigente — `1h · Media · Alta`
 - [ ] Aviso automático al tutor 30 días antes del vencimiento — `2h · Media · Alta`
+
+> **Hecho como opción A: solo metadatos.** Entidades en inglés: `MedicalCertificate`, `MedicalCertificateStatus`. **Sin `season_id`** —la vigencia la definen sus fechas y `Season` no existe hasta la Fase 1— y con `club_id` y policy de RLS propia, misma decisión explícita que en `consents`.
+
+> **El estado se calcula, nunca se almacena.** `VALID`, `EXPIRING_SOON` (30 días o menos), `EXPIRED` y `MISSING` cuando no consta ninguno. Guardarlo significaría que un certificado caduca sin que nadie se entere hasta que alguien lo actualice a mano.
+
+> **Cuando hay varios manda el que más lejos caduca**, no el último registrado: poner al día el archivo tecleando el del año pasado no puede empeorar el estado.
+
+> **Permisos:** el entrenador ve el estado —lo necesita antes de meter al nadador al agua— pero no las fechas ni quién validó. Registrar y consultar el historial es de `ADMIN`.
+
+> **Los dos puntos que faltan dependen de otra cosa.** El aviso al alta en grupo necesita `Group`, que es la Fase 1. El aviso automático al tutor necesita envío de correo, que es un bloque propio; mientras tanto `GET /api/medical-certificates/expiring` da la lista y el club la ve.
+
+> **Pendiente menor:** no hay forma de corregir un certificado mal tecleado. No hay PUT ni DELETE, a propósito de momento, pero una fecha equivocada hoy solo se arregla en la base.
 
 **Opción B — almacenar el PDF.** Solo si un club lo exige. Suma unas 8 h.
 
