@@ -1,7 +1,6 @@
 package es.jaes.cn_servicies.guardian;
 
 import es.jaes.cn_servicies.athlete.Athlete;
-import es.jaes.cn_servicies.athlete.AthleteService;
 import es.jaes.cn_servicies.club.Club;
 import es.jaes.cn_servicies.club.ClubService;
 import es.jaes.cn_servicies.tenant.TenantContext;
@@ -32,26 +31,30 @@ public class ConsentService {
     private final ConsentRepository consentRepository;
     private final GuardianRepository guardianRepository;
     private final AthleteGuardianRepository athleteGuardianRepository;
-    private final AthleteService athleteService;
     private final ClubService clubService;
 
     /**
      * Registra una decision del tutor, sea concesion o negativa. Nunca modifica
      * una fila anterior: cada decision es una fila nueva.
      *
+     * <p><b>Recibe el atleta ya resuelto, no su id.</b> Buscarlo aqui obligaria
+     * a depender de {@code AthleteService}, que a su vez llama a este servicio
+     * en el alta: seria un ciclo. Es la misma solucion que en la 0.8 con el
+     * club, y ademas es mejor reparto: quien registra un consentimiento sabe
+     * sobre que atleta lo hace.
+     *
      * @param sourceIp IP de quien envia el formulario. Solo se conserva cuando
      *                 la evidencia es {@code ONLINE_FORM}; en los demas casos se
      *                 descarta, porque no prueba nada y es dato personal.
      */
-    public Consent record(UUID athleteId, ConsentRequest request, String sourceIp) {
+    public Consent record(Athlete athlete, ConsentRequest request, String sourceIp) {
         Club club = clubService.getById(TenantContext.require());
-        Athlete athlete = athleteService.findOrThrow(athleteId);
         Guardian guardian = guardianRepository.findById(request.getGuardianId())
                 .orElseThrow(() -> new EntityNotFoundException("Tutor no encontrado"));
 
         // Sin vinculo, cualquier tutor del club podria consentir por cualquier
         // menor del club. El vinculo es lo que acota quien puede hacerlo.
-        if (!athleteGuardianRepository.existsByAthleteIdAndGuardianId(athleteId, guardian.getId())) {
+        if (!athleteGuardianRepository.existsByAthleteIdAndGuardianId(athlete.getId(), guardian.getId())) {
             throw new IllegalArgumentException("El tutor no está vinculado a este atleta");
         }
 
@@ -105,10 +108,8 @@ public class ConsentService {
      * Si el atleta necesita <b>hoy</b> que consienta su tutor. Es la pregunta
      * para dar de alta o para pedir una autorizacion nueva.
      */
-    @Transactional(readOnly = true)
-    public boolean requiresGuardianConsent(UUID athleteId) {
-        return isUnderConsentAgeOn(athleteService.findOrThrow(athleteId).getBirthDate(),
-                LocalDate.now());
+    public static boolean requiresGuardianConsent(Athlete athlete) {
+        return isUnderConsentAgeOn(athlete.getBirthDate(), LocalDate.now());
     }
 
     /**

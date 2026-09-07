@@ -1,5 +1,7 @@
 package es.jaes.cn_servicies.guardian;
 
+import es.jaes.cn_servicies.athlete.Athlete;
+import es.jaes.cn_servicies.athlete.AthleteService;
 import es.jaes.cn_servicies.tenant.TenantContext;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -34,6 +36,7 @@ class ConsentServiceTest {
 
     @Autowired private ConsentService consentService;
     @Autowired private ConsentRepository consentRepository;
+    @Autowired private AthleteService athleteService;
     @Autowired private JdbcTemplate jdbc;
 
     private UUID atleta;
@@ -110,6 +113,11 @@ class ConsentServiceTest {
                 UUID.randomUUID(), atletaId, tutorId);
     }
 
+    /** El servicio recibe el atleta resuelto, no su id: ver la nota del ciclo en ConsentService. */
+    private Athlete atletaEntidad() {
+        return athleteService.findOrThrow(atleta);
+    }
+
     private ConsentRequest peticion(ConsentType tipo, boolean otorgado, ConsentEvidenceType evidencia) {
         ConsentRequest request = new ConsentRequest();
         request.setGuardianId(tutor);
@@ -127,7 +135,7 @@ class ConsentServiceTest {
     @Test
     @DisplayName("un consentimiento otorgado queda vigente para su finalidad, y solo para esa")
     void otorgarDejaVigenteSoloEsaFinalidad() {
-        Consent consent = consentService.record(atleta,
+        Consent consent = consentService.record(atletaEntidad(),
                 peticion(ConsentType.DATA_PROCESSING, true, ConsentEvidenceType.PAPER_FORM), null);
 
         assertThat(consent.isActive()).isTrue();
@@ -142,7 +150,7 @@ class ConsentServiceTest {
     @Test
     @DisplayName("una negativa registrada no deja nada vigente, pero deja constancia")
     void laNegativaSeGuarda() {
-        Consent consent = consentService.record(atleta,
+        Consent consent = consentService.record(atletaEntidad(),
                 peticion(ConsentType.IMAGE, false, ConsentEvidenceType.PAPER_FORM), null);
 
         assertThat(consent.isActive()).isFalse();
@@ -159,7 +167,7 @@ class ConsentServiceTest {
     @Test
     @DisplayName("revocar deja de dar vigencia pero no borra la fila")
     void revocarNoBorra() {
-        Consent consent = consentService.record(atleta,
+        Consent consent = consentService.record(atletaEntidad(),
                 peticion(ConsentType.COMMUNICATIONS, true, ConsentEvidenceType.EMAIL), null);
 
         consentService.revoke(consent.getId());
@@ -177,7 +185,7 @@ class ConsentServiceTest {
     @Test
     @DisplayName("no se revoca dos veces")
     void revocarDosVecesFalla() {
-        Consent consent = consentService.record(atleta,
+        Consent consent = consentService.record(atletaEntidad(),
                 peticion(ConsentType.HEALTH_DATA, true, ConsentEvidenceType.PAPER_FORM), null);
         consentService.revoke(consent.getId());
 
@@ -195,7 +203,7 @@ class ConsentServiceTest {
         ConsentRequest request = peticion(ConsentType.DATA_PROCESSING, true, ConsentEvidenceType.PAPER_FORM);
         request.setGuardianId(tutorSinVinculo);
 
-        assertThatThrownBy(() -> consentService.record(atleta, request, null))
+        assertThatThrownBy(() -> consentService.record(atletaEntidad(), request, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -206,9 +214,9 @@ class ConsentServiceTest {
     @Test
     @DisplayName("la IP solo se conserva cuando la evidencia es el formulario en linea")
     void laIpSoloSeGuardaEnElFormularioEnLinea() {
-        Consent enPapel = consentService.record(atleta,
+        Consent enPapel = consentService.record(atletaEntidad(),
                 peticion(ConsentType.DATA_PROCESSING, true, ConsentEvidenceType.PAPER_FORM), "10.0.0.1");
-        Consent enLinea = consentService.record(atleta,
+        Consent enLinea = consentService.record(atletaEntidad(),
                 peticion(ConsentType.DATA_PROCESSING, true, ConsentEvidenceType.ONLINE_FORM), "10.0.0.1");
 
         assertThat(enPapel.getSourceIp())
@@ -253,6 +261,6 @@ class ConsentServiceTest {
     @Test
     @DisplayName("un atleta de 11 anos necesita hoy el consentimiento de su tutor")
     void elMenorNecesitaTutor() {
-        assertThat(consentService.requiresGuardianConsent(atleta)).isTrue();
+        assertThat(ConsentService.requiresGuardianConsent(atletaEntidad())).isTrue();
     }
 }
