@@ -277,7 +277,7 @@ En España la edad de consentimiento son **14 años** (LOPDGDD art. 7), no 16. L
 - [x] Entidad `Consentimiento`: `id`, `atleta_id`, `tutor_id`, `tipo`, `otorgado`, `fecha`, `evidencia`, `ip_origen`, `fecha_revocacion` — `2h · Media · Crítica`
 - [x] Tipos separados y granulares: `TRATAMIENTO_DATOS`, `IMAGEN`, `COMUNICACIONES`, `DATOS_SALUD` — `1h · Media · Crítica`
 - [x] Consulta que determina si el atleta era menor de 14 en la fecha del consentimiento — `1h · Media · Alta`
-- [ ] Bloquear el alta de menor de 14 sin consentimiento de tutor registrado — `2h · Media · Crítica`
+- [x] Bloquear el alta de menor de 14 sin consentimiento de tutor registrado — `2h · Media · Crítica`
 - [x] Revocación por `fecha_revocacion`, nunca borrando la fila — `1h · Baja · Crítica`
 - [x] Almacenar la evidencia del consentimiento con sello de tiempo — `2h · Media · Alta`
 
@@ -296,6 +296,9 @@ En España la edad de consentimiento son **14 años** (LOPDGDD art. 7), no 16. L
 > **La IP solo se conserva con evidencia `ONLINE_FORM`.** En papel o por correo no prueba nada y es dato personal.
 
 > **La edad se mide en la fecha de la decisión, no en la de hoy.** Lo que un tutor firmó cuando el atleta tenía 11 sigue siendo válido a los 16. Son dos preguntas distintas y están separadas: `requiresGuardianConsent` (hoy) y `wasUnderConsentAgeAtDecision` (entonces).
+
+> **El bloqueo va en la transacción del alta.** `AthleteRequest` acepta un bloque opcional con el tutor y sus consentimientos, y `AthleteService.create` lo exige por debajo de 14. Es **cambio de contrato de `POST /api/athletes`**: el frontend tiene que enviarlo. Obligatorio el de tratamiento; el de imagen hay que preguntarlo, pero un 
+o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del club, así que el segundo hermano no crea ficha nueva. La modificación **rechaza** el bloque en vez de ignorarlo.
 
 > **Migraciones `S.1-guardians-rls.sql` y `S.1-consents-rls.sql`, ejecutadas con `cn_app`** y no con `postgres`: `ENABLE ROW LEVEL SECURITY`, `CREATE POLICY` y `FORCE` los puede el dueño de la tabla, y hoy el dueño es `cn_app` porque las crea Hibernate. Cuando el esquema salga de Hibernate volverán a necesitar el rol de migraciones, que es el objetivo.
 
