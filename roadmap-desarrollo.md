@@ -76,7 +76,7 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 - [x] Validar en servidor qué roles puede asignar quien llama, sin fiarse del cuerpo — `1h · Media · Crítica`
 - [x] Eliminar `GET /api/auth/hash` — `15min · Baja · Alta`
 - [x] Repasar uno a uno los `permitAll` restantes de `SecurityConfig` — `1h · Media · Alta`
-- [ ] Rotar el secreto JWT, la contraseña de Postgres y la del administrador **antes del primer despliegue fuera de local** — `1h · Baja · Crítica`
+- [x] Rotar el secreto JWT, la contraseña de Postgres y la del administrador **antes del primer despliegue fuera de local** — `1h · Baja · Crítica`
 
 > `signup/with-role` está hoy en `permitAll` y acepta un `Set<RoleName>` arbitrario en el cuerpo, que pasa a `userService.create()` sin comprobación, devolviendo además el JWT ya emitido. Una sola petición anónima basta para obtener `ROLE_ADMIN`.
 
@@ -272,16 +272,32 @@ Como `username` es único por club (ver 0.2), `adminjaes` puede existir una vez 
 
 En España la edad de consentimiento son **14 años** (LOPDGDD art. 7), no 16. La mayoría de tus atletas estarán por debajo.
 
-- [ ] Entidad `Tutor`: `id`, `club_id`, `nombre`, `dni`, `email`, `telefono`, `parentesco` — `1h · Baja · Crítica`
-- [ ] Relación `Atleta` ↔ `Tutor`, varios tutores por atleta — `1h · Media · Crítica`
-- [ ] Entidad `Consentimiento`: `id`, `atleta_id`, `tutor_id`, `tipo`, `otorgado`, `fecha`, `evidencia`, `ip_origen`, `fecha_revocacion` — `2h · Media · Crítica`
-- [ ] Tipos separados y granulares: `TRATAMIENTO_DATOS`, `IMAGEN`, `COMUNICACIONES`, `DATOS_SALUD` — `1h · Media · Crítica`
-- [ ] Consulta que determina si el atleta era menor de 14 en la fecha del consentimiento — `1h · Media · Alta`
+- [x] Entidad `Tutor`: `id`, `club_id`, `nombre`, `dni`, `email`, `telefono`, `parentesco` — `1h · Baja · Crítica`
+- [x] Relación `Atleta` ↔ `Tutor`, varios tutores por atleta — `1h · Media · Crítica`
+- [x] Entidad `Consentimiento`: `id`, `atleta_id`, `tutor_id`, `tipo`, `otorgado`, `fecha`, `evidencia`, `ip_origen`, `fecha_revocacion` — `2h · Media · Crítica`
+- [x] Tipos separados y granulares: `TRATAMIENTO_DATOS`, `IMAGEN`, `COMUNICACIONES`, `DATOS_SALUD` — `1h · Media · Crítica`
+- [x] Consulta que determina si el atleta era menor de 14 en la fecha del consentimiento — `1h · Media · Alta`
 - [ ] Bloquear el alta de menor de 14 sin consentimiento de tutor registrado — `2h · Media · Crítica`
-- [ ] Revocación por `fecha_revocacion`, nunca borrando la fila — `1h · Baja · Crítica`
-- [ ] Almacenar la evidencia del consentimiento con sello de tiempo — `2h · Media · Alta`
+- [x] Revocación por `fecha_revocacion`, nunca borrando la fila — `1h · Baja · Crítica`
+- [x] Almacenar la evidencia del consentimiento con sello de tiempo — `2h · Media · Alta`
 
 > El consentimiento de imagen va **separado** del general y tiene que poder revocarse solo. Una casilla única para todo no es válida.
+
+> **En inglés, como el resto del dominio:** `Guardian`, `AthleteGuardian`, `Consent`, `ConsentType`, `ConsentEvidenceType`, todo en el paquete `guardian/`. El consentimiento vive con el tutor y no en un módulo propio: sin tutor no hay consentimiento, y así `ConsentService` no cruza la frontera de ningún repositorio ajeno.
+
+> **El tutor es una persona, no una cuenta.** `Guardian.user` es opcional y se rellena cuando el tutor se registra. Tenía que ser así para poder registrar el consentimiento en el alta, que es justo cuando todavía no tiene usuario. Convive con `UserAthlete` de tipo `TUTOR`, que sigue siendo el vínculo de **acceso** —quién puede ver los datos—; este es el sujeto que **otorga**. No se sustituyen.
+
+> **El parentesco vive en el vínculo, no en el tutor**: la misma persona es madre de un atleta y puede ser tutora legal de otro.
+
+> **`guardians` y `consents` llevan `club_id` y policy de RLS propia.** En `consents` se aparta del criterio de la 0.2 para tablas hijas, a propósito: es lo que sostiene la licitud del tratamiento de un menor, y merece que el aislamiento lo imponga Postgres en vez de la confianza en que toda consulta futura pase por el atleta.
+
+> **El registro es append-only.** Ni se actualiza ni se borra: revocar es escribir `revoked_at`, y volver a consentir es una fila nueva. Sin `unique` sobre `(athlete_id, type)`, porque el historial completo es la prueba (RGPD art. 7.1). Una negativa se guarda igual que una concesión: "dijo que no a la imagen" y "todavía no se le ha preguntado" no permiten lo mismo.
+
+> **La IP solo se conserva con evidencia `ONLINE_FORM`.** En papel o por correo no prueba nada y es dato personal.
+
+> **La edad se mide en la fecha de la decisión, no en la de hoy.** Lo que un tutor firmó cuando el atleta tenía 11 sigue siendo válido a los 16. Son dos preguntas distintas y están separadas: `requiresGuardianConsent` (hoy) y `wasUnderConsentAgeAtDecision` (entonces).
+
+> **Migraciones `S.1-guardians-rls.sql` y `S.1-consents-rls.sql`, ejecutadas con `cn_app`** y no con `postgres`: `ENABLE ROW LEVEL SECURITY`, `CREATE POLICY` y `FORCE` los puede el dueño de la tabla, y hoy el dueño es `cn_app` porque las crea Hibernate. Cuando el esquema salga de Hibernate volverán a necesitar el rol de migraciones, que es el objetivo.
 
 ### S.1.b Certificado médico anual (FMN) — 5 h
 
