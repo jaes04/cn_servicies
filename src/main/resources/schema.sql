@@ -319,6 +319,46 @@ CREATE INDEX IF NOT EXISTS idx_athlete_groups_group_fechas
 CREATE UNIQUE INDEX IF NOT EXISTS uk_athlete_groups_abierta
     ON athlete_groups (athlete_id, group_id) WHERE left_on IS NULL;
 
+-- HORARIO RECURRENTE DEL GRUPO (tarea 2.1)
+--  Plantilla, no entrenamiento: no tiene fecha, tiene dia de la semana. De aqui
+--  materializa la 2.2 las sesiones.
+--
+--  Varios por grupo: lunes, miercoles y viernes son tres filas, y el martes de
+--  seco es una cuarta. La modalidad vive en el horario y no en el grupo para no
+--  tener que partir "Alevin A" en dos grupos con los mismos nadadores.
+--
+--  Sin club_id: tabla hija, llega a su club por group_id, que si esta bajo
+--  policy. La contrapartida es que un SELECT por id de esta tabla no lo tapa
+--  nada, y por eso la API solo la expone colgada del grupo.
+--
+--  valid_until es el ULTIMO DIA de vigencia, incluido. Mismo criterio que
+--  athlete_groups.left_on, y por el mismo motivo: en la 2.2 el error de un dia
+--  se multiplica por cada semana generada.
+CREATE TABLE IF NOT EXISTS group_schedules (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id    UUID        NOT NULL REFERENCES training_groups(id) ON DELETE CASCADE,
+    day_of_week VARCHAR(20) NOT NULL,
+    start_time  TIME        NOT NULL,
+    end_time    TIME        NOT NULL,
+    modality    VARCHAR(20) NOT NULL,
+    valid_from  DATE        NOT NULL,
+    valid_until DATE,
+    created_at  TIMESTAMP,
+    updated_at  TIMESTAMP,
+    deleted_at  TIMESTAMP
+);
+
+-- El generador de sesiones de la 2.2 pregunta por grupo y por dia de la semana.
+CREATE INDEX IF NOT EXISTS idx_group_schedules_group ON group_schedules (group_id);
+CREATE INDEX IF NOT EXISTS idx_group_schedules_group_dia
+    ON group_schedules (group_id, day_of_week);
+
+-- No hay indice unico que impida el solape de dos horarios del mismo grupo:
+-- solaparse no es coincidir, y comprobarlo en la base pediria una restriccion de
+-- exclusion con btree_gist. Una extension que exige superusuario en cada
+-- despliegue es desproporcionada para prevenir un error de tecleo — misma
+-- decision que con el solape de temporadas (1.1). Lo valida el servicio.
+
 -- ============================================================
 --  MULTI-TENANCY — club_id en las entidades raiz (tarea 0.2)
 -- ============================================================
