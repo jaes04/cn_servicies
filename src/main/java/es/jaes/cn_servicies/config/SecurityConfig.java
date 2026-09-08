@@ -99,6 +99,13 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/consents/athlete/*/status").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/consents/athlete/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/consents/athlete/**").hasRole("ADMIN")
+                        // Grupos: el entrenador los consulta —necesita ver el
+                        // suyo— pero montarlos, editarlos y duplicarlos es del
+                        // club. La duplicacion crea N filas de golpe: va antes
+                        // que la regla general para que se lea sola.
+                        .requestMatchers(POST, "/api/groups/duplication").hasRole("ADMIN")
+                        .requestMatchers(GET, "/api/groups/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers("/api/groups/**").hasRole("ADMIN")
                         // Temporadas: el entrenador las consulta —necesita saber
                         // en cual esta trabajando— pero crearlas y activarlas es
                         // del club. No hay DELETE que proteger: no existe.

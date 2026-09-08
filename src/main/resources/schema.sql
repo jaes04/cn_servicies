@@ -253,6 +253,39 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_seasons_club_name ON seasons (club_id, name
 CREATE UNIQUE INDEX IF NOT EXISTS uk_seasons_club_active
     ON seasons (club_id) WHERE active;
 
+-- GRUPOS DE ENTRENAMIENTO (tarea 1.2)
+--  La tabla NO se llama `group`: es palabra reservada de SQL. Tampoco `groups`,
+--  que aunque Postgres lo admite arrastra problemas en la gramatica de HQL.
+--
+--  Cuelga de la temporada porque entrenador, horario y composicion cambian cada
+--  año: "Alevin A" de este curso y el del anterior son dos filas distintas, y
+--  eso es lo que conserva el historico.
+CREATE TABLE IF NOT EXISTS training_groups (
+    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    club_id    UUID         NOT NULL REFERENCES clubs(id),
+    season_id  UUID         NOT NULL REFERENCES seasons(id),
+    coach_id   UUID         REFERENCES users(id) ON DELETE SET NULL,
+    name       VARCHAR(100) NOT NULL,
+    category   VARCHAR(20)  NOT NULL,
+    level      VARCHAR(20)  NOT NULL,
+    max_slots  INTEGER,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_training_groups_club_id ON training_groups (club_id);
+CREATE INDEX IF NOT EXISTS idx_training_groups_season ON training_groups (season_id);
+
+-- Dos grupos con el mismo nombre en la misma temporada son un error. Entre
+-- temporadas distintas se repite siempre, que es justo el caso normal.
+CREATE UNIQUE INDEX IF NOT EXISTS uk_training_groups_season_name
+    ON training_groups (season_id, name);
+
+-- coach_id con ON DELETE SET NULL: dar de baja a un entrenador no puede
+-- llevarse por delante el grupo ni su historico. El grupo se queda sin
+-- entrenador, que es un estado valido.
+
 -- ============================================================
 --  MULTI-TENANCY — club_id en las entidades raiz (tarea 0.2)
 -- ============================================================

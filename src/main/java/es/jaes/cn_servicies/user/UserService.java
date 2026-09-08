@@ -88,6 +88,17 @@ public class UserService {
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Usuario no encontrado"));
     }
 
+    /**
+     * La entidad por id. Un usuario de otro club no aparece —lo tapa Row Level
+     * Security— y sale por aqui como "no encontrado", que es lo correcto: 404 y
+     * no 403.
+     */
+    @Transactional(readOnly = true)
+    public User findEntityById(UUID id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Usuario no encontrado"));
+    }
+
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<UserResponse> findAll(
             String q, String role, Boolean blocked,
