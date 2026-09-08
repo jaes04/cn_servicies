@@ -367,12 +367,26 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 
 ### 1.2 Grupo — 8 h
 
-- [ ] Entidad `Grupo`: `id`, `club_id`, `temporada_id`, `entrenador_id`, `nombre`, `categoria`, `nivel`, `plazas_max` — `1h · Baja · Crítica`
-- [ ] Relación con `Usuario` para el entrenador — `1h · Baja · Alta`
-- [ ] CRUD completo — `3h · Baja · Crítica`
-- [ ] Duplicar los grupos de una temporada a la siguiente — `3h · Media · Media`
+- [x] Entidad `Grupo`: `id`, `club_id`, `temporada_id`, `entrenador_id`, `nombre`, `categoria`, `nivel`, `plazas_max` — `1h · Baja · Crítica`
+- [x] Relación con `Usuario` para el entrenador — `1h · Baja · Alta`
+- [x] CRUD completo — `3h · Baja · Crítica`
+- [x] Duplicar los grupos de una temporada a la siguiente — `3h · Media · Media`
 
 > Duplicar temporada parece secundario hasta el septiembre en que el club tiene que recrear catorce grupos a mano.
+
+> **Se llama `TrainingGroup`, no `Group`.** `GROUP` es palabra reservada de SQL y `Group` colisiona con la gramática de HQL. Tabla `training_groups`, paquete `training_group`, con `club_id` y policy propia (`migrations/1.2-training-groups-rls.sql`).
+
+> **Categoría y nivel como enums cerrados.** `GroupCategory`: PREBENJAMIN, BENJAMIN, ALEVIN, INFANTIL, JUNIOR, ABSOLUTO — nomenclatura RFEN, en español y sin tildes porque son nombres propios de la federación. `GroupLevel`: INICIACION, PERFECCIONAMIENTO, COMPETICION. Añadir un valor es una línea, pero **es cambio de contrato**. Falta MASTERS si el club lo tiene.
+
+> **El nivel es el que se va a quedar corto.** La categoría la fija la federación; el nivel lo fija cada club, así que con un segundo cliente probablemente haya que pasarlo a catálogo por club.
+
+> **Entrenador opcional**, y estar en esa columna **no da permisos**: los da el rol. Por eso tampoco se valida que el usuario asignado sea personal técnico — una asignación equivocada es un error de datos, no un agujero. Si algún día el grupo concede acceso, eso hay que revisarlo.
+
+> **Nombre único dentro de la temporada**, y repetible entre temporadas: "Alevín A" cada curso es el caso normal.
+
+> **Duplicar copia el grupo, no la composición.** Que el equipo cambie cada año es el motivo de que el grupo cuelgue de la temporada. Se niega si el destino ya tiene grupos: es la protección contra el doble clic, que aquí deja veintiocho grupos donde debería haber catorce.
+
+> **Borrado lógico**, porque en la 1.3 colgarán las pertenencias. Cuando exista `AthleteGroup` habrá que decidir si borrar un grupo con miembros se permite o se bloquea.
 
 ### 1.3 Pertenencia histórica — 10 h
 
