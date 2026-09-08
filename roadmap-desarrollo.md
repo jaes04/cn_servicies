@@ -393,7 +393,7 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 - [x] Entidad `AtletaGrupo`: `id`, `atleta_id`, `grupo_id`, `fecha_alta`, `fecha_baja`, `motivo_baja` — `1h · Baja · Crítica`
 - [x] Regla: no dos pertenencias abiertas al mismo grupo — `1h · Media · Alta`
 - [x] Permitir varios grupos simultáneos (natación + preparación física) — `1h · Media · Media`
-- [ ] Endpoint de asignación: cierra la anterior si aplica y abre la nueva — `2h · Media · Crítica`
+- [x] Endpoint de asignación: cierra la anterior si aplica y abre la nueva — `2h · Media · Crítica`
 - [x] Endpoint de baja: rellena `fecha_baja`, nunca borra — `1h · Baja · Crítica`
 - [x] Consulta de miembros a una fecha dada — `2h · Alta · Crítica`
 - [x] Consulta de histórico de un atleta por temporada — `2h · Media · Alta`
@@ -418,11 +418,25 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 
 ### 1.4 API — 6 h
 
-- [ ] `GET /grupos?temporadaId=` con conteo de atletas — `1h · Baja · Alta`
-- [ ] `GET /grupos/{id}/atletas` — `1h · Baja · Crítica`
-- [ ] `POST /grupos/{id}/atletas`, individual y en lote — `2h · Media · Crítica`
-- [ ] `DELETE /grupos/{id}/atletas/{atletaId}` (baja lógica) — `1h · Baja · Alta`
-- [ ] `GET /atletas/{id}/historial-grupos` — `1h · Baja · Media`
+- [x] `GET /grupos?temporadaId=` con conteo de atletas — `1h · Baja · Alta`
+- [x] `GET /grupos/{id}/atletas` — `1h · Baja · Crítica`
+- [x] `POST /grupos/{id}/atletas`, individual y en lote — `2h · Media · Crítica`
+- [x] `DELETE /grupos/{id}/atletas/{atletaId}` (baja lógica) — `1h · Baja · Alta`
+- [x] `GET /atletas/{id}/historial-grupos` — `1h · Baja · Media`
+
+> **Rutas reales**, en inglés como el resto de la API: `GET /api/groups?seasonId=`, `GET|POST /api/groups/{id}/athletes`, `DELETE /api/groups/{id}/athletes/{athleteId}` y `GET /api/athletes/{id}/group-history?seasonId=`. **Sin cambios en `SecurityConfig`**: caen bajo reglas que ya existían.
+
+> **Un solo endpoint de alta para el caso individual y el lote.** Dar de alta a uno es una lista de uno; dos endpoints para lo mismo solo consiguen que uno se quede sin mantener.
+
+> **El lote se aplica entero o no se aplica.** Si un atleta ya está en el grupo, no entra ninguno: media asignación deja al club sin saber quién entró, y lo descubre pasando lista.
+
+> **`GET /api/groups/{id}/athletes` acepta `?date=`**: sin ella los de hoy, con ella los que estaban ese día. Es lo que la Fase 2 necesita para pasar lista de una sesión pasada.
+
+> **El `DELETE` no borra la fila.** El verbo describe lo que pasa de puertas afuera —el atleta deja de estar en el grupo—, no lo que ocurre en la tabla. Aquí es honesto, a diferencia de la revocación de un consentimiento, donde la fila *es* la prueba.
+
+> **`memberCount` en el listado**, resuelto en una sola consulta agrupada: catorce grupos no pueden costar catorce viajes a la base para dibujar una tabla. Es cambio de contrato aditivo en `TrainingGroupResponse`.
+
+> **`plazas_max` sigue sin bloquear el alta.** Va en la respuesta junto a `memberCount` para que la interfaz avise, pero no impide meter al niño trece en un grupo de doce. Decisión pendiente: ¿bloquea o solo avisa?
 
 ### 1.5 Frontend — 9 h
 
