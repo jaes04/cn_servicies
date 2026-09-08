@@ -15,6 +15,13 @@ public class TrainingGroupResponse {
     private GroupLevel level;
     private Integer maxSlots;
 
+    /**
+     * Atletas con pertenencia abierta. Junto con maxSlots es lo que deja a la
+     * interfaz avisar de que un grupo esta lleno: <b>el alta no se bloquea por
+     * plazas</b>, decision pendiente.
+     */
+    private long memberCount;
+
     /** Nulos los dos mientras el grupo no tenga entrenador asignado. */
     private UUID coachId;
     private String coachUsername;

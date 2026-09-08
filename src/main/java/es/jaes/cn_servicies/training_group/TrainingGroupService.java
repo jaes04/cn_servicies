@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -25,6 +26,7 @@ public class TrainingGroupService {
     private final SeasonService seasonService;
     private final UserService userService;
     private final ClubService clubService;
+    private final AthleteGroupService membershipService;
 
     public TrainingGroupResponse create(TrainingGroupRequest request) {
         Club club = clubService.getById(TenantContext.require());
@@ -119,12 +121,21 @@ public class TrainingGroupService {
         List<TrainingGroup> grupos = seasonId == null
                 ? groupRepository.findAllByOrderByNameAsc()
                 : groupRepository.findBySeasonIdOrderByNameAsc(seasonId);
-        return grupos.stream().map(this::toResponse).toList();
+
+        // Los conteos en una sola consulta: catorce grupos no pueden costar
+        // catorce viajes a la base para dibujar una tabla.
+        Map<UUID, Long> conteos = membershipService.openCountByGroup(
+                grupos.stream().map(TrainingGroup::getId).toList());
+
+        return grupos.stream()
+                .map(grupo -> toResponse(grupo, conteos.getOrDefault(grupo.getId(), 0L)))
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public TrainingGroupResponse findById(UUID id) {
-        return toResponse(findOrThrow(id));
+        TrainingGroup grupo = findOrThrow(id);
+        return toResponse(grupo, membershipService.currentMemberCount(grupo.getId()));
     }
 
     public TrainingGroup findOrThrow(UUID id) {
@@ -151,6 +162,10 @@ public class TrainingGroupService {
     }
 
     private TrainingGroupResponse toResponse(TrainingGroup group) {
+        return toResponse(group, membershipService.currentMemberCount(group.getId()));
+    }
+
+    private TrainingGroupResponse toResponse(TrainingGroup group, long memberCount) {
         TrainingGroupResponse response = new TrainingGroupResponse();
         response.setId(group.getId());
         response.setSeasonId(group.getSeason().getId());
@@ -159,6 +174,7 @@ public class TrainingGroupService {
         response.setCategory(group.getCategory());
         response.setLevel(group.getLevel());
         response.setMaxSlots(group.getMaxSlots());
+        response.setMemberCount(memberCount);
         if (group.getCoach() != null) {
             response.setCoachId(group.getCoach().getId());
             response.setCoachUsername(group.getCoach().getUsername());

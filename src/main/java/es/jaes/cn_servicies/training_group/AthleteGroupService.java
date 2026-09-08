@@ -9,8 +9,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -121,6 +124,74 @@ public class AthleteGroupService {
     public List<AthleteGroup> openMembershipsOf(UUID athleteId) {
         athleteService.findOrThrow(athleteId);
         return membershipRepository.findByAthleteIdAndLeftOnIsNull(athleteId);
+    }
+
+    // ----------------------------------------------------------------
+    //  Cara a la API
+    // ----------------------------------------------------------------
+
+    /**
+     * Da de alta a varios atletas de una vez.
+     *
+     * <p><b>Entera o nada.</b> Va toda en la misma transaccion, asi que si uno
+     * de la lista ya estaba en el grupo no entra ninguno. Media asignacion es
+     * peor que ninguna: el club se queda sin saber quien entro y quien no, y lo
+     * descubre pasando lista.
+     */
+    public List<AthleteGroupResponse> assignAll(UUID groupId, AssignAthletesRequest request) {
+        return request.getAthleteIds().stream()
+                .distinct()
+                .map(athleteId -> assign(athleteId, groupId,
+                        request.getJoinedOn(), request.getReplacesGroupId()))
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public AthleteGroupResponse leaveGroup(UUID groupId, UUID athleteId,
+                                           LocalDate leftOn, LeaveReason reason) {
+        return toResponse(leave(athleteId, groupId,
+                leftOn != null ? leftOn : LocalDate.now(), reason));
+    }
+
+    /** Miembros del grupo en una fecha; sin fecha, los de hoy. */
+    @Transactional(readOnly = true)
+    public List<AthleteGroupResponse> membersOnAsResponse(UUID groupId, LocalDate date) {
+        return membersOn(groupId, date != null ? date : LocalDate.now()).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AthleteGroupResponse> historyAsResponse(UUID athleteId, UUID seasonId) {
+        return historyOf(athleteId, seasonId).stream().map(this::toResponse).toList();
+    }
+
+    /**
+     * Conteo de miembros abiertos por grupo, en una sola consulta. Lo usa el
+     * listado de grupos.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, Long> openCountByGroup(Collection<UUID> groupIds) {
+        if (groupIds.isEmpty()) {
+            return Map.of();
+        }
+        return membershipRepository.countOpenByGroup(groupIds).stream()
+                .collect(Collectors.toMap(fila -> (UUID) fila[0], fila -> (Long) fila[1]));
+    }
+
+    private AthleteGroupResponse toResponse(AthleteGroup membership) {
+        AthleteGroupResponse response = new AthleteGroupResponse();
+        response.setId(membership.getId());
+        response.setAthleteId(membership.getAthlete().getId());
+        response.setAthleteName(membership.getAthlete().getFirstName()
+                + " " + membership.getAthlete().getLastName());
+        response.setGroupId(membership.getTrainingGroup().getId());
+        response.setGroupName(membership.getTrainingGroup().getName());
+        response.setJoinedOn(membership.getJoinedOn());
+        response.setLeftOn(membership.getLeftOn());
+        response.setLeaveReason(membership.getLeaveReason());
+        response.setOpen(membership.isOpen());
+        return response;
     }
 
     /**

@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,4 +46,16 @@ public interface AthleteGroupRepository extends JpaRepository<AthleteGroup, UUID
     List<AthleteGroup> findByTrainingGroupIdOrderByJoinedOnDesc(UUID groupId);
 
     long countByTrainingGroupIdAndLeftOnIsNull(UUID groupId);
+
+    /**
+     * Conteo de miembros abiertos de varios grupos de una vez.
+     *
+     * <p>Una consulta y no una por grupo: el listado de la 1.4 pinta catorce
+     * grupos con su conteo, y preguntarlo de uno en uno son catorce viajes a la
+     * base para dibujar una tabla.
+     */
+    @Query("SELECT m.trainingGroup.id, COUNT(m) FROM AthleteGroup m"
+            + " WHERE m.leftOn IS NULL AND m.trainingGroup.id IN :groupIds"
+            + " GROUP BY m.trainingGroup.id")
+    List<Object[]> countOpenByGroup(Collection<UUID> groupIds);
 }
