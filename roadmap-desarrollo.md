@@ -453,9 +453,33 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 
 ### 2.1 Horario recurrente — 5 h
 
-- [ ] Entidad `HorarioGrupo`: `grupo_id`, `dia_semana`, `hora_inicio`, `hora_fin`, `ubicacion`, `vigente_desde`, `vigente_hasta` — `1h · Baja · Crítica`
-- [ ] Varios horarios por grupo — `1h · Baja · Crítica`
-- [ ] CRUD dentro del detalle del grupo — `3h · Baja · Alta`
+- [x] Entidad `HorarioGrupo`: `grupo_id`, `dia_semana`, `hora_inicio`, `hora_fin`, ~~`ubicacion`~~ `modalidad`, `vigente_desde`, `vigente_hasta` — `1h · Baja · Crítica`
+- [x] Varios horarios por grupo — `1h · Baja · Crítica`
+- [x] CRUD dentro del detalle del grupo — `3h · Baja · Alta`
+
+> **Entidad `GroupSchedule`**, tabla `group_schedules`, en el paquete `training_group`. Es una propiedad del grupo, como `AthleteGroup`, y así el generador de sesiones de la 2.2 la alcanza por servicio y no por repositorio ajeno.
+
+> **`ubicacion` se cambió por `modality`**, enum cerrado `SWIMMING` / `DRYLAND`. Es lo que el club necesita distinguir —agua o seco—, y evita el texto libre. Va en el **horario y no en el grupo**: un mismo grupo hace agua el martes y seco el jueves, y ponerlo en el grupo obligaría a partir "Alevín A" en dos grupos con los mismos nadadores y duplicar su composición y su histórico. Añadir un valor es **cambio de contrato**.
+
+> **Sin `club_id` ni policy de RLS**: es tabla hija y llega a su club por `group_id`. La contrapartida es que un `findById` suyo por clave primaria no lo tapa nada, y por eso **toda la API cuelga del grupo** (`/api/groups/{id}/schedules`): el servicio carga primero el grupo —que sí está bajo policy— y comprueba que el horario pertenece a él. Hay test de que un horario ajeno no se alcanza colgándolo de un grupo propio.
+
+> **`validUntil` es el ÚLTIMO día de vigencia, incluido**, heredando el criterio de `AthleteGroup.leftOn`. Es el punto donde un error de un día no cuesta un día: cuesta una sesión por semana durante todo el rango que genere la 2.2. Hay test de los dos extremos, por arriba y por abajo.
+
+> **Dos horarios del mismo grupo no se pisan**: mismo día de la semana, franjas horarias solapadas y vigencias coincidentes, los tres a la vez. Las franjas que solo se tocan —17:00–18:00 y 18:00–19:00— sí se permiten: encadenar seco y agua es un caso real. Solo en el servicio, no en la base: la restricción de exclusión pediría `btree_gist`, y una extensión que exige superusuario en cada despliegue es desproporcionada para prevenir un error de tecleo. Misma decisión que con el solape de temporadas en la 1.1.
+
+> **Entre grupos distintos no se comprueba nada.** Dos grupos a la misma hora es normal. El conflicto real sería de ocupación de calle, y sin ubicación no hay nada que comparar: **si algún día el club quiere control de calles, la ubicación tiene que volver, y como catálogo por club, no como texto libre.**
+
+> **La vigencia cae dentro de la temporada del grupo**, por los dos extremos. Segundo uso de `Season.covers()` después de la 1.3.
+
+> **Ordenación en Java, no en SQL.** El día de la semana se guarda como texto (`DayOfWeek` de `java.time`, para no depender de si la semana empieza en lunes o en domingo), así que un `ORDER BY day_of_week` devuelve FRIDAY, MONDAY, SATURDAY. Hay test que se pone rojo si alguien mueve la ordenación al repositorio.
+
+> **Borrado lógico**, como `TrainingGroup`: en la 2.2 las sesiones colgarán del horario que las generó. Borrar un horario **sí libera su franja** para uno nuevo. Qué pasa con las sesiones futuras ya generadas al borrar o editar un horario **es decisión de la 2.2**, no de aquí.
+
+> **Sin cambios en `SecurityConfig`**: caen bajo las reglas de `/api/groups/**` que ya existían. El entrenador consulta, el administrador monta el horario. **Hay test de endpoint que lo sostiene**: abriendo la ruta anidada a cualquier autenticado se pone en rojo, así que la afirmación no es una suposición.
+
+> **28 tests**: 20 de servicio (reglas y vigencia) y 8 de endpoint (permisos, códigos de error y aislamiento por HTTP).
+
+> **Cambio de contrato aditivo**: endpoints y DTOs nuevos, nada existente modificado.
 
 ### 2.2 Generación de sesiones — 16 h
 
