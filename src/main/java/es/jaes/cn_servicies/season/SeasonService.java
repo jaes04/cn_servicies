@@ -27,6 +27,19 @@ public class SeasonService {
      */
     private static final Month SEASON_START_MONTH = Month.SEPTEMBER;
 
+    /**
+     * Las temporadas del club van una detras de otra —de septiembre a agosto— y
+     * no se solapan nunca. Con eso, la pregunta "¿en que temporada estamos?"
+     * tiene una sola respuesta posible por fecha.
+     *
+     * <p>Aun asi, <b>la temporada en curso se resuelve por la bandera
+     * {@code active}, nunca deduciendola de la fecha de hoy.</b> La validacion
+     * evita el error de tecleo; que la busqueda no dependa de las fechas es lo
+     * que hace que no haya ambiguedad que resolver.
+     */
+    private static final String SOLAPE =
+            "Las fechas se solapan con otra temporada del club";
+
     private final SeasonRepository seasonRepository;
     private final ClubService clubService;
 
@@ -46,6 +59,10 @@ public class SeasonService {
         }
         if (seasonRepository.existsByClubAndName(club, request.getName())) {
             throw new IllegalArgumentException("Ya existe una temporada con ese nombre");
+        }
+        if (seasonRepository.existsByClubAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+                club, request.getEndDate(), request.getStartDate())) {
+            throw new IllegalArgumentException(SOLAPE);
         }
 
         Season season = new Season();
@@ -130,6 +147,12 @@ public class SeasonService {
         if (!season.getName().equals(request.getName())
                 && seasonRepository.existsByClubAndName(season.getClub(), request.getName())) {
             throw new IllegalArgumentException("Ya existe una temporada con ese nombre");
+        }
+        // Sin contarse a si misma: al editar unas fechas, la temporada siempre
+        // se solapa con la que ya era.
+        if (seasonRepository.existsByClubAndIdNotAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+                season.getClub(), season.getId(), request.getEndDate(), request.getStartDate())) {
+            throw new IllegalArgumentException(SOLAPE);
         }
 
         season.setName(request.getName());

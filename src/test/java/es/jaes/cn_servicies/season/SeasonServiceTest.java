@@ -165,6 +165,76 @@ class SeasonServiceTest {
     }
 
     @Test
+    @DisplayName("dos temporadas consecutivas conviven: agosto termina una y septiembre empieza la otra")
+    void consecutivasSePermiten() {
+        crear("2024/2025", 2024);
+        crear("2025/2026", 2025);
+
+        assertThat(seasonService.findAll())
+                .as("31 de agosto y 1 de septiembre no se solapan")
+                .hasSize(2);
+    }
+
+    @Test
+    @DisplayName("una temporada que empieza dentro de otra se rechaza")
+    void solapeSeRechaza() {
+        crear("2024/2025", 2024);
+
+        SeasonRequest solapada = new SeasonRequest();
+        solapada.setName("Solapada");
+        solapada.setStartDate(LocalDate.of(2025, 6, 1));
+        solapada.setEndDate(LocalDate.of(2026, 5, 31));
+
+        assertThatThrownBy(() -> seasonService.create(solapada))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("compartir un solo día ya es solapamiento")
+    void unSoloDiaEsSolape() {
+        crear("2024/2025", 2024);
+
+        SeasonRequest pegada = new SeasonRequest();
+        pegada.setName("Pegada");
+        // Empieza el mismo 31 de agosto en que termina la anterior.
+        pegada.setStartDate(LocalDate.of(2025, 8, 31));
+        pegada.setEndDate(LocalDate.of(2026, 8, 31));
+
+        assertThatThrownBy(() -> seasonService.create(pegada))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("editar una temporada sin tocar las demás funciona: no se solapa consigo misma")
+    void editarNoChocaConsigoMisma() {
+        SeasonResponse temporada = crear("2024/2025", 2024);
+
+        SeasonRequest cambio = new SeasonRequest();
+        cambio.setName("2024/2025");
+        cambio.setStartDate(LocalDate.of(2024, 9, 15));
+        cambio.setEndDate(LocalDate.of(2025, 7, 31));
+
+        SeasonResponse editada = seasonService.update(temporada.getId(), cambio);
+
+        assertThat(editada.getStartDate()).isEqualTo(LocalDate.of(2024, 9, 15));
+    }
+
+    @Test
+    @DisplayName("editar una temporada hasta pisar a otra se rechaza")
+    void editarHastaPisarOtraSeRechaza() {
+        SeasonResponse primera = crear("2024/2025", 2024);
+        crear("2025/2026", 2025);
+
+        SeasonRequest estirada = new SeasonRequest();
+        estirada.setName("2024/2025");
+        estirada.setStartDate(LocalDate.of(2024, 9, 1));
+        estirada.setEndDate(LocalDate.of(2026, 1, 1));
+
+        assertThatThrownBy(() -> seasonService.update(primera.getId(), estirada))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     @DisplayName("sin temporada activa, preguntar por ella es un 404 y no un null")
     void sinActivaEs404() {
         crear("2024/2025", 2024);

@@ -361,7 +361,9 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 
 > **Siembra en `AdminInitializer`, no en `data.sql`**: el club por defecto lo crea un runner que va después de `data.sql`, así que allí todavía no existe a qué colgarla. Septiembre a agosto, idempotente, y no toca nada si el club ya tiene temporadas.
 
-> **Queda abierto:** nada impide que dos temporadas del mismo club se solapen en fechas. Hoy sería un error de tecleo sin consecuencias, pero cuando los grupos y la asistencia cuelguen de la temporada conviene decidir si se valida.
+> **Las temporadas no se solapan**, decidido: van una detrás de otra, de septiembre a agosto. Se valida en el alta y en la edición —esta última sin contarse a sí misma— y compartir un solo día ya cuenta como solape. La restricción vive solo en el servicio: llevarla a la base necesitaría una restricción de exclusión con `btree_gist`, y una extensión que pide superusuario en cada despliegue es desproporcionada para prevenir un error de tecleo.
+
+> **Aun así, la temporada en curso se resuelve por la bandera `active`, nunca deduciéndola de la fecha de hoy.** La validación evita el error de tecleo; que la búsqueda no dependa de las fechas es lo que hace que no haya ambigüedad que resolver. `Season.covers(fecha)` existe para comprobar que la fecha de una sesión cae dentro de su temporada —una validación—, no para buscar temporada por fecha.
 
 ### 1.2 Grupo — 8 h
 

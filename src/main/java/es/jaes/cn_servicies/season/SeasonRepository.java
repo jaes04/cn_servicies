@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,6 +17,25 @@ public interface SeasonRepository extends JpaRepository<Season, UUID> {
     Optional<Season> findByActiveTrue();
 
     boolean existsByClubAndName(Club club, String name);
+
+    /**
+     * Si el club ya tiene una temporada que se cruce con el intervalo dado.
+     *
+     * <p>La condicion de solapamiento entre dos intervalos es que cada uno
+     * empiece antes de que el otro acabe: {@code inicio <= finNuevo} y
+     * {@code fin >= inicioNuevo}. Ojo al orden de los parametros, que va
+     * cruzado precisamente por eso.
+     *
+     * <p>Los extremos cuentan, y tienen que contar: una temporada que termina
+     * el 31 de agosto y otra que empieza el 1 de septiembre no se solapan, pero
+     * dos que compartan un solo dia si.
+     */
+    boolean existsByClubAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+            Club club, LocalDate finNuevo, LocalDate inicioNuevo);
+
+    /** La misma comprobacion al editar, sin contarse a si misma. */
+    boolean existsByClubAndIdNotAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+            Club club, UUID id, LocalDate finNuevo, LocalDate inicioNuevo);
 
     /** Cuantas tiene el club, para saber si hay que sembrar la primera. */
     long countByClub(Club club);
