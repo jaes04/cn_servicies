@@ -21,5 +21,11 @@ public enum GroupCategory {
     ALEVIN,
     INFANTIL,
     JUNIOR,
-    ABSOLUTO
+    ABSOLUTO,
+
+    /**
+     * Va al final porque el orden de este enum sigue la edad, y master es la de
+     * los veteranos: no encaja en la progresion de categorias de formacion.
+     */
+    MASTER
 }

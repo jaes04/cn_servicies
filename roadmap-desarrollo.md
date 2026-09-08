@@ -376,7 +376,7 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 
 > **Se llama `TrainingGroup`, no `Group`.** `GROUP` es palabra reservada de SQL y `Group` colisiona con la gramática de HQL. Tabla `training_groups`, paquete `training_group`, con `club_id` y policy propia (`migrations/1.2-training-groups-rls.sql`).
 
-> **Categoría y nivel como enums cerrados.** `GroupCategory`: PREBENJAMIN, BENJAMIN, ALEVIN, INFANTIL, JUNIOR, ABSOLUTO — nomenclatura RFEN, en español y sin tildes porque son nombres propios de la federación. `GroupLevel`: INICIACION, PERFECCIONAMIENTO, COMPETICION. Añadir un valor es una línea, pero **es cambio de contrato**. Falta MASTERS si el club lo tiene.
+> **Categoría y nivel como enums cerrados.** `GroupCategory`: PREBENJAMIN, BENJAMIN, ALEVIN, INFANTIL, JUNIOR, ABSOLUTO, MASTER — nomenclatura RFEN, en español y sin tildes porque son nombres propios de la federación. `GroupLevel`: INICIACION, PERFECCIONAMIENTO, COMPETICION. Añadir un valor es una línea, pero **es cambio de contrato**.
 
 > **El nivel es el que se va a quedar corto.** La categoría la fija la federación; el nivel lo fija cada club, así que con un segundo cliente probablemente haya que pasarlo a catálogo por club.
 
