@@ -286,6 +286,39 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_training_groups_season_name
 -- llevarse por delante el grupo ni su historico. El grupo se queda sin
 -- entrenador, que es un estado valido.
 
+-- PERTENENCIA A GRUPO (tarea 1.3)
+--  Historico: las filas no se borran nunca. Dar de baja es escribir left_on, y
+--  left_on es el ULTIMO DIA DE PERTENENCIA, incluido.
+--
+--  Sin club_id: tabla hija, llega a su club por athlete_id o por group_id, las
+--  dos filtradas. Es la regla de la 0.2, que ya nombraba esta tabla.
+CREATE TABLE IF NOT EXISTS athlete_groups (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    athlete_id   UUID        NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+    group_id     UUID        NOT NULL REFERENCES training_groups(id) ON DELETE CASCADE,
+    joined_on    DATE        NOT NULL,
+    left_on      DATE,
+    leave_reason VARCHAR(20),
+    created_at   TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_athlete_groups_athlete ON athlete_groups (athlete_id);
+
+-- La consulta de la Fase 2 —miembros de un grupo en una fecha— va por estas
+-- tres columnas.
+CREATE INDEX IF NOT EXISTS idx_athlete_groups_group_fechas
+    ON athlete_groups (group_id, joined_on, left_on);
+
+-- No dos pertenencias ABIERTAS del mismo atleta al mismo grupo. Parcial, igual
+-- que el de la temporada activa: las cerradas pueden repetirse tantas veces
+-- como el atleta entre y salga del grupo a lo largo de los años, que es un
+-- historico legitimo y no un duplicado.
+--
+-- Ojo: esto NO impide pertenecer a varios grupos a la vez, que es un caso real
+-- (natacion y preparacion fisica). La restriccion es por grupo, no por atleta.
+CREATE UNIQUE INDEX IF NOT EXISTS uk_athlete_groups_abierta
+    ON athlete_groups (athlete_id, group_id) WHERE left_on IS NULL;
+
 -- ============================================================
 --  MULTI-TENANCY — club_id en las entidades raiz (tarea 0.2)
 -- ============================================================
