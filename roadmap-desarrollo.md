@@ -390,15 +390,31 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 
 ### 1.3 Pertenencia histórica — 10 h
 
-- [ ] Entidad `AtletaGrupo`: `id`, `atleta_id`, `grupo_id`, `fecha_alta`, `fecha_baja`, `motivo_baja` — `1h · Baja · Crítica`
-- [ ] Regla: no dos pertenencias abiertas al mismo grupo — `1h · Media · Alta`
-- [ ] Permitir varios grupos simultáneos (natación + preparación física) — `1h · Media · Media`
+- [x] Entidad `AtletaGrupo`: `id`, `atleta_id`, `grupo_id`, `fecha_alta`, `fecha_baja`, `motivo_baja` — `1h · Baja · Crítica`
+- [x] Regla: no dos pertenencias abiertas al mismo grupo — `1h · Media · Alta`
+- [x] Permitir varios grupos simultáneos (natación + preparación física) — `1h · Media · Media`
 - [ ] Endpoint de asignación: cierra la anterior si aplica y abre la nueva — `2h · Media · Crítica`
-- [ ] Endpoint de baja: rellena `fecha_baja`, nunca borra — `1h · Baja · Crítica`
-- [ ] Consulta de miembros a una fecha dada — `2h · Alta · Crítica`
-- [ ] Consulta de histórico de un atleta por temporada — `2h · Media · Alta`
+- [x] Endpoint de baja: rellena `fecha_baja`, nunca borra — `1h · Baja · Crítica`
+- [x] Consulta de miembros a una fecha dada — `2h · Alta · Crítica`
+- [x] Consulta de histórico de un atleta por temporada — `2h · Media · Alta`
 
 > La consulta "miembros a una fecha dada" es la pieza sobre la que se apoya toda la Fase 2. Merece la pena hacerla bien y con tests.
+
+> **Entidad `AthleteGroup`**, en el paquete `training_group`. El campo se llama `trainingGroup` y no `group`: `group` es palabra reservada también en HQL y rompe cualquier consulta que lo use.
+
+> **`leftOn` es el ÚLTIMO DÍA de pertenencia, incluido.** Un atleta con baja el 30 de junio cuenta como miembro el 30 de junio. La Fase 2 hereda este criterio entero: un error de un día se multiplica por cada sesión y no se ve hasta que alguien reclama una falta de hace tres meses. Hay test de los cuatro extremos.
+
+> **Varios grupos a la vez sí; dos veces en el mismo grupo no.** Lo sostienen el servicio y un índice único **parcial** sobre `(athlete_id, group_id) WHERE left_on IS NULL`. Las cerradas se repiten libremente: volver a entrar en un grupo años después es histórico, no duplicado.
+
+> **Mover de grupo es explícito**, con `replacesGroupId`. "Cerrar la anterior" no se puede deducir cuando un atleta pertenece legítimamente a dos sitios: adivinarlo daría de baja al nadador de preparación física cada vez que cambia de grupo de natación.
+
+> **El motivo de baja es un enum cerrado**, no texto libre: un campo de notas en un registro de menores es la vía más corta a que alguien escriba una causa médica donde no debe. Por lo mismo **no hay valor de lesión** — eso es una decisión de RGPD, no una constante.
+
+> **El alta tiene que caer dentro de la temporada del grupo.** Es el primer uso real de `Season.covers()`.
+
+> **Los dos endpoints de esta tarea se hacen en la 1.4**, junto con los suyos, para diseñar las rutas una sola vez. El dominio y las reglas ya están.
+
+> **Queda abierto:** `plazas_max` del grupo no se comprueba al asignar. Hoy es un dato informativo; hay que decidir si bloquea el alta o solo avisa en la interfaz.
 
 ### 1.4 API — 6 h
 
