@@ -22,10 +22,12 @@ import java.util.UUID;
  * consentimiento, y ese apunta al {@code Guardian}, no a este vinculo.
  */
 @Entity
-@Table(
-    name = "athlete_guardians",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"athlete_id", "guardian_id"})
-)
+/*
+ * El unico va en schema.sql como `uk_athlete_guardians`, no aqui: declararlo en los dos
+ * sitios crea dos restricciones equivalentes, y la que genera Hibernate lleva
+ * un nombre distinto en cada base.
+ */
+@Table(name = "athlete_guardians")
 @Data
 @NoArgsConstructor
 public class AthleteGuardian {
@@ -35,11 +37,13 @@ public class AthleteGuardian {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "athlete_id", nullable = false)
+    @JoinColumn(name = "athlete_id", nullable = false,
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Athlete athlete;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "guardian_id", nullable = false)
+    @JoinColumn(name = "guardian_id", nullable = false,
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Guardian guardian;
 
     @Enumerated(EnumType.STRING)

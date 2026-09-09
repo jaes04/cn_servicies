@@ -56,7 +56,8 @@ public class MedicalCertificate {
     private Club club;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "athlete_id", nullable = false)
+    @JoinColumn(name = "athlete_id", nullable = false,
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Athlete athlete;
 
     @Column(nullable = false)

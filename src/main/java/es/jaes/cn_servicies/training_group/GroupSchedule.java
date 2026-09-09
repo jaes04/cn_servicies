@@ -57,7 +57,8 @@ public class GroupSchedule {
      * cualquier consulta que lo use.
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "group_id", nullable = false)
+    @JoinColumn(name = "group_id", nullable = false,
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private TrainingGroup trainingGroup;
 
     /**

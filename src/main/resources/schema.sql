@@ -143,8 +143,13 @@ CREATE TABLE IF NOT EXISTS athlete_documents (
     type              VARCHAR(30)  NOT NULL,
     filename          VARCHAR(255) NOT NULL,
     original_filename VARCHAR(255) NOT NULL,
-    athlete_id        UUID         NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
-    uploaded_by_id    UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    athlete_id        UUID         NOT NULL,
+    -- SIN ON DELETE, y es deliberado (tarea 2.6). Este archivo declaraba CASCADE,
+    -- que habria borrado los documentos de un atleta al dar de baja al usuario
+    -- que los subio: el documento es del atleta, no de quien lo subio. Tampoco
+    -- vale SET NULL porque la columna es NOT NULL. Arreglarlo de verdad es
+    -- hacerla nullable, y eso es un cambio de modelo que hay que decidir aparte.
+    uploaded_by_id    UUID         NOT NULL REFERENCES users(id),
     created_at        TIMESTAMP    NOT NULL DEFAULT now()
 );
 
@@ -168,7 +173,7 @@ CREATE TABLE IF NOT EXISTS guardians (
     dni        VARCHAR(9)   NOT NULL,
     email      VARCHAR(255) NOT NULL,
     phone      VARCHAR(255),
-    user_id    UUID         REFERENCES users(id) ON DELETE SET NULL,
+    user_id    UUID,
     created_at TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP
@@ -187,12 +192,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_guardians_user ON guardians (user_id);
 
 CREATE TABLE IF NOT EXISTS athlete_guardians (
     id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    athlete_id   UUID        NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
-    guardian_id  UUID        NOT NULL REFERENCES guardians(id) ON DELETE CASCADE,
+    athlete_id   UUID        NOT NULL,
+    guardian_id  UUID        NOT NULL,
     relationship VARCHAR(20) NOT NULL,
-    created_at   TIMESTAMP,
-    CONSTRAINT uk_athlete_guardians UNIQUE (athlete_id, guardian_id)
+    created_at   TIMESTAMP
 );
+
+-- Un atleta y un tutor se vinculan una sola vez. Estaba declarado dentro del
+-- CREATE TABLE y por tanto no existia: en la base solo habia el unico que genero
+-- Hibernate, con nombre aleatorio. Como indice suelto si se crea.
+CREATE UNIQUE INDEX IF NOT EXISTS uk_athlete_guardians
+    ON athlete_guardians (athlete_id, guardian_id);
 
 CREATE INDEX IF NOT EXISTS idx_athlete_guardians_athlete ON athlete_guardians (athlete_id);
 CREATE INDEX IF NOT EXISTS idx_athlete_guardians_guardian ON athlete_guardians (guardian_id);
@@ -209,7 +219,7 @@ CREATE INDEX IF NOT EXISTS idx_athlete_guardians_guardian ON athlete_guardians (
 CREATE TABLE IF NOT EXISTS consents (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     club_id       UUID        NOT NULL REFERENCES clubs(id),
-    athlete_id    UUID        NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+    athlete_id    UUID        NOT NULL,
     guardian_id   UUID        NOT NULL REFERENCES guardians(id),
     type          VARCHAR(30) NOT NULL,
     granted       BOOLEAN     NOT NULL,
@@ -244,7 +254,7 @@ CREATE INDEX IF NOT EXISTS idx_consents_guardian ON consents (guardian_id);
 CREATE TABLE IF NOT EXISTS medical_certificates (
     id               UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
     club_id          UUID      NOT NULL REFERENCES clubs(id),
-    athlete_id       UUID      NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+    athlete_id       UUID      NOT NULL,
     issued_on        DATE      NOT NULL,
     expires_on       DATE      NOT NULL,
     validated_by_id  UUID      NOT NULL REFERENCES users(id),
@@ -296,7 +306,7 @@ CREATE TABLE IF NOT EXISTS training_groups (
     id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     club_id    UUID         NOT NULL REFERENCES clubs(id),
     season_id  UUID         NOT NULL REFERENCES seasons(id),
-    coach_id   UUID         REFERENCES users(id) ON DELETE SET NULL,
+    coach_id   UUID,
     name       VARCHAR(100) NOT NULL,
     category   VARCHAR(20)  NOT NULL,
     level      VARCHAR(20)  NOT NULL,
@@ -326,8 +336,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_training_groups_season_name
 --  dos filtradas. Es la regla de la 0.2, que ya nombraba esta tabla.
 CREATE TABLE IF NOT EXISTS athlete_groups (
     id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    athlete_id   UUID        NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
-    group_id     UUID        NOT NULL REFERENCES training_groups(id) ON DELETE CASCADE,
+    athlete_id   UUID        NOT NULL,
+    group_id     UUID        NOT NULL,
     joined_on    DATE        NOT NULL,
     left_on      DATE,
     leave_reason VARCHAR(20),
@@ -368,7 +378,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_athlete_groups_abierta
 --  se multiplica por cada semana generada.
 CREATE TABLE IF NOT EXISTS group_schedules (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    group_id    UUID        NOT NULL REFERENCES training_groups(id) ON DELETE CASCADE,
+    group_id    UUID        NOT NULL,
     day_of_week VARCHAR(20) NOT NULL,
     start_time  TIME        NOT NULL,
     end_time    TIME        NOT NULL,
@@ -409,8 +419,8 @@ CREATE INDEX IF NOT EXISTS idx_group_schedules_group_dia
 CREATE TABLE IF NOT EXISTS training_sessions (
     id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     club_id             UUID        NOT NULL REFERENCES clubs(id),
-    group_id            UUID        NOT NULL REFERENCES training_groups(id) ON DELETE CASCADE,
-    schedule_id         UUID        REFERENCES group_schedules(id) ON DELETE SET NULL,
+    group_id            UUID        NOT NULL,
+    schedule_id         UUID,
     session_date        DATE        NOT NULL,
     start_time          TIME        NOT NULL,
     end_time            TIME        NOT NULL,
@@ -528,6 +538,80 @@ CREATE INDEX IF NOT EXISTS idx_club_closures_fechas
 -- Sin unico: dos cierres solapados no son un error. Declarar el puente y ademas
 -- la semana entera es una forma legitima de decirlo, y cancelar dos veces la
 -- misma sesion no hace nada la segunda.
+
+
+-- Un usuario se vincula una sola vez con un atleta. La tabla la crea Hibernate y
+-- este archivo no la declaraba, asi que el unico solo existia con el nombre que
+-- Hibernate le puso. Como indice suelto tiene nombre estable.
+CREATE UNIQUE INDEX IF NOT EXISTS uk_user_athletes
+    ON user_athletes (user_id, athlete_id);
+
+
+-- ============================================================
+--  CLAVES FORANEAS CON ACCION DE BORRADO (tarea 2.6)
+-- ============================================================
+--  Van aqui, como sentencias sueltas, y NO dentro del CREATE TABLE, porque ahi
+--  no se aplicarian nunca: lee la cabecera del archivo. Durante mucho tiempo
+--  este archivo declaro 24 `ON DELETE` de los que la base solo tenia 8.
+--
+--  Las entidades correspondientes llevan
+--  `@JoinColumn(foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))` para
+--  que Hibernate no cree ADEMAS la suya: con dos claves foraneas sobre la misma
+--  columna manda la mas restrictiva, y la cascada se quedaria de adorno.
+--
+--  Las que Hibernate ya creo en bases existentes hay que quitarlas a mano:
+--      migrations/2.6-limpiar-fks-generadas.sql
+--
+--  El par DROP IF EXISTS + ADD hace que esto sea idempotente.
+-- ============================================================
+
+ALTER TABLE athlete_documents DROP CONSTRAINT IF EXISTS fk_athlete_documents_athlete;
+ALTER TABLE athlete_documents ADD CONSTRAINT fk_athlete_documents_athlete
+    FOREIGN KEY (athlete_id) REFERENCES athletes (id) ON DELETE CASCADE;
+
+ALTER TABLE guardians DROP CONSTRAINT IF EXISTS fk_guardians_user;
+ALTER TABLE guardians ADD CONSTRAINT fk_guardians_user
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL;
+
+ALTER TABLE athlete_guardians DROP CONSTRAINT IF EXISTS fk_athlete_guardians_athlete;
+ALTER TABLE athlete_guardians ADD CONSTRAINT fk_athlete_guardians_athlete
+    FOREIGN KEY (athlete_id) REFERENCES athletes (id) ON DELETE CASCADE;
+
+ALTER TABLE athlete_guardians DROP CONSTRAINT IF EXISTS fk_athlete_guardians_guardian;
+ALTER TABLE athlete_guardians ADD CONSTRAINT fk_athlete_guardians_guardian
+    FOREIGN KEY (guardian_id) REFERENCES guardians (id) ON DELETE CASCADE;
+
+ALTER TABLE consents DROP CONSTRAINT IF EXISTS fk_consents_athlete;
+ALTER TABLE consents ADD CONSTRAINT fk_consents_athlete
+    FOREIGN KEY (athlete_id) REFERENCES athletes (id) ON DELETE CASCADE;
+
+ALTER TABLE medical_certificates DROP CONSTRAINT IF EXISTS fk_medical_certificates_athlete;
+ALTER TABLE medical_certificates ADD CONSTRAINT fk_medical_certificates_athlete
+    FOREIGN KEY (athlete_id) REFERENCES athletes (id) ON DELETE CASCADE;
+
+ALTER TABLE training_groups DROP CONSTRAINT IF EXISTS fk_training_groups_coach;
+ALTER TABLE training_groups ADD CONSTRAINT fk_training_groups_coach
+    FOREIGN KEY (coach_id) REFERENCES users (id) ON DELETE SET NULL;
+
+ALTER TABLE athlete_groups DROP CONSTRAINT IF EXISTS fk_athlete_groups_athlete;
+ALTER TABLE athlete_groups ADD CONSTRAINT fk_athlete_groups_athlete
+    FOREIGN KEY (athlete_id) REFERENCES athletes (id) ON DELETE CASCADE;
+
+ALTER TABLE athlete_groups DROP CONSTRAINT IF EXISTS fk_athlete_groups_group;
+ALTER TABLE athlete_groups ADD CONSTRAINT fk_athlete_groups_group
+    FOREIGN KEY (group_id) REFERENCES training_groups (id) ON DELETE CASCADE;
+
+ALTER TABLE group_schedules DROP CONSTRAINT IF EXISTS fk_group_schedules_group;
+ALTER TABLE group_schedules ADD CONSTRAINT fk_group_schedules_group
+    FOREIGN KEY (group_id) REFERENCES training_groups (id) ON DELETE CASCADE;
+
+ALTER TABLE training_sessions DROP CONSTRAINT IF EXISTS fk_training_sessions_group;
+ALTER TABLE training_sessions ADD CONSTRAINT fk_training_sessions_group
+    FOREIGN KEY (group_id) REFERENCES training_groups (id) ON DELETE CASCADE;
+
+ALTER TABLE training_sessions DROP CONSTRAINT IF EXISTS fk_training_sessions_schedule;
+ALTER TABLE training_sessions ADD CONSTRAINT fk_training_sessions_schedule
+    FOREIGN KEY (schedule_id) REFERENCES group_schedules (id) ON DELETE SET NULL;
 
 -- ============================================================
 --  MULTI-TENANCY — club_id en las entidades raiz (tarea 0.2)

@@ -69,7 +69,8 @@ public class TrainingSession {
     private Club club;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "group_id", nullable = false)
+    @JoinColumn(name = "group_id", nullable = false,
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private TrainingGroup trainingGroup;
 
     /**
@@ -82,7 +83,8 @@ public class TrainingSession {
      * sueltas el mismo dia.
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "schedule_id")
+    @JoinColumn(name = "schedule_id",
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private GroupSchedule schedule;
 
     /** {@code date} es palabra reservada en SQL; la columna es {@code session_date}. */

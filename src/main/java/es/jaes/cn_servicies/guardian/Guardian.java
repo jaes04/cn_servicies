@@ -80,7 +80,8 @@ public class Guardian {
      * registrado. No se exige para consentir.
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id",
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private User user;
 
     @CreationTimestamp

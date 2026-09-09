@@ -66,7 +66,8 @@ public class TrainingGroup {
      * decide su rol, no esta columna.
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "coach_id")
+    @JoinColumn(name = "coach_id",
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private User coach;
 
     /** Unico dentro de la temporada: dos "Alevin A" el mismo curso son un error. */

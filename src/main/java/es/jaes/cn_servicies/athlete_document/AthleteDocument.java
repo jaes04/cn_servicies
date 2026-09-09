@@ -34,7 +34,8 @@ public class AthleteDocument {
     private String originalFilename;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "athlete_id", nullable = false)
+    @JoinColumn(name = "athlete_id", nullable = false,
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Athlete athlete;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

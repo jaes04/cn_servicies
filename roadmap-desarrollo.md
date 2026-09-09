@@ -673,10 +673,26 @@ La parte con más trampas del proyecto.
 `CREATE TABLE` en `schema.sql` no llega nunca a la base, porque Hibernate crea las
 tablas antes. Ver la cabecera de `schema.sql`.
 
-- [ ] Sacar a `ALTER TABLE` sueltos los ~16 `ON DELETE` que se declaran y no existen — `3h · Alta · Media`
-- [ ] Recuperar el `UNIQUE (athlete_id, guardian_id)` de `athlete_guardians`, que hoy solo existe con el nombre generado por Hibernate — `30min · Media · Media`
-- [ ] Revisar los ~14 `DEFAULT` declarados que tampoco están — `1h · Media · Baja`
-- [ ] Test que compare lo declarado con lo real, como el de RLS — `2h · Alta · Alta`
+- [x] Sacar a `ALTER TABLE` sueltos los `ON DELETE` que se declaran y no existen — `3h · Alta · Media`
+- [x] Recuperar el `UNIQUE (athlete_id, guardian_id)` de `athlete_guardians` — y de paso el de `user_athletes`, que tenía lo mismo — `30min · Media · Media`
+- [x] Revisar los `DEFAULT` declarados que tampoco están — `1h · Media · Baja` — **revisados y descartados**, ver abajo
+- [x] Test que compare lo declarado con lo real, como el de RLS — `2h · Alta · Alta`
+
+> **Eran 13 desajustes, no 16.** Medidos comparando `schema.sql` con `pg_constraint`, no a ojo. Se aplicaron **12**; hoy la diferencia entre lo declarado y lo real es **cero**.
+
+> **El que no se aplicó: `athlete_documents.uploaded_by_id`.** Declaraba `ON DELETE CASCADE`, que habría borrado los documentos de un atleta al dar de baja al usuario que los subió — el documento es del atleta, no de quien lo subió. Y no vale `SET NULL` porque la columna es `NOT NULL`. Se quitó la declaración para que el archivo dejara de prometerlo. **Arreglarlo de verdad es hacer la columna nullable, y eso es un cambio de modelo**: queda abierto. Es exactamente el caso que avisaba la nota de "revisar tabla por tabla antes de encender nada".
+
+> **Las entidades llevan `@ForeignKey(ConstraintMode.NO_CONSTRAINT)`** en esas doce relaciones. Sin eso, Hibernate crea la suya en paralelo y **con dos claves foráneas sobre la misma columna manda la más restrictiva**: la cascada se quedaría de adorno. Es el patrón que salió de la 2.3.
+
+> **`migrations/2.6-limpiar-fks-generadas.sql`** quita las que Hibernate ya había creado —`ddl-auto=update` solo añade, nunca borra lo que deja de estar declarado— y también los dos únicos generados. Una vez por entorno.
+
+> **Los `DEFAULT` se revisaron y se dejaron como están.** Son casi todos `gen_random_uuid()` en claves primarias que Hibernate genera desde Java, así que no llegan a usarse nunca. Añadirlos solo serviría para que un `INSERT` al que le falta una columna dejara de fallar, que es lo contrario de lo que interesa.
+
+> **`SchemaIntegrityTest` es el guardia**, con dos comprobaciones estructurales —ninguna columna con dos claves foráneas, ninguna tabla con dos únicos equivalentes, **ambas sin lista que mantener**— y una tercera con la lista explícita de las cascadas que el sistema sí ejercita. Las dos primeras cazan la regresión de Hibernate; la tercera documenta el contrato de borrado.
+
+> **Un detalle que se descubrió probándolo:** la tercera comprobación no se puede poner en rojo tocando la base, porque arrancar la aplicación reejecuta `schema.sql` y **repara la cascada antes de mirarla**. Solo se pone roja quitando el `ALTER` del archivo, que es como se rompería de verdad. Que sea autorreparable es buena señal, pero conviene saberlo antes de confiar en ese test.
+
+> **Aviso para el despliegue:** si un entorno tiene filas huérfanas, el `ADD CONSTRAINT` falla y **la aplicación no arranca**. Apareció al probar esto, con una fila que dejaron los propios experimentos. En una base con historia conviene comprobarlo antes de desplegar: `SELECT ... LEFT JOIN ... WHERE padre.id IS NULL` por cada clave foránea nueva.
 
 > **Por qué no corre prisa:** hoy no rompe nada, porque casi todo el borrado del sistema
 > es lógico —`deleted_at`, `left_on`, `revoked_at`— así que esas cascadas no llegan a

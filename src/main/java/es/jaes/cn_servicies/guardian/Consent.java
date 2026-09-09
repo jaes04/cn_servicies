@@ -47,7 +47,8 @@ public class Consent {
     private Club club;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "athlete_id", nullable = false)
+    @JoinColumn(name = "athlete_id", nullable = false,
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Athlete athlete;
 
     /** Quien consiente. Nunca nulo: sin sujeto que otorgue, no hay consentimiento. */

@@ -11,10 +11,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(
-    name = "user_athletes",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "athlete_id"})
-)
+/*
+ * El unico va en schema.sql como `uk_user_athletes`, no aqui: declararlo en los dos
+ * sitios crea dos restricciones equivalentes, y la que genera Hibernate lleva
+ * un nombre distinto en cada base.
+ */
+@Table(name = "user_athletes")
 @Data
 @NoArgsConstructor
 public class UserAthlete {
