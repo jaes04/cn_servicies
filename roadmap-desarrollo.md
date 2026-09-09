@@ -620,10 +620,29 @@ La parte con más trampas del proyecto.
 
 ### 2.4 Informes — 9 h
 
-- [ ] Porcentaje de asistencia por atleta en un rango — `2h · Media · Alta`
-- [ ] Porcentaje de asistencia por grupo — `2h · Media · Alta`
-- [ ] Detección de ausencias consecutivas — `2h · Media · Media`
-- [ ] Exportación a CSV — `3h · Media · Media`
+**2.4.a — los informes**
+
+- [x] Porcentaje de asistencia por atleta en un rango — `2h · Media · Alta`
+- [x] Porcentaje de asistencia por grupo — `2h · Media · Alta`
+- [x] Detección de ausencias consecutivas — `2h · Media · Media`
+
+**2.4.b — exportación**
+
+- [ ] Exportación a CSV — `3h · Media · Media` — **pendiente de decidir**: `docs/rgpd.md` §9 marca sacar datos de atletas del sistema como señal de alarma
+
+> **Qué se divide entre qué**, que es todo el bloque. El denominador son las sesiones **celebradas** —ni las canceladas ni las futuras: faltar a un entrenamiento que no existió no es faltar— en las que el atleta **pertenecía al grupo ese día**. `PRESENT` y `LATE` cuentan como asistencia.
+
+> **Una sesión celebrada sin marcar cuenta como falta**, y sale además como incidencia con su fecha y su sesión para poder ir a corregirla. El dato no se infla, pero tampoco se esconde de dónde viene.
+
+> **Una sesión pasada a la que nadie pasó lista es harina de otro costal**: no cuenta como falta de nadie. Contar catorce ausencias porque el entrenador no abrió el móvil no sería un dato, sería ruido en el historial de catorce familias. Sale aparte en `sessionsWithoutRoster`.
+
+> **La media del grupo pondera por sesiones posibles**, no promedia los porcentajes de cada uno: quien solo pudo ir a dos sesiones no puede pesar lo mismo que quien pudo ir a veinte.
+
+> **Un solo viaje a la base por informe**, con un `LEFT JOIN` desde las sesiones. El `LEFT` es la pieza: conserva la fila aunque no haya asistencia registrada, que es justo el caso que hay que contar y sacar como incidencia. Catorce atletas por seis semanas resueltos uno a uno serían cientos de consultas para pintar una tabla.
+
+> **Ausencias consecutivas** con `threshold` ajustable, tres por defecto. Las no registradas rompen la racha igual que una falta, por coherencia con el criterio de arriba: si no se apunta a alguien, el sistema no puede decir que viene. **No avisa, no marca y no guarda nada**: es una consulta que el club mira.
+
+> **Deuda anotada:** el criterio de pertenencia está escrito **dos veces**, en la consulta por grupo y en la de por atleta. Si alguien cambia una y no la otra, los dos informes dirán cosas distintas del mismo nadador. Hay test en rojo para cada una, que es lo que hoy lo sostiene.
 
 ### 2.5 Frontend — 10 h
 
