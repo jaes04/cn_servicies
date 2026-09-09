@@ -109,8 +109,17 @@ public class SecurityConfig {
                         // marcada como celebrada cuando nadie se metio al agua.
                         // El resto de la rama nace cerrado a ADMIN.
                         .requestMatchers(POST, "/api/sessions/*/cancellation").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        // Reactivar va con cancelar: quien puede equivocarse
+                        // tiene que poder deshacerlo sin esperar al club.
+                        .requestMatchers(POST, "/api/sessions/*/reactivation").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/sessions/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers("/api/sessions/**").hasRole("ADMIN")
+                        // Calendario de excepciones. El entrenador lo consulta
+                        // —necesita saber que dias no hay— pero declarar un
+                        // festivo es del club: tumba las sesiones de todos los
+                        // grupos a la vez.
+                        .requestMatchers(GET, "/api/closures/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers("/api/closures/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/groups/duplication").hasRole("ADMIN")
                         .requestMatchers(GET, "/api/groups/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers("/api/groups/**").hasRole("ADMIN")

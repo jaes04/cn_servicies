@@ -410,6 +410,40 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_training_sessions_horario_fecha
 -- delante las sesiones que ya ocurrieron. La sesion se queda huerfana de
 -- horario, que es exactamente lo que paso.
 
+-- CALENDARIO DE EXCEPCIONES (tarea 2.2.b)
+--  Los dias en que no se entrena: festivos, piscina cerrada, la semana de
+--  Navidad.
+--
+--  Entidad raiz —el cierre es del club, no de un grupo— asi que club_id y policy
+--  propia, esta vez sin excepcion que justificar.
+--
+--  UN CIERRE NO IMPIDE GENERAR: hace que la sesion nazca cancelada. Un dia sin
+--  nada en el calendario no distingue un festivo de un job que no llego a pasar
+--  por esa semana.
+--
+--  modality NULL afecta a todo; con valor, solo a esa. Es lo que evita que
+--  cerrar la piscina cancele el entrenamiento del gimnasio.
+CREATE TABLE IF NOT EXISTS club_closures (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    club_id    UUID        NOT NULL REFERENCES clubs(id),
+    start_date DATE        NOT NULL,
+    end_date   DATE        NOT NULL,
+    reason     VARCHAR(30) NOT NULL,
+    modality   VARCHAR(20),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_club_closures_club_id ON club_closures (club_id);
+
+-- El generador pregunta por rango en cada pasada.
+CREATE INDEX IF NOT EXISTS idx_club_closures_fechas
+    ON club_closures (club_id, start_date, end_date);
+
+-- Sin unico: dos cierres solapados no son un error. Declarar el puente y ademas
+-- la semana entera es una forma legitima de decirlo, y cancelar dos veces la
+-- misma sesion no hace nada la segunda.
+
 -- ============================================================
 --  MULTI-TENANCY — club_id en las entidades raiz (tarea 0.2)
 -- ============================================================

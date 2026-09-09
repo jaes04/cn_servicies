@@ -11,6 +11,8 @@ import es.jaes.cn_servicies.season.Season;
 import es.jaes.cn_servicies.season.SeasonRepository;
 import es.jaes.cn_servicies.training_group.TrainingGroup;
 import es.jaes.cn_servicies.training_group.TrainingGroupRepository;
+import es.jaes.cn_servicies.training_session.ClubClosure;
+import es.jaes.cn_servicies.training_session.ClubClosureRepository;
 import es.jaes.cn_servicies.training_session.TrainingSession;
 import es.jaes.cn_servicies.training_session.TrainingSessionRepository;
 import es.jaes.cn_servicies.guardian.GuardianRepository;
@@ -85,6 +87,7 @@ class TenantIsolationTest {
     @Autowired private SeasonRepository seasonRepository;
     @Autowired private TrainingGroupRepository groupRepository;
     @Autowired private TrainingSessionRepository sessionRepository;
+    @Autowired private ClubClosureRepository closureRepository;
 
     @Value("${app.jwt.secret}")
     private String jwtSecret;
@@ -103,6 +106,8 @@ class TenantIsolationTest {
     private UUID grupoB;
     private UUID sesionA;
     private UUID sesionB;
+    private UUID cierreA;
+    private UUID cierreB;
 
     // ----------------------------------------------------------------
     //  Datos de prueba
@@ -131,6 +136,8 @@ class TenantIsolationTest {
         grupoB = crearGrupo(CLUB_B, temporadaB, "Grupo de B");
         sesionA = crearSesion(CLUB_A, grupoA);
         sesionB = crearSesion(CLUB_B, grupoB);
+        cierreA = crearCierre(CLUB_A);
+        cierreB = crearCierre(CLUB_B);
     }
 
     @AfterAll
@@ -152,6 +159,7 @@ class TenantIsolationTest {
     private void borrarDatos() {
         // Antes que users: el certificado apunta a quien lo valido, y esa clave
         // foranea no es en cascada a proposito.
+        jdbc.update("DELETE FROM club_closures WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM training_sessions WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM training_groups WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM seasons WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
@@ -331,6 +339,40 @@ class TenantIsolationTest {
                         + " VALUES (?, ?, ?, ?, 'ALEVIN', 'COMPETICION', now(), now())",
                 id, clubId, temporadaId, nombre);
         return id;
+    }
+
+    private UUID crearCierre(UUID clubId) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO club_closures"
+                        + " (id, club_id, start_date, end_date, reason, modality,"
+                        + "  created_at, updated_at)"
+                        + " VALUES (?, ?, CURRENT_DATE, CURRENT_DATE, 'HOLIDAY', NULL,"
+                        + "  now(), now())",
+                id, clubId);
+        return id;
+    }
+
+    /**
+     * El calendario de excepciones se consulta por rango, y eso ya lo tapa el
+     * filtro de Hibernate. Lo que solo tapa la policy es esto: cargarlo por su
+     * id, que es como llega el borrado de un cierre.
+     */
+    @Test
+    @DisplayName("findById tampoco devuelve el cierre de calendario de otro club")
+    @Transactional(readOnly = true)
+    void findByIdNoDevuelveCierresDeOtroClub() {
+        jdbc.queryForObject("SELECT set_config('app.club_id', ?, false)",
+                String.class, CLUB_A.toString());
+
+        Optional<ClubClosure> ajeno = closureRepository.findById(cierreB);
+        Optional<ClubClosure> propio = closureRepository.findById(cierreA);
+
+        assertThat(ajeno.isPresent())
+                .as("el cierre del club B no puede verse desde el club A")
+                .isFalse();
+        assertThat(propio.isPresent())
+                .as("el del propio club sí debe verse")
+                .isTrue();
     }
 
     private UUID crearSesion(UUID clubId, UUID grupoId) {

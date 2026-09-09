@@ -82,4 +82,17 @@ public class TrainingSessionController {
             @RequestParam CancellationReason reason) {
         return ResponseEntity.ok(sessionService.cancel(sessionId, reason));
     }
+
+    /**
+     * Deshace una cancelacion.
+     *
+     * <p>Existe porque cancelar dejo de ser cosa de una persona: declarar un
+     * cierre con las fechas mal tumba veinte entrenamientos de golpe. Lo puede
+     * el entrenador, igual que cancelar — quien se equivoca tiene que poder
+     * arreglarlo sin esperar al administrador.
+     */
+    @PostMapping("/api/sessions/{sessionId}/reactivation")
+    public ResponseEntity<TrainingSessionResponse> reactivate(@PathVariable UUID sessionId) {
+        return ResponseEntity.ok(sessionService.reactivate(sessionId));
+    }
 }

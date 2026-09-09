@@ -26,4 +26,14 @@ public class SessionGenerationResponse {
 
     /** Las que ya estaban y por tanto no se han tocado. */
     private int alreadyExisted;
+
+    /**
+     * Cuantas de las creadas nacieron ya canceladas por caer en un cierre.
+     *
+     * <p>Van incluidas en {@link #created}: se han creado, solo que canceladas.
+     * Separarlas es lo que permite ver de un vistazo que un rango entero salio
+     * en festivo, que casi siempre significa que las fechas del cierre estan
+     * mal.
+     */
+    private int bornCancelled;
 }

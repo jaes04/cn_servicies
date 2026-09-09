@@ -8,6 +8,7 @@ import es.jaes.cn_servicies.training_group.GroupSchedule;
 import es.jaes.cn_servicies.training_group.GroupScheduleService;
 import es.jaes.cn_servicies.training_group.TrainingGroup;
 import es.jaes.cn_servicies.training_group.TrainingGroupService;
+import es.jaes.cn_servicies.training_group.TrainingModality;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -44,6 +46,7 @@ public class TrainingSessionService {
     private static final int MAXIMO_DIAS = 400;
 
     private final TrainingSessionRepository sessionRepository;
+    private final ClubClosureRepository closureRepository;
     private final TrainingGroupService groupService;
     private final GroupScheduleService scheduleService;
     private final ClubService clubService;
@@ -68,9 +71,11 @@ public class TrainingSessionService {
 
         List<GroupSchedule> horarios = scheduleService.inForceBetween(groupId, from, to);
         Set<Hueco> yaEstan = huecosOcupados(groupId, from, to);
+        List<ClubClosure> cierres = closureRepository.findOverlapping(from, to);
 
         List<TrainingSession> nuevas = new ArrayList<>();
         int existentes = 0;
+        int cerradas = 0;
 
         for (LocalDate dia = from; !dia.isAfter(to); dia = dia.plusDays(1)) {
             for (GroupSchedule horario : horarios) {
@@ -81,7 +86,20 @@ public class TrainingSessionService {
                     existentes++;
                     continue;
                 }
-                nuevas.add(materializar(club, group, horario, dia));
+
+                TrainingSession sesion = materializar(club, group, horario, dia);
+
+                // El cierre no impide generar: hace que nazca cancelada. Un dia
+                // sin nada no distingue un festivo de un job que no paso.
+                cierreQueAfecta(cierres, dia, horario.getModality()).ifPresent(cierre -> {
+                    sesion.setStatus(SessionStatus.CANCELLED);
+                    sesion.setCancellationReason(cierre.getReason());
+                });
+                if (sesion.isCancelled()) {
+                    cerradas++;
+                }
+
+                nuevas.add(sesion);
             }
         }
 
@@ -92,7 +110,49 @@ public class TrainingSessionService {
         resumen.setTo(to);
         resumen.setCreated(nuevas.size());
         resumen.setAlreadyExisted(existentes);
+        resumen.setBornCancelled(cerradas);
         return resumen;
+    }
+
+    /**
+     * Cancela las sesiones ya generadas que tumba un cierre.
+     *
+     * <p><b>Solo de hoy en adelante.</b> Lo que ya paso no se reescribe: si el
+     * 12 de marzo hubo entrenamiento y se paso lista, declarar hoy que aquel dia
+     * fue festivo no puede borrarlo. El dia de hoy si entra, porque la piscina
+     * se puede romper esta manana.
+     *
+     * <p>Solo toca las {@code SCHEDULED}: una sesion ya cancelada se queda con
+     * el motivo que tenia, y una {@code DONE} es que se entreno.
+     */
+    public int cancelByClosure(ClubClosure cierre) {
+        LocalDate desde = cierre.getStartDate().isBefore(LocalDate.now())
+                ? LocalDate.now()
+                : cierre.getStartDate();
+
+        if (desde.isAfter(cierre.getEndDate())) {
+            return 0;
+        }
+
+        List<TrainingSession> afectadas = sessionRepository
+                .findScheduledBetween(desde, cierre.getEndDate()).stream()
+                .filter(sesion -> cierre.appliesTo(sesion.getModality()))
+                .toList();
+
+        afectadas.forEach(sesion -> {
+            sesion.setStatus(SessionStatus.CANCELLED);
+            sesion.setCancellationReason(cierre.getReason());
+        });
+        sessionRepository.saveAll(afectadas);
+
+        return afectadas.size();
+    }
+
+    private Optional<ClubClosure> cierreQueAfecta(List<ClubClosure> cierres, LocalDate dia,
+                                                  TrainingModality modalidad) {
+        return cierres.stream()
+                .filter(cierre -> cierre.affects(dia, modalidad))
+                .findFirst();
     }
 
     /**
@@ -149,6 +209,33 @@ public class TrainingSessionService {
 
         session.setStatus(SessionStatus.CANCELLED);
         session.setCancellationReason(reason);
+        return toResponse(sessionRepository.save(session));
+    }
+
+    /**
+     * Deshace una cancelacion: la sesion vuelve a {@code SCHEDULED} y pierde el
+     * motivo.
+     *
+     * <p>Existe porque cancelar dejo de ser cosa de una persona: declarar un
+     * cierre con las fechas mal tumba veinte entrenamientos de golpe, y sin esto
+     * el unico arreglo seria tocar la base a mano.
+     *
+     * <p><b>Reactivar gana sobre el cierre que la tumbo.</b> El generador solo
+     * crea lo que no existe, asi que no vuelve a pasar por encima de una sesion
+     * ya generada: si el club decide que ese festivo si se entrena, se queda
+     * como esta. Borrar el cierre, en cambio, <b>no</b> reactiva nada: no hay
+     * forma de saber cuales cayeron por el cierre y cuales las cancelo alguien a
+     * mano el mismo dia.
+     */
+    public TrainingSessionResponse reactivate(UUID sessionId) {
+        TrainingSession session = findOrThrow(sessionId);
+
+        if (!session.isCancelled()) {
+            throw new IllegalArgumentException("La sesión no está cancelada");
+        }
+
+        session.setStatus(SessionStatus.SCHEDULED);
+        session.setCancellationReason(null);
         return toResponse(sessionRepository.save(session));
     }
 
