@@ -39,6 +39,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -373,6 +374,71 @@ class TenantIsolationTest {
         assertThat(propio.isPresent())
                 .as("el del propio club sí debe verse")
                 .isTrue();
+    }
+
+    // ----------------------------------------------------------------
+    //  3. Que ninguna tabla se quede fuera del aislamiento
+    // ----------------------------------------------------------------
+
+    /**
+     * <b>El guardia de la regla 1:</b> toda tabla con {@code club_id} tiene que
+     * tener Row Level Security activo, forzado y con su policy.
+     *
+     * <p>Existe porque las policies se aplican a mano, con un {@code psql} por
+     * entorno, y olvidarse no rompe nada de forma visible: la aplicacion arranca,
+     * los tests pasan y las consultas normales siguen tapadas por el filtro de
+     * Hibernate. Lo unico que queda al descubierto es la carga por clave
+     * primaria —{@code findById}—, que es justo por donde entran
+     * {@code /api/sessions/&#123;id&#125;} y el borrado de un cierre.
+     *
+     * <p>Se comprueba contra el catalogo de Postgres y no contra una lista
+     * escrita a mano: una lista hay que acordarse de actualizarla, que es
+     * exactamente el olvido del que esto protege. Una tabla nueva con
+     * {@code club_id} y sin migracion pone este test en rojo sola.
+     *
+     * <p><b>{@code FORCE} tambien se exige</b>, no solo {@code ENABLE}: sin el,
+     * {@code cn_app} se salta sus propias policies por ser dueño de las tablas, y
+     * todo esto no serviria de nada.
+     */
+    @Test
+    @DisplayName("ninguna tabla con club_id se queda sin RLS: el guardia de la regla 1")
+    void ningunaTablaConClubIdSeQuedaSinPolicy() {
+        String tablasConClubId =
+                " FROM pg_class c"
+                + " JOIN pg_namespace n ON n.oid = c.relnamespace"
+                + " WHERE n.nspname = 'public' AND c.relkind = 'r'"
+                + "   AND EXISTS (SELECT 1 FROM information_schema.columns col"
+                + "               WHERE col.table_schema = 'public'"
+                + "                 AND col.table_name = c.relname"
+                + "                 AND col.column_name = 'club_id')";
+
+        String protegida =
+                "c.relrowsecurity AND c.relforcerowsecurity"
+                + " AND (SELECT count(*) FROM pg_policies p"
+                + "      WHERE p.schemaname = 'public' AND p.tablename = c.relname) > 0";
+
+        List<String> desprotegidas = jdbc.queryForList(
+                "SELECT c.relname || ' (rls=' || c.relrowsecurity"
+                        + " || ', forzada=' || c.relforcerowsecurity"
+                        + " || ', policies=' || (SELECT count(*) FROM pg_policies p"
+                        + "     WHERE p.schemaname = 'public' AND p.tablename = c.relname) || ')'"
+                        + tablasConClubId
+                        + "   AND NOT (" + protegida + ")"
+                        + " ORDER BY 1",
+                String.class);
+
+        assertThat(desprotegidas)
+                .as("estas tablas llevan club_id pero no están aisladas por Postgres:"
+                        + " falta pasarles su migración de RLS en este entorno")
+                .isEmpty();
+
+        // Sin esto, una consulta que dejara de encontrar tablas pondria el test
+        // en verde sin comprobar nada, que es la forma mas silenciosa de perder
+        // un guardia. Hoy son diez; el numero solo puede crecer.
+        List<String> conClubId = jdbc.queryForList("SELECT c.relname" + tablasConClubId, String.class);
+        assertThat(conClubId)
+                .as("si esto se queda corto, la consulta del catálogo se ha roto")
+                .hasSizeGreaterThanOrEqualTo(10);
     }
 
     private UUID crearSesion(UUID clubId, UUID grupoId) {

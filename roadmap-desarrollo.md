@@ -523,6 +523,8 @@ La parte con más trampas del proyecto.
 
 > **18 tests.** Y una corrección de método: el aislamiento de los cierres en las consultas por rango **lo hace el filtro de Hibernate, no RLS** —se comprobó desactivando la policy y seguían en verde—. Lo que solo tapa RLS es la carga por id, que es como llega el borrado: eso tiene test propio aquí y en `TenantIsolationTest`.
 
+> **Guardia de la regla 1**, en `TenantIsolationTest.ningunaTablaConClubIdSeQuedaSinPolicy`: recorre el catálogo de Postgres y falla si alguna tabla con `club_id` no tiene RLS **activo, forzado y con policy**. Va contra el catálogo y no contra una lista escrita a mano, porque una lista hay que acordarse de actualizarla y ese es justamente el olvido del que protege. Se pone rojo con `NO FORCE` y con `DISABLE`. Una tabla con RLS pero sin ninguna policy no llega a él: Postgres la interpreta como "denegar todo" y el fallo salta antes, al insertar — que es el lado seguro. Cubre las dos formas de perder el aislamiento sin enterarse: una entidad raíz nueva sin migración, y un entorno donde no se pasaron.
+
 > Si el job duplica sesiones, la asistencia queda inconsistente y el club pierde la confianza en el sistema entero. La idempotencia no es opcional.
 
 > **Entidad `TrainingSession`**, tabla `training_sessions`, en un paquete nuevo `training_session`: de aquí colgará la asistencia de la 2.3. Alcanza los horarios por `GroupScheduleService` y el grupo por `TrainingGroupService`, nunca por sus repositorios.
