@@ -103,6 +103,22 @@ public class GroupScheduleService {
                 .toList();
     }
 
+    /**
+     * Los horarios cuya vigencia toca el rango, en una sola consulta.
+     *
+     * <p>Es por donde entra el generador de sesiones de la 2.2: pide el rango
+     * entero de golpe y luego decide dia a dia cual aplica. Devolver aqui todo
+     * lo que <i>puede</i> aplicar, y no lo que aplica, es lo que evita cuarenta
+     * y dos consultas para generar seis semanas.
+     */
+    @Transactional(readOnly = true)
+    public List<GroupSchedule> inForceBetween(UUID groupId, LocalDate from, LocalDate to) {
+        grupoOException(groupId);
+        return scheduleRepository.findInForceBetween(groupId, from, to).stream()
+                .sorted(ORDEN_NATURAL)
+                .toList();
+    }
+
     // ----------------------------------------------------------------
     //  Reglas
     // ----------------------------------------------------------------

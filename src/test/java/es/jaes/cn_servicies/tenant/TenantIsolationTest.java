@@ -11,6 +11,8 @@ import es.jaes.cn_servicies.season.Season;
 import es.jaes.cn_servicies.season.SeasonRepository;
 import es.jaes.cn_servicies.training_group.TrainingGroup;
 import es.jaes.cn_servicies.training_group.TrainingGroupRepository;
+import es.jaes.cn_servicies.training_session.TrainingSession;
+import es.jaes.cn_servicies.training_session.TrainingSessionRepository;
 import es.jaes.cn_servicies.guardian.GuardianRepository;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -82,6 +84,7 @@ class TenantIsolationTest {
     @Autowired private MedicalCertificateRepository certificateRepository;
     @Autowired private SeasonRepository seasonRepository;
     @Autowired private TrainingGroupRepository groupRepository;
+    @Autowired private TrainingSessionRepository sessionRepository;
 
     @Value("${app.jwt.secret}")
     private String jwtSecret;
@@ -98,6 +101,8 @@ class TenantIsolationTest {
     private UUID temporadaB;
     private UUID grupoA;
     private UUID grupoB;
+    private UUID sesionA;
+    private UUID sesionB;
 
     // ----------------------------------------------------------------
     //  Datos de prueba
@@ -124,6 +129,8 @@ class TenantIsolationTest {
         temporadaB = crearTemporada(CLUB_B, "Temporada de B");
         grupoA = crearGrupo(CLUB_A, temporadaA, "Grupo de A");
         grupoB = crearGrupo(CLUB_B, temporadaB, "Grupo de B");
+        sesionA = crearSesion(CLUB_A, grupoA);
+        sesionB = crearSesion(CLUB_B, grupoB);
     }
 
     @AfterAll
@@ -145,6 +152,7 @@ class TenantIsolationTest {
     private void borrarDatos() {
         // Antes que users: el certificado apunta a quien lo valido, y esa clave
         // foranea no es en cascada a proposito.
+        jdbc.update("DELETE FROM training_sessions WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM training_groups WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM seasons WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM medical_certificates WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
@@ -323,6 +331,48 @@ class TenantIsolationTest {
                         + " VALUES (?, ?, ?, ?, 'ALEVIN', 'COMPETICION', now(), now())",
                 id, clubId, temporadaId, nombre);
         return id;
+    }
+
+    private UUID crearSesion(UUID clubId, UUID grupoId) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO training_sessions"
+                        + " (id, club_id, group_id, schedule_id, session_date, start_time, end_time,"
+                        + "  modality, status, created_at, updated_at)"
+                        + " VALUES (?, ?, ?, NULL, CURRENT_DATE, '18:00', '19:00', 'SWIMMING',"
+                        + "  'SCHEDULED', now(), now())",
+                id, clubId, grupoId);
+        return id;
+    }
+
+    /**
+     * La sesion es la unica tabla hija que lleva {@code club_id} por este motivo
+     * exacto: su id viaja solo en la API —{@code /api/sessions/{id}}, y en la 2.3
+     * el {@code /roster} que consume el movil—, asi que se carga por clave
+     * primaria y el filtro de Hibernate no interviene.
+     *
+     * <p>Este test tiene que hacerse <b>sobre el repositorio</b> y no sobre el
+     * servicio. Pasando por el servicio pasa en verde aunque no haya policy
+     * ninguna, porque al construir la respuesta se toca el nombre del grupo y lo
+     * que salta es el proxy del grupo ajeno, que si esta tapado. El de aqui se
+     * pone en rojo con {@code DISABLE ROW LEVEL SECURITY}, que es lo que tiene
+     * que pasar.
+     */
+    @Test
+    @DisplayName("findById tampoco devuelve la sesión de entrenamiento de otro club")
+    @Transactional(readOnly = true)
+    void findByIdNoDevuelveSesionesDeOtroClub() {
+        jdbc.queryForObject("SELECT set_config('app.club_id', ?, false)",
+                String.class, CLUB_A.toString());
+
+        Optional<TrainingSession> ajena = sessionRepository.findById(sesionB);
+        Optional<TrainingSession> propia = sessionRepository.findById(sesionA);
+
+        assertThat(ajena.isPresent())
+                .as("la sesión del club B no puede verse desde el club A")
+                .isFalse();
+        assertThat(propia.isPresent())
+                .as("la sesión del propio club sí debe verse")
+                .isTrue();
     }
 
     /**

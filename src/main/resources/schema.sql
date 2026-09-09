@@ -359,6 +359,57 @@ CREATE INDEX IF NOT EXISTS idx_group_schedules_group_dia
 -- despliegue es desproporcionada para prevenir un error de tecleo — misma
 -- decision que con el solape de temporadas (1.1). Lo valida el servicio.
 
+-- SESIONES DE ENTRENAMIENTO (tarea 2.2)
+--  Lo que el horario materializa: el martes 14 de octubre de 18:00 a 19:00.
+--
+--  LLEVA club_id AUNQUE SEA TABLA HIJA, y es una excepcion deliberada a la regla,
+--  como consents. Es la primera tabla hija cuyo id viaja solo en la API
+--  (/api/sessions/{id}, y en la 2.3 el /roster que consume el movil): un id
+--  suelto se resuelve por clave primaria, que es donde el filtro de Hibernate no
+--  llega y RLS si. Sin policy, un findById devolveria la sesion de otro club.
+--
+--  La hora y la modalidad estan COPIADAS del horario, no leidas de el: si el
+--  horario cambia en marzo, las sesiones de febrero tienen que seguir diciendo
+--  la hora a la que se entreno de verdad.
+--
+--  Sin zona horaria: DATE y TIME sueltos. Un entrenamiento a las 18:00 es a las
+--  18:00 tambien el fin de semana en que cambia la hora.
+CREATE TABLE IF NOT EXISTS training_sessions (
+    id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    club_id             UUID        NOT NULL REFERENCES clubs(id),
+    group_id            UUID        NOT NULL REFERENCES training_groups(id) ON DELETE CASCADE,
+    schedule_id         UUID        REFERENCES group_schedules(id) ON DELETE SET NULL,
+    session_date        DATE        NOT NULL,
+    start_time          TIME        NOT NULL,
+    end_time            TIME        NOT NULL,
+    modality            VARCHAR(20) NOT NULL,
+    status              VARCHAR(20) NOT NULL DEFAULT 'SCHEDULED',
+    cancellation_reason VARCHAR(30),
+    created_at          TIMESTAMP,
+    updated_at          TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_training_sessions_club_id ON training_sessions (club_id);
+
+-- El calendario de un grupo en un rango: es la consulta de todos los listados y
+-- la que usara el generador para saber que hay ya.
+CREATE INDEX IF NOT EXISTS idx_training_sessions_group_fecha
+    ON training_sessions (group_id, session_date);
+
+-- IDEMPOTENCIA. Es lo que impide que el job, al pasar dos veces por la misma
+-- semana, deje dos sesiones donde hay una. Si el generador duplica, la
+-- asistencia queda inconsistente y el club deja de fiarse del sistema entero.
+--
+-- Con schedule_id NULL no aplica, y eso es lo que se quiere: en Postgres dos
+-- nulos no son iguales, asi que las sesiones puntuales —una competicion y un
+-- entrenamiento extra el mismo dia— se pueden repetir libremente.
+CREATE UNIQUE INDEX IF NOT EXISTS uk_training_sessions_horario_fecha
+    ON training_sessions (schedule_id, session_date);
+
+-- schedule_id con ON DELETE SET NULL: borrar un horario no puede llevarse por
+-- delante las sesiones que ya ocurrieron. La sesion se queda huerfana de
+-- horario, que es exactamente lo que paso.
+
 -- ============================================================
 --  MULTI-TENANCY — club_id en las entidades raiz (tarea 0.2)
 -- ============================================================

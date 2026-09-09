@@ -103,6 +103,14 @@ public class SecurityConfig {
                         // suyo— pero montarlos, editarlos y duplicarlos es del
                         // club. La duplicacion crea N filas de golpe: va antes
                         // que la regla general para que se lea sola.
+                        // Sesiones sueltas, por su propio id. Cancelar lo puede
+                        // el entrenador: es quien se entera de que hoy no hay
+                        // piscina, y esperar al administrador deja la sesion
+                        // marcada como celebrada cuando nadie se metio al agua.
+                        // El resto de la rama nace cerrado a ADMIN.
+                        .requestMatchers(POST, "/api/sessions/*/cancellation").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers(GET, "/api/sessions/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers("/api/sessions/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/groups/duplication").hasRole("ADMIN")
                         .requestMatchers(GET, "/api/groups/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers("/api/groups/**").hasRole("ADMIN")

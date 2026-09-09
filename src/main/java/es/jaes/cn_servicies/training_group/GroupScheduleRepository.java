@@ -31,4 +31,18 @@ public interface GroupScheduleRepository extends JpaRepository<GroupSchedule, UU
             + "   AND h.validFrom <= :date"
             + "   AND (h.validUntil IS NULL OR h.validUntil >= :date)")
     List<GroupSchedule> findInForceOn(UUID groupId, LocalDate date);
+
+    /**
+     * Los horarios cuya vigencia toca el rango, aunque sea un solo dia.
+     *
+     * <p>Una consulta y no una por dia: generar seis semanas de sesiones
+     * preguntando dia a dia son cuarenta y dos viajes a la base para construir
+     * una lista que cabe entera en memoria. Cual de ellos aplica a cada dia
+     * concreto lo decide despues {@code GroupSchedule.isInForceOn}.
+     */
+    @Query("SELECT h FROM GroupSchedule h"
+            + " WHERE h.trainingGroup.id = :groupId"
+            + "   AND h.validFrom <= :to"
+            + "   AND (h.validUntil IS NULL OR h.validUntil >= :from)")
+    List<GroupSchedule> findInForceBetween(UUID groupId, LocalDate from, LocalDate to);
 }
