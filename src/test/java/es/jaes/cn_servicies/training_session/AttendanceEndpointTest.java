@@ -173,6 +173,57 @@ class AttendanceEndpointTest {
                 .contains("\"status\":\"DONE\"");
     }
 
+    // ----------------------------------------------------------------
+    //  4. Exportación a CSV (2.4.b)
+    // ----------------------------------------------------------------
+
+    @Test
+    @DisplayName("el entrenador descarga el CSV: quien necesita el informe es el cuerpo técnico")
+    void elEntrenadorExporta() {
+        put(ruta("/attendance"), lista(ana, "PRESENT"), ENTRENADOR);
+
+        ResponseEntity<String> csv = get(exportacion(), ENTRENADOR);
+
+        assertThat(csv.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(csv.getHeaders().getFirst("Content-Disposition"))
+                .contains("attachment")
+                .contains(".csv");
+        assertThat(csv.getBody())
+                .contains("Atleta;Sesiones")
+                .contains("Ana Nadadora;1;1;0;0;0;0;100,0");
+    }
+
+    /**
+     * Un CSV sale del sistema y ya no vuelve: se reenvía, acaba en una carpeta
+     * compartida, en un correo. Lo que no salga aquí es lo único que seguro no
+     * acaba en ningún sitio.
+     */
+    @Test
+    @DisplayName("el CSV lleva nombre y números, pero ni DNI ni fecha de nacimiento")
+    void elCsvNoLlevaDeMas() {
+        put(ruta("/attendance"), lista(ana, "PRESENT"), ENTRENADOR);
+
+        String csv = get(exportacion(), ENTRENADOR).getBody();
+
+        assertThat(csv).contains("Ana Nadadora");
+        assertThat(csv).as("el DNI no sale del sistema en un archivo").doesNotContain(DNI_ANA);
+        assertThat(csv).doesNotContain(NACIMIENTO.toString());
+    }
+
+    @Test
+    @DisplayName("un socio sin rol técnico no puede exportar")
+    void elSocioNoExporta() {
+        assertThat(get(exportacion(), SOCIO).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("sin token tampoco")
+    void sinTokenNoExporta() {
+        assertThat(rest.getForEntity(exportacion(), String.class).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
     @Test
     @DisplayName("el roster de una sesión de otro club es un 404")
     void sesionAjena() {
@@ -195,6 +246,11 @@ class AttendanceEndpointTest {
 
     private String ruta(String sufijo) {
         return "/api/sessions/" + sesion + sufijo;
+    }
+
+    private String exportacion() {
+        return "/api/reports/attendance/group/" + grupo + "/export"
+                + "?from=" + INICIO + "&to=" + FIN;
     }
 
     private String lista(UUID atleta, String estado) {
