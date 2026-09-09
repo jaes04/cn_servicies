@@ -503,7 +503,7 @@ La parte con más trampas del proyecto.
 **2.2.b.2 — automatización**
 
 - [x] Job `@Scheduled` que mantiene generadas las próximas 4–6 semanas — `2h · Media · Crítica`
-- [~] Regeneración al cambiar un horario: solo sesiones futuras, jamás las pasadas — `2h · Alta · Crítica` — **la lógica está y probada; falta cablearla al cambio de horario, pendiente de decidir cómo**
+- [x] Regeneración al cambiar un horario: solo sesiones futuras, jamás las pasadas — `2h · Alta · Crítica`
 
 > **`SessionGenerationJob`, a las 3:30.** Recorre los clubes activos, fija el `TenantContext` de cada uno y genera **6 semanas** de cada grupo de su temporada activa. Se apoya entero en que la generación es idempotente: pasa todas las noches por un rango que se solapa casi por completo con el de ayer.
 
@@ -522,6 +522,12 @@ La parte con más trampas del proyecto.
 > **`discardFutureForSchedule` cierra la pregunta que dejó abierta la 2.1**: un horario borrado no puede seguir poniendo entrenamientos en el calendario, así que se lleva sus futuras sin regenerarlas.
 
 > **Sin apagar el job en los tests**, y no hace falta: el cron es de madrugada y ninguna suite dura lo suficiente. Los tests llaman al método directamente, que es como hay que probarlo — uno que dependiera del reloj no sería un test.
+
+> **La regeneración se cablea con un servicio de coordinación, `ScheduleChangeService`, en `training_session`.** El horario vive en `training_group` y las sesiones en `training_session`, que ya depende de él: si el servicio de horarios llamara a la regeneración, los dos módulos se llamarían en círculo y Spring no arrancaría. Se descartaron las otras dos vías: **eventos de Spring**, que resolvían el círculo pero metían un patrón nuevo usado en un solo sitio y una dependencia que el compilador deja de ver; y **encadenar las dos llamadas en el controlador**, que no vale porque **un controlador no es transaccional** — el cambio del horario haría commit por su cuenta y, si la regeneración fallara después, el calendario quedaría describiendo un horario que ya no existe.
+
+> Con el servicio de coordinación, `@Transactional` propio y los de debajo uniéndose a esa transacción, **o cambian las dos cosas o no cambia ninguna**. Lo que no da es que el efecto viaje con el cambio: quien edite un horario yendo directo a `GroupScheduleService` se salta la regeneración. Hoy no hay ningún camino así, y **hay test de endpoint que se pone rojo si alguien deshace el cableado** — que es justo el fallo silencioso que se temía de los eventos.
+
+> **`flush()` explícito tras borrar las futuras**, antes de regenerar: en el flush de Hibernate los `INSERT` van *antes* que los `DELETE`, así que sin él la regeneración podría intentar insertar `(horario, fecha)` antes de haber borrado la fila vieja, y saltaría el índice único.
 
 > **Entidad `ClubClosure`**, tabla `club_closures`, con `club_id` y policy propia (`migrations/2.2-club-closures-rls.sql`) — entidad raíz, así que esta vez por la regla de siempre y no por una excepción. Vive en el paquete `training_session` y no en `club` porque su único efecto es sobre las sesiones: ponerlo ahí evita que los dos módulos se llamen en círculo.
 
