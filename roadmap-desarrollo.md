@@ -581,16 +581,38 @@ La parte con más trampas del proyecto.
 
 ### 2.3 Asistencia — 12 h
 
-- [ ] Entidad `Asistencia`: `sesion_id`, `atleta_id`, `estado`, `observaciones`, `registrado_por`, `registrado_en` — `1h · Baja · Crítica`
-- [ ] **Índice único `(sesion_id, atleta_id)`** — `30min · Baja · Crítica`
-- [ ] `GET /sesiones/{id}/lista`: atletas del grupo con su estado, en una sola llamada — `3h · Media · Crítica`
-- [ ] `PUT /sesiones/{id}/asistencia`: guardado en lote — `2h · Media · Crítica`
-- [ ] La lista son los atletas con pertenencia activa **en la fecha de la sesión** — `3h · Alta · Crítica`
-- [ ] Marcar la sesión como `REALIZADA` al guardar — `1h · Baja · Alta`
-- [ ] Tests de concurrencia: dos entrenadores pasando lista a la vez — `2h · Alta · Alta`
-- [ ] **Constraints de `attendance` como sentencias sueltas**, no dentro del `CREATE TABLE` — `30min · Baja · Alta`
+- [x] Entidad `Asistencia`: `sesion_id`, `atleta_id`, `estado`, `registrado_por`, `registrado_en` — `1h · Baja · Crítica`
+- [x] **Índice único `(sesion_id, atleta_id)`** — `30min · Baja · Crítica`
+- [x] `GET /sesiones/{id}/lista`: atletas del grupo con su estado, en una sola llamada — `3h · Media · Crítica`
+- [x] `PUT /sesiones/{id}/asistencia`: guardado en lote — `2h · Media · Crítica`
+- [x] La lista son los atletas con pertenencia activa **en la fecha de la sesión** — `3h · Alta · Crítica`
+- [x] Marcar la sesión como `REALIZADA` al guardar — `1h · Baja · Alta`
+- [x] Tests de concurrencia: dos entrenadores pasando lista a la vez — `2h · Alta · Alta`
+- [x] **Constraints de `attendance` como sentencias sueltas**, no dentro del `CREATE TABLE` — `30min · Baja · Alta`
 
 > El endpoint `/lista` es el que consumirá el móvil. Diseñarlo ahora pensando en una sola llamada te ahorra rehacerlo en la Fase 3.
+
+> **`observaciones` se descartó**, y es la decisión del bloque. `docs/rgpd.md` §9 la marca como señal de alarma: un texto libre en el registro de asistencia de un menor, visible para todo el personal técnico, acaba conteniendo *"no vino, está con gastroenteritis"* — dato de salud, categoría especial del art. 9, sin base legal y sin que el tutor lo sepa. Mismo criterio que `LeaveReason` y `CancellationReason`. **`EXCUSED` tampoco guarda el motivo**: justificar una falta es una conversación con el tutor, no una columna.
+
+> **`AttendanceStatus`**: `PRESENT`, `ABSENT`, `EXCUSED`, `LATE`. `PRESENT` y `LATE` cuentan como asistencia para los porcentajes de la 2.4.
+
+> **Sin `club_id`**, a diferencia de `training_sessions`: el id de una asistencia no viaja solo, se entra siempre por `/api/sessions/{id}/...`. Es el patrón de `group_schedules`.
+
+> **Rutas reales**: `GET /api/sessions/{id}/roster` y `PUT /api/sessions/{id}/attendance`. El `PUT` es idempotente a propósito — mandar dos veces lo mismo deja el mismo estado, que es lo que hace falta cuando la conexión se cae a mitad y el móvil reintenta. Las dos devuelven el roster completo, para que guardar no obligue a una segunda llamada.
+
+> **El roster lleva id y nombre, y nada más.** Ni DNI ni fecha de nacimiento: `docs/rgpd.md` §3. Hay test de endpoint que lo comprueba sobre el JSON.
+
+> **Los atletas son los de la fecha de la sesión**, vía `AthleteGroupService.membersOn` — la consulta de la 1.3. Hay test de que un atleta que dejó el grupo sigue apareciendo en la sesión anterior a su baja y no en la posterior.
+
+> **Guardado incremental**: no hace falta mandar a todos, lo que no venga se queda como estaba. Pero **entero o nada** dentro de lo que se manda: si un atleta de la lista no pertenecía al grupo ese día, no entra ninguno.
+
+> **La concurrencia se resuelve con `ON CONFLICT ... DO UPDATE`**, SQL nativo apoyado en el índice único. Con un leer-y-escribir, dos entrenadores verían la fila vacía a la vez y el segundo se estrellaría contra el índice; así gana el último en escribir y ninguno falla. Hay test con dos hilos.
+
+> **Pasar lista marca la sesión `DONE`, salvo que sea futura.** Se permite pasar lista por adelantado, pero marcarla realizada antes de tiempo la contaría como celebrada en los informes de la 2.4 y —peor— la sacaría del alcance de la regeneración, que no toca las `DONE`: cambiar el horario dejaría de arrastrarla. No se pasa lista de una sesión cancelada.
+
+> **Primera tabla del proyecto en la que `schema.sql` dice la verdad.** Sus tres claves foráneas y su índice único van como sentencias sueltas, y las relaciones llevan `@ForeignKey(NO_CONSTRAINT)` para que Hibernate no cree las suyas en paralelo — si lo hiciera habría dos claves foráneas sobre la misma columna y mandaría la más restrictiva, dejando la cascada sin efecto. **Ese es el patrón a seguir en la tarea 2.6.**
+
+> **Consecuencia heredada de la 1.2**, que aquí se nota por primera vez: como `coach_id` no da permisos, cualquier entrenador del club puede pasar lista de cualquier grupo. Es coherente con el resto, pero es la primera vez que implica escribir datos de menores de un grupo que no llevas.
 
 > **Ojo con las claves foráneas de `attendance`.** Es la primera tabla que cuelga de algo que **sí se borra físicamente**: la regeneración de la 2.2.b borra las sesiones futuras de un horario que cambia. Sin `ON DELETE CASCADE`, ese borrado empezará a fallar en cuanto una sesión tenga asistencia.
 >
