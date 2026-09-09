@@ -629,7 +629,19 @@ La parte con más trampas del proyecto.
 
 **2.4.b — exportación**
 
-- [ ] Exportación a CSV — `3h · Media · Media` — **pendiente de decidir**: `docs/rgpd.md` §9 marca sacar datos de atletas del sistema como señal de alarma
+- [x] Exportación a CSV — `3h · Media · Media`
+
+> **Lo exportan el administrador y el entrenador.** Se planteó dejarlo solo en ADMIN por ser una salida de datos del sistema, y se descartó con un argumento mejor: quien necesita el informe para trabajar es el cuerpo técnico, y **el administrador no tiene por qué formar parte de él** — puede ser el tesorero. Cae bajo la regla `GET /api/reports/**` que ya existía, así que `SecurityConfig` no se tocó.
+
+> **El CSV lleva nombre y números, y nada más.** Ni DNI ni fecha de nacimiento: un archivo sale del sistema y ya no vuelve —se reenvía, acaba en una carpeta compartida, en un correo— así que lo que no salga ahí es lo único que seguro no acaba en ningún sitio. `docs/rgpd.md` §3. Hay test de endpoint que lo comprueba sobre el archivo generado.
+
+> **Queda rastro en el log de quién exportó y qué rango**, sin ningún dato de atletas. Si algún día hay que responder de dónde salió un listado, esa línea es la respuesta. Es lo mínimo mientras no exista la auditoría de la S.6.
+
+> **Tres decisiones de formato que deciden si el archivo se abre o no** en el ordenador de un club español: separador `;` —con comas, Excel en español abre todo en una sola columna—, **BOM de UTF-8** —sin él, "Alevín" sale como "AlevÃ­n"— y **coma decimal** en el porcentaje, o Excel lo lee como texto y no deja ni ordenar la columna. Un CSV "de manual" con comas y sin BOM se ve mal y parece que el sistema exporta mal.
+
+> **Se neutralizan las fórmulas**: un campo que empiece por `=`, `+`, `-` o `@` lo ejecuta la hoja de cálculo. Es la inyección CSV de siempre; aquí el riesgo es pequeño porque los nombres los teclea el club, pero el arreglo cuesta una línea.
+
+> **Solo se exporta el informe de grupo.** El de un atleta suelto se ve en pantalla y no hay caso real que pida sacarlo en archivo — y cada exportación que no existe es una vía menos por la que se van datos.
 
 > **Qué se divide entre qué**, que es todo el bloque. El denominador son las sesiones **celebradas** —ni las canceladas ni las futuras: faltar a un entrenamiento que no existió no es faltar— en las que el atleta **pertenecía al grupo ese día**. `PRESENT` y `LATE` cuentan como asistencia.
 
