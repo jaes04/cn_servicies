@@ -1,6 +1,38 @@
 -- ============================================================
 --  SCHEMA - cn_servicies
 -- ============================================================
+--
+--  LEE ESTO ANTES DE ANADIR UNA TABLA
+--  ----------------------------------
+--  Con `defer-datasource-initialization=true`, este archivo se ejecuta DESPUES
+--  de que Hibernate haya creado el esquema con `ddl-auto=update`. Cuando llega
+--  aqui, las tablas YA EXISTEN, asi que:
+--
+--      *** TODO `CREATE TABLE IF NOT EXISTS` DE ESTE ARCHIVO NO HACE NADA. ***
+--
+--  Y con el se pierde en silencio todo lo que va DENTRO: las claves foraneas
+--  con su `ON DELETE`, las restricciones `CONSTRAINT ... UNIQUE`, los `DEFAULT`.
+--  Lo que queda en la base es lo que Hibernate deduce de las anotaciones, que no
+--  lleva accion de borrado y nombra las restricciones con cadenas generadas
+--  distintas en cada base.
+--
+--  Medido en septiembre de 2026: este archivo declara 24 `ON DELETE` y la base
+--  tiene 8 —los de las cinco tablas mas antiguas, creadas cuando este archivo
+--  todavia ganaba la carrera—; declara 25 `DEFAULT` y hay 11.
+--
+--  LO QUE SI SE APLICA son las sentencias sueltas, porque no dependen de que la
+--  tabla exista o no: `CREATE INDEX IF NOT EXISTS` y `ALTER TABLE`. Por eso los
+--  indices unicos de este archivo si estan en la base y las cascadas no.
+--
+--  REGLA, entonces: si algo tiene que existir de verdad, escribelo como
+--  sentencia suelta despues del CREATE TABLE. Los `CREATE TABLE` se conservan
+--  porque documentan la forma de la tabla y sirven para levantarla en una base
+--  donde Hibernate no haya pasado, pero NO son la fuente de la verdad.
+--
+--  Recrear la base no cambia nada: en una base vacia Hibernate sigue yendo
+--  primero. Esto se arregla escribiendo sentencias sueltas, o sacando el esquema
+--  de `ddl-auto` (decision abierta en el roadmap).
+-- ============================================================
 
 -- Lo ejecuta la aplicacion al arrancar, con su propio usuario, sujeto a las
 -- policies de Row Level Security. Los UPDATE del backfill de club_id no verian

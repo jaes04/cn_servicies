@@ -588,8 +588,13 @@ La parte con más trampas del proyecto.
 - [ ] La lista son los atletas con pertenencia activa **en la fecha de la sesión** — `3h · Alta · Crítica`
 - [ ] Marcar la sesión como `REALIZADA` al guardar — `1h · Baja · Alta`
 - [ ] Tests de concurrencia: dos entrenadores pasando lista a la vez — `2h · Alta · Alta`
+- [ ] **Constraints de `attendance` como sentencias sueltas**, no dentro del `CREATE TABLE` — `30min · Baja · Alta`
 
 > El endpoint `/lista` es el que consumirá el móvil. Diseñarlo ahora pensando en una sola llamada te ahorra rehacerlo en la Fase 3.
+
+> **Ojo con las claves foráneas de `attendance`.** Es la primera tabla que cuelga de algo que **sí se borra físicamente**: la regeneración de la 2.2.b borra las sesiones futuras de un horario que cambia. Sin `ON DELETE CASCADE`, ese borrado empezará a fallar en cuanto una sesión tenga asistencia.
+>
+> Y ese `ON DELETE` **no se puede escribir dentro del `CREATE TABLE`**, porque ahí no se aplica —ver la cabecera de `schema.sql`—. Tiene que ir como `ALTER TABLE ... ADD CONSTRAINT` suelto, igual que el índice único `(sesion_id, atleta_id)`. Media hora, dentro de este bloque.
 
 ### 2.4 Informes — 9 h
 
@@ -603,6 +608,32 @@ La parte con más trampas del proyecto.
 - [ ] Calendario de sesiones del grupo — `4h · Media · Alta`
 - [ ] Pantalla de pasar lista con guardado en lote — `4h · Media · Crítica`
 - [ ] Panel de informes con filtros — `2h · Media · Media`
+
+### 2.6 Sanear las restricciones que `schema.sql` declara y no existen — 5–8 h
+
+**No urge y no bloquea nada.** Sale de un hallazgo de la 2.2.b: lo que va dentro de un
+`CREATE TABLE` en `schema.sql` no llega nunca a la base, porque Hibernate crea las
+tablas antes. Ver la cabecera de `schema.sql`.
+
+- [ ] Sacar a `ALTER TABLE` sueltos los ~16 `ON DELETE` que se declaran y no existen — `3h · Alta · Media`
+- [ ] Recuperar el `UNIQUE (athlete_id, guardian_id)` de `athlete_guardians`, que hoy solo existe con el nombre generado por Hibernate — `30min · Media · Media`
+- [ ] Revisar los ~14 `DEFAULT` declarados que tampoco están — `1h · Media · Baja`
+- [ ] Test que compare lo declarado con lo real, como el de RLS — `2h · Alta · Alta`
+
+> **Por qué no corre prisa:** hoy no rompe nada, porque casi todo el borrado del sistema
+> es lógico —`deleted_at`, `left_on`, `revoked_at`— así que esas cascadas no llegan a
+> ejercitarse nunca. La excepción aparece en la 2.3 y está resuelta allí, en su tarea.
+
+> **Dificultad añadida:** las claves foráneas actuales las creó Hibernate con nombres
+> generados (`fk629dnuhbjn2lukkl8aj4b25mi`), distintos en cada base. Sustituirlas pide un
+> bloque `DO` que las localice, como el de `migrations/2.2-limpiar-uniques-duplicados.sql`.
+
+> **Cuidado al aplicarlo:** añadir un `ON DELETE CASCADE` a una tabla con datos cambia lo
+> que se lleva por delante un borrado que hoy simplemente falla. Hay que mirar tabla por
+> tabla antes de encenderlo, no aplicarlo en bloque.
+
+> **Si se hace Flyway antes, esta tarea desaparece**: el esquema pasaría a ser lo que
+> dicen las migraciones y este desajuste dejaría de existir.
 
 ---
 

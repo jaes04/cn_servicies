@@ -222,6 +222,25 @@ de decir lo que pasaba. Está en todas las entidades del proyecto. En los tests,
 sobre `Optional.isPresent()` y no sobre el `Optional`, o el mensaje de fallo se lo lleva
 por delante.
 
+**Lo que va dentro de un `CREATE TABLE` en `schema.sql` no llega a la base.** Con
+`defer-datasource-initialization=true`, ese archivo se ejecuta **después** de que
+Hibernate haya creado el esquema, así que todos sus `CREATE TABLE IF NOT EXISTS` no hacen
+nada — y con ellos se pierden en silencio las claves foráneas con su `ON DELETE`, las
+`CONSTRAINT ... UNIQUE` y los `DEFAULT`. Lo que queda es lo que Hibernate deduce de las
+anotaciones: sin acción de borrado y con nombres generados distintos en cada base. Medido:
+se declaran 24 `ON DELETE` y hay 8; se declaran 25 `DEFAULT` y hay 11.
+
+Sí se aplican las **sentencias sueltas**, que no dependen de que la tabla exista:
+`CREATE INDEX IF NOT EXISTS` y `ALTER TABLE`. Por eso los índices únicos del archivo sí
+están y las cascadas no. **Si algo tiene que existir de verdad, escríbelo suelto.**
+Recrear la base no lo arregla: en una base vacía Hibernate sigue yendo primero.
+
+**No declares un índice único en los dos sitios.** Ponerlo en `schema.sql` *y* en el
+`@Table(uniqueConstraints=...)` de la entidad crea dos restricciones equivalentes, y la de
+Hibernate lleva un nombre aleatorio que no se puede referenciar en una migración. Va solo
+en `schema.sql`, con nombre `uk_*`. `user_athletes` y `athlete_guardians` tienen el
+problema contrario —solo existe la generada— y está anotado en la tarea 2.6.
+
 **El login sigue resolviéndose solo por `username`.** Es correcto mientras haya un único
 club; con dos, `UserRepository.findByUsername` se vuelve ambiguo, porque el username es
 único por club. Es la decisión abierta de más abajo.
@@ -253,6 +272,16 @@ No las cierres tú. Si una tarea depende de una, pregunta.
 - **Sacar el esquema de `ddl-auto`**, probablemente con Flyway. Mientras `cn_app` sea dueño
   de las tablas puede desactivar sus propias policies, así que la separación entre el rol
   de aplicación y el de migraciones no es real todavía. Pendiente antes de producción.
+
+  **No corre prisa mientras el servicio no esté desplegado** (decidido en septiembre de
+  2026): sin datos reales que migrar, el coste de hacerlo ahora es el mismo que el de
+  hacerlo más tarde, y hacerlo después evita rehacerlo cada vez que cambia el modelo.
+  Cuando se haga, resuelve de una vez tres cosas que hoy están sueltas: la separación de
+  roles de arriba, las restricciones que `schema.sql` declara y no existen (tarea 2.6, que
+  desaparecería), y `MIGRATION_PASSWORD`, que hoy no es la contraseña real de `postgres` y
+  bloqueará el paso. **El día que haya un despliegue en producción, esto deja de ser
+  opcional**: a partir de ahí cada cambio de esquema es una migración sobre datos vivos, y
+  `ddl-auto=update` no sabe hacer eso.
 - **Dominio de producción**: pendiente de decisión del club.
 
 ---
