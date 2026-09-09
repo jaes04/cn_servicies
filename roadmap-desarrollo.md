@@ -502,8 +502,26 @@ La parte con más trampas del proyecto.
 
 **2.2.b.2 — automatización**
 
-- [ ] Job `@Scheduled` que mantiene generadas las próximas 4–6 semanas — `2h · Media · Crítica`
-- [ ] Regeneración al cambiar un horario: solo sesiones futuras, jamás las pasadas — `2h · Alta · Crítica`
+- [x] Job `@Scheduled` que mantiene generadas las próximas 4–6 semanas — `2h · Media · Crítica`
+- [~] Regeneración al cambiar un horario: solo sesiones futuras, jamás las pasadas — `2h · Alta · Crítica` — **la lógica está y probada; falta cablearla al cambio de horario, pendiente de decidir cómo**
+
+> **`SessionGenerationJob`, a las 3:30.** Recorre los clubes activos, fija el `TenantContext` de cada uno y genera **6 semanas** de cada grupo de su temporada activa. Se apoya entero en que la generación es idempotente: pasa todas las noches por un rango que se solapa casi por completo con el de ayer.
+
+> **El `TenantContext` lo pone el propio bucle**, porque aquí no hay petición ni JWT, y lo limpia en un `finally`: es un `ThreadLocal` y los hilos del planificador se reutilizan, así que un club que se quedara pegado se lo llevaría el siguiente. Hay test de que queda limpio, y se pone rojo si se quita el `finally`.
+
+> **Un club que falla no tumba a los demás**: try/catch por club, con el slug en el log. Un club recién creado sin temporada activa no es un error, es un club por el que hoy no hay que pasar — para eso se añadió `SeasonService.findActiveSeason()`, que devuelve `Optional` en vez de lanzar.
+
+> **`ClubService.findAllActive()` es la única consulta del proyecto que cruza clubes a propósito**, y puede porque `clubs` es la tabla raíz del tenant: no lleva `club_id` ni policy, ya que es la lista de tenants y no datos de uno.
+
+> **Tres propiedades nuevas** en `application.properties`, las tres con valor por defecto: `app.sessions.generation.enabled`, `.cron` y `.weeks-ahead`. Apagarlo no rompe nada —las sesiones se siguen generando a mano desde su endpoint—; hace falta el día que haya más de una instancia, para que solo una haga el trabajo.
+
+> **El horizonte lo comparten el job y la regeneración.** Si no fuera el mismo número, cambiar un horario dejaría un calendario más corto o más largo que el que mantiene el job, y la diferencia solo se notaría semanas después.
+
+> **La regeneración solo mira hacia adelante**, y estrictamente: hoy no se toca, porque a las 20:00 el entrenamiento de las 18:00 ya ocurrió. Se lleva también las **canceladas** futuras —si el grupo se muda del martes al miércoles, la cancelación de un martes que ya no existe no explica nada— pero nunca las `DONE`.
+
+> **`discardFutureForSchedule` cierra la pregunta que dejó abierta la 2.1**: un horario borrado no puede seguir poniendo entrenamientos en el calendario, así que se lleva sus futuras sin regenerarlas.
+
+> **Sin apagar el job en los tests**, y no hace falta: el cron es de madrugada y ninguna suite dura lo suficiente. Los tests llaman al método directamente, que es como hay que probarlo — uno que dependiera del reloj no sería un test.
 
 > **Entidad `ClubClosure`**, tabla `club_closures`, con `club_id` y policy propia (`migrations/2.2-club-closures-rls.sql`) — entidad raíz, así que esta vez por la regla de siempre y no por una excepción. Vive en el paquete `training_session` y no en `club` porque su único efecto es sobre las sesiones: ponerlo ahí evita que los dos módulos se llamen en círculo.
 
