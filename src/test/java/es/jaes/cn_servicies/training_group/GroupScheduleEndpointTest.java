@@ -160,6 +160,50 @@ class GroupScheduleEndpointTest {
         assertThat(get(ruta(), ADMIN).getBody()).isEqualTo("[]");
     }
 
+    /**
+     * <b>El test que sostiene el cableado de la 2.2.b.</b> Cambiar un horario
+     * tiene que arrastrar sus sesiones futuras, y eso ocurre porque el
+     * controlador entra por {@code ScheduleChangeService} en vez de por el
+     * servicio de horarios a secas.
+     *
+     * <p>Si alguien deshace ese cableado, nada falla al compilar y la
+     * regeneracion desaparece en silencio: el calendario se queda describiendo
+     * un horario que ya no existe y no se nota hasta que un entrenador se
+     * presenta el dia equivocado. Este test es lo unico que lo impide.
+     */
+    @Test
+    @DisplayName("cambiar el horario por la API rehace las sesiones futuras")
+    void cambiarElHorarioRehaceElCalendario() {
+        String id = crearHorario("TUESDAY", "18:00:00", "19:00:00");
+        post("/api/groups/" + grupo + "/sessions/generation"
+                + "?from=" + HOY + "&to=" + HOY.plusWeeks(4), null, ADMIN);
+
+        put(ruta() + "/" + id, cuerpo("TUESDAY", "19:00:00", "20:00:00"), ADMIN);
+
+        String calendario = get("/api/groups/" + grupo + "/sessions"
+                + "?from=" + HOY.plusDays(1) + "&to=" + HOY.plusWeeks(4), ADMIN).getBody();
+
+        assertThat(calendario)
+                .as("las sesiones futuras tienen que haberse rehecho con la hora nueva")
+                .contains("19:00")
+                .doesNotContain("\"startTime\":\"18:00");
+    }
+
+    @Test
+    @DisplayName("borrar el horario por la API se lleva sus sesiones futuras")
+    void borrarElHorarioVaciaElCalendario() {
+        String id = crearHorario("TUESDAY", "18:00:00", "19:00:00");
+        post("/api/groups/" + grupo + "/sessions/generation"
+                + "?from=" + HOY + "&to=" + HOY.plusWeeks(4), null, ADMIN);
+
+        delete(ruta() + "/" + id, ADMIN);
+
+        assertThat(get("/api/groups/" + grupo + "/sessions"
+                + "?from=" + HOY.plusDays(1) + "&to=" + HOY.plusWeeks(4), ADMIN).getBody())
+                .as("un horario borrado no puede seguir poniendo entrenamientos")
+                .isEqualTo("[]");
+    }
+
     @Test
     @DisplayName("la consulta por fecha devuelve los que estaban en vigor ese día")
     void porFecha() {
@@ -244,6 +288,10 @@ class GroupScheduleEndpointTest {
     }
 
     private void vaciarHorariosYGrupos(UUID club) {
+        // Antes que los horarios: desde que cambiar uno regenera su calendario,
+        // este test crea sesiones, y su clave foránea hacia group_schedules no
+        // borra en cascada.
+        jdbc.update("DELETE FROM training_sessions WHERE club_id = ?", club);
         jdbc.update("DELETE FROM group_schedules WHERE group_id IN"
                 + " (SELECT id FROM training_groups WHERE club_id = ?)", club);
         jdbc.update("DELETE FROM training_groups WHERE club_id = ?", club);

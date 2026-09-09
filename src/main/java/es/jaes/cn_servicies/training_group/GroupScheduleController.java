@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.training_group;
 
+import es.jaes.cn_servicies.training_session.ScheduleChangeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -32,6 +33,12 @@ public class GroupScheduleController {
     private final GroupScheduleService scheduleService;
 
     /**
+     * La edicion y el borrado pasan por aqui: cambiar un horario arrastra sus
+     * sesiones futuras, y las dos cosas tienen que ir en la misma transaccion.
+     */
+    private final ScheduleChangeService scheduleChangeService;
+
+    /**
      * Sin {@code date}, todos los horarios vivos del grupo; con ella, los que
      * estaban en vigor ese dia. Lo segundo es lo que hara falta para explicar
      * por que existio una sesion de hace tres meses.
@@ -52,24 +59,36 @@ public class GroupScheduleController {
                 .body(scheduleService.create(groupId, request));
     }
 
+    /**
+     * Edita el horario <b>y rehace las sesiones futuras</b> que salian de el.
+     *
+     * <p>Va por {@code ScheduleChangeService} y no por el servicio de horarios a
+     * secas porque las dos cosas tienen que ocurrir en la misma transaccion: si
+     * el cambio se guardara y la regeneracion fallara despues, el calendario se
+     * quedaria describiendo un horario que ya no existe.
+     */
     @PutMapping("/{scheduleId}")
     public ResponseEntity<GroupScheduleResponse> update(
             @PathVariable UUID groupId,
             @PathVariable UUID scheduleId,
             @Valid @RequestBody GroupScheduleRequest request) {
-        return ResponseEntity.ok(scheduleService.update(groupId, scheduleId, request));
+        return ResponseEntity.ok(
+                scheduleChangeService.updateAndRegenerate(groupId, scheduleId, request));
     }
 
     /**
-     * Borrado logico: la fila se queda. En la 2.2 las sesiones colgaran del
-     * horario que las genero, y borrarlo de verdad las dejaria sin explicar de
-     * donde salieron.
+     * Borrado logico: la fila se queda, porque las sesiones que ya ocurrieron
+     * cuelgan de ella y tienen que poder explicar de donde salieron.
+     *
+     * <p>Lo que si se va son sus <b>sesiones futuras</b>: un horario borrado no
+     * puede seguir poniendo entrenamientos en el calendario de las proximas
+     * semanas.
      */
     @DeleteMapping("/{scheduleId}")
     public ResponseEntity<Void> delete(
             @PathVariable UUID groupId,
             @PathVariable UUID scheduleId) {
-        scheduleService.softDelete(groupId, scheduleId);
+        scheduleChangeService.deleteAndDiscard(groupId, scheduleId);
         return ResponseEntity.noContent().build();
     }
 }

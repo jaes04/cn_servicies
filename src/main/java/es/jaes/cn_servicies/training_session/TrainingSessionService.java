@@ -154,6 +154,12 @@ public class TrainingSessionService {
         List<TrainingSession> futuras =
                 sessionRepository.findFutureBySchedule(scheduleId, LocalDate.now());
         sessionRepository.deleteAll(futuras);
+
+        // Flush explicito y no confiado al automatico: en el flush de Hibernate
+        // los INSERT van ANTES que los DELETE, asi que regenerar en la misma
+        // transaccion podria intentar insertar (horario, fecha) antes de haber
+        // borrado la fila vieja, y saltaria el indice unico.
+        sessionRepository.flush();
         return futuras.size();
     }
 
