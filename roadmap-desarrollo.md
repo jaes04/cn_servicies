@@ -485,16 +485,47 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 
 La parte con más trampas del proyecto.
 
-- [ ] Entidad `Sesion`: `grupo_id`, `horario_id`, `fecha`, `hora_inicio`, `hora_fin`, `ubicacion`, `estado`, `motivo_cancelacion` — `1h · Baja · Crítica`
-- [ ] Servicio que materializa sesiones desde los horarios para un rango — `4h · Alta · Crítica`
+**Partida en dos bloques.** La 2.2.a es el núcleo —la sesión y su generación— y termina en algo probable a mano; la 2.2.b es el envoltorio automático.
+
+**2.2.a — la sesión y su generación**
+
+- [x] Entidad `Sesion`: `grupo_id`, `horario_id`, `fecha`, `hora_inicio`, `hora_fin`, ~~`ubicacion`~~ `modalidad`, `estado`, `motivo_cancelacion` — `1h · Baja · Crítica`
+- [x] Servicio que materializa sesiones desde los horarios para un rango — `4h · Alta · Crítica`
+- [x] **Idempotencia**: índice único `(horario_id, fecha)` y lógica que no duplica — `2h · Alta · Crítica`
+- [x] Cancelar una sesión concreta con motivo — `1h · Baja · Alta`
+- [x] Crear sesión puntual fuera de horario (competición, extra) — `1h · Baja · Media`
+
+**2.2.b — automatización**
+
 - [ ] Job `@Scheduled` que mantiene generadas las próximas 4–6 semanas — `2h · Media · Crítica`
-- [ ] **Idempotencia**: índice único `(horario_id, fecha)` y lógica que no duplica — `2h · Alta · Crítica`
 - [ ] Calendario de excepciones: festivos y cierres de piscina — `3h · Media · Alta`
-- [ ] Cancelar una sesión concreta con motivo — `1h · Baja · Alta`
-- [ ] Crear sesión puntual fuera de horario (competición, extra) — `1h · Baja · Media`
 - [ ] Regeneración al cambiar un horario: solo sesiones futuras, jamás las pasadas — `2h · Alta · Crítica`
 
 > Si el job duplica sesiones, la asistencia queda inconsistente y el club pierde la confianza en el sistema entero. La idempotencia no es opcional.
+
+> **Entidad `TrainingSession`**, tabla `training_sessions`, en un paquete nuevo `training_session`: de aquí colgará la asistencia de la 2.3. Alcanza los horarios por `GroupScheduleService` y el grupo por `TrainingGroupService`, nunca por sus repositorios.
+
+> **Lleva `club_id` y policy propia (`migrations/2.2-training-sessions-rls.sql`) aunque sea tabla hija.** Segunda excepción deliberada a la regla, después de `consents`, y por un motivo distinto: **es la primera tabla hija cuyo id viaja solo en la API**. La 2.3 expone `/api/sessions/{id}/roster` para el móvil, y un id suelto es un `findById` por clave primaria — justo donde el filtro de Hibernate no llega. La alternativa era anidarlo todo bajo el grupo, como en la 2.1, y obligar al móvil a una ruta de cuatro segmentos.
+
+> **La sesión copia hora y modalidad del horario, no las lee de él.** Si en marzo el grupo se mueve de las 18:00 a las 19:00, las de febrero siguen diciendo 18:00: es la hora a la que se entrenó. Hay test de que cambiar el horario no toca lo ya generado.
+
+> **Sin zona horaria**: `LocalDate` + `LocalTime` sueltos. Un entrenamiento a las 18:00 es a las 18:00 también el fin de semana en que cambia la hora.
+
+> **La idempotencia son dos capas**: el generador consulta los pares `(horario, fecha)` que ya existen y crea solo lo que falta; el índice único es la red. **Una sesión cancelada no resucita** al volver a generar, que es el caso que más duele. Hay test de las dos cosas, y de los rangos solapados, que es como llamará el job.
+
+> **`schedule_id` nulo en las puntuales**, y eso hace que el índice único no les aplique —en Postgres dos nulos no son iguales—, así que una competición y un entrenamiento extra el mismo día conviven, y una puntual no impide generar el entrenamiento de ese día.
+
+> **Tope de 400 días** por generación: un cero de más en una fecha son cientos de miles de filas.
+
+> **Motivo de cancelación como enum cerrado**, sin nota libre, igual que `LeaveReason`: un campo de texto aquí acaba con el nombre del nadador que se puso malo. El precio es `OTHER`, que no informa; si un motivo se repite bajo `OTHER`, la respuesta es añadir el valor, no abrir el texto libre.
+
+> **Cancelar lo puede el entrenador**, y es la primera vez que el personal técnico escribe algo: es quien se entera de que hoy no hay piscina, y esperar al administrador deja la sesión como celebrada cuando nadie se metió al agua. Generar el calendario y crear sesiones sueltas siguen siendo del club.
+
+> **`SecurityConfig` sí se toca**, a diferencia de la 2.1: `/api/sessions/**` es rama nueva y nace cerrada a ADMIN salvo la consulta y la cancelación.
+
+> **26 tests**: 19 de servicio y 7 de endpoint, más uno en `TenantIsolationTest`.
+
+> **Queda abierto:** una sesión cancelada por error no se puede reactivar. El generador no la repone —es lo correcto— así que hoy el único arreglo es tocar la base. Con la cancelación en manos del entrenador esto se vuelve más probable: ¿hace falta un endpoint de reactivación?
 
 ### 2.3 Asistencia — 12 h
 
