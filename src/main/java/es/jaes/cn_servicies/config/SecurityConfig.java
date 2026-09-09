@@ -99,10 +99,6 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/consents/athlete/*/status").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/consents/athlete/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/consents/athlete/**").hasRole("ADMIN")
-                        // Grupos: el entrenador los consulta —necesita ver el
-                        // suyo— pero montarlos, editarlos y duplicarlos es del
-                        // club. La duplicacion crea N filas de golpe: va antes
-                        // que la regla general para que se lea sola.
                         // Sesiones sueltas, por su propio id. Cancelar lo puede
                         // el entrenador: es quien se entera de que hoy no hay
                         // piscina, y esperar al administrador deja la sesion
@@ -112,6 +108,9 @@ public class SecurityConfig {
                         // Reactivar va con cancelar: quien puede equivocarse
                         // tiene que poder deshacerlo sin esperar al club.
                         .requestMatchers(POST, "/api/sessions/*/reactivation").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        // Pasar lista es el trabajo del entrenador: es quien
+                        // esta al borde de la piscina.
+                        .requestMatchers(PUT, "/api/sessions/*/attendance").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/sessions/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers("/api/sessions/**").hasRole("ADMIN")
                         // Calendario de excepciones. El entrenador lo consulta
@@ -120,6 +119,10 @@ public class SecurityConfig {
                         // grupos a la vez.
                         .requestMatchers(GET, "/api/closures/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers("/api/closures/**").hasRole("ADMIN")
+                        // Grupos: el entrenador los consulta —necesita ver el
+                        // suyo— pero montarlos, editarlos y duplicarlos es del
+                        // club. La duplicacion crea N filas de golpe: va antes
+                        // que la regla general para que se lea sola.
                         .requestMatchers(POST, "/api/groups/duplication").hasRole("ADMIN")
                         .requestMatchers(GET, "/api/groups/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers("/api/groups/**").hasRole("ADMIN")

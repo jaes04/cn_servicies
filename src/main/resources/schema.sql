@@ -442,6 +442,59 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_training_sessions_horario_fecha
 -- delante las sesiones que ya ocurrieron. La sesion se queda huerfana de
 -- horario, que es exactamente lo que paso.
 
+-- ASISTENCIA (tarea 2.3)
+--  Que hizo cada atleta en cada sesion. Sin club_id: se entra siempre por la
+--  sesion, que si tiene policy, igual que los horarios se entra por su grupo.
+--
+--  SIN CAMPO DE OBSERVACIONES, y es deliberado. El roadmap lo pedia; un texto
+--  libre en el registro de un menor, visible para todo el personal tecnico,
+--  acaba guardando datos de salud sin base legal. Ver docs/rgpd.md §9.
+--
+--  OJO: las restricciones de esta tabla van FUERA del CREATE TABLE, como
+--  sentencias sueltas. Dentro no se aplicarian —lee la cabecera del archivo— y
+--  aqui no es cosmetico: la clave foranea hacia las sesiones NECESITA su
+--  cascada, porque la regeneracion de la 2.2.b borra sesiones futuras de verdad
+--  y sin ella ese borrado empieza a fallar en cuanto tengan lista pasada.
+CREATE TABLE IF NOT EXISTS attendance (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id       UUID        NOT NULL,
+    athlete_id       UUID        NOT NULL,
+    status           VARCHAR(20) NOT NULL,
+    registered_by_id UUID,
+    registered_at    TIMESTAMP   NOT NULL
+);
+
+-- Un atleta, una fila por sesion. Es lo que sostiene el upsert con ON CONFLICT
+-- del guardado en lote: sin este indice, dos entrenadores pasando lista a la vez
+-- dejarian dos filas del mismo nadador con estados distintos.
+CREATE UNIQUE INDEX IF NOT EXISTS uk_attendance_sesion_atleta
+    ON attendance (session_id, athlete_id);
+
+-- El roster pregunta por sesion; los informes de la 2.4, por atleta.
+CREATE INDEX IF NOT EXISTS idx_attendance_session ON attendance (session_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_athlete ON attendance (athlete_id);
+
+-- Claves foraneas como ALTER sueltos, que es la unica forma de que existan de
+-- verdad. El par DROP IF EXISTS + ADD las hace idempotentes.
+--
+-- ON DELETE CASCADE hacia la sesion: al regenerar un horario se borran sus
+-- sesiones futuras, y la lista de una sesion que ya no existe no significa nada.
+-- Lo mismo hacia el atleta.
+--
+-- registered_by_id con SET NULL: que un entrenador deje el club no puede
+-- llevarse por delante el registro de asistencia que hizo.
+ALTER TABLE attendance DROP CONSTRAINT IF EXISTS fk_attendance_session;
+ALTER TABLE attendance ADD CONSTRAINT fk_attendance_session
+    FOREIGN KEY (session_id) REFERENCES training_sessions (id) ON DELETE CASCADE;
+
+ALTER TABLE attendance DROP CONSTRAINT IF EXISTS fk_attendance_athlete;
+ALTER TABLE attendance ADD CONSTRAINT fk_attendance_athlete
+    FOREIGN KEY (athlete_id) REFERENCES athletes (id) ON DELETE CASCADE;
+
+ALTER TABLE attendance DROP CONSTRAINT IF EXISTS fk_attendance_registered_by;
+ALTER TABLE attendance ADD CONSTRAINT fk_attendance_registered_by
+    FOREIGN KEY (registered_by_id) REFERENCES users (id) ON DELETE SET NULL;
+
 -- CALENDARIO DE EXCEPCIONES (tarea 2.2.b)
 --  Los dias en que no se entrena: festivos, piscina cerrada, la semana de
 --  Navidad.

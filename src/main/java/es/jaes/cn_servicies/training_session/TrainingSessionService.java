@@ -288,6 +288,20 @@ public class TrainingSessionService {
         return toResponse(sessionRepository.save(session));
     }
 
+    /**
+     * Marca la sesion como celebrada. Lo llama el guardado de la lista (2.3): una
+     * sesion a la que se le paso lista se hizo, por definicion.
+     *
+     * <p>Idempotente y sin tocar las canceladas, que no llegan aqui —guardar la
+     * lista de una cancelada se rechaza antes.
+     */
+    public void markDone(TrainingSession session) {
+        if (session.getStatus() == SessionStatus.SCHEDULED) {
+            session.setStatus(SessionStatus.DONE);
+            sessionRepository.save(session);
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<TrainingSessionResponse> findAll(UUID groupId, LocalDate from, LocalDate to) {
         groupService.findOrThrow(groupId);
