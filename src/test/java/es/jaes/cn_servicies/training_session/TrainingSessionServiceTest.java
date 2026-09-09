@@ -311,7 +311,74 @@ class TrainingSessionServiceTest {
     }
 
     // ----------------------------------------------------------------
-    //  6. Aislamiento
+    //  6. Regeneración al cambiar un horario (2.2.b)
+    // ----------------------------------------------------------------
+
+    /** Un martes ya pasado, dentro de la temporada. */
+    private static final LocalDate MARTES_PASADO = PRIMER_MARTES.minusWeeks(3);
+
+    @Test
+    @DisplayName("cambiar el horario rehace las sesiones futuras y deja intactas las pasadas")
+    void regeneraSoloElFuturo() {
+        sessionService.generate(grupo, MARTES_PASADO, FIN_RANGO);
+
+        scheduleService.update(grupo, horario, peticionHorario(DayOfWeek.TUESDAY, "19:00", "20:00",
+                TrainingModality.SWIMMING, INICIO_TEMPORADA, null));
+        sessionService.regenerateForSchedule(grupo, horario);
+
+        List<TrainingSessionResponse> todas =
+                sessionService.findAll(grupo, INICIO_TEMPORADA, FIN_TEMPORADA);
+
+        assertThat(todas)
+                .filteredOn(s -> s.getDate().isBefore(HOY))
+                .as("lo que ya se entrenó se quedó a las 18:00, y así sigue")
+                .isNotEmpty()
+                .allSatisfy(s -> assertThat(s.getStartTime()).isEqualTo(LocalTime.of(18, 0)));
+
+        assertThat(todas)
+                .filteredOn(s -> s.getDate().isAfter(HOY))
+                .as("lo que aún no ha pasado se rehace con el horario nuevo")
+                .isNotEmpty()
+                .allSatisfy(s -> assertThat(s.getStartTime()).isEqualTo(LocalTime.of(19, 0)));
+    }
+
+    @Test
+    @DisplayName("al cambiar el horario, la cancelación de un día que ya no existe se va con él")
+    void laCanceladaFuturaSeVaConElHorario() {
+        generar();
+        TrainingSessionResponse futura = sessionService
+                .findAll(grupo, HOY.plusDays(1), FIN_RANGO).get(0);
+        sessionService.cancel(futura.getId(), CancellationReason.COACH_UNAVAILABLE);
+
+        // El grupo se muda del martes al miércoles: ese martes deja de existir.
+        scheduleService.update(grupo, horario, peticionHorario(DayOfWeek.WEDNESDAY, "18:00", "19:00",
+                TrainingModality.SWIMMING, INICIO_TEMPORADA, null));
+        sessionService.regenerateForSchedule(grupo, horario);
+
+        assertThat(sessionService.findAll(grupo, INICIO_TEMPORADA, FIN_TEMPORADA))
+                .extracting(TrainingSessionResponse::getId)
+                .doesNotContain(futura.getId());
+    }
+
+    @Test
+    @DisplayName("descartar un horario se lleva sus sesiones futuras, no las pasadas")
+    void descartarSeLlevaSoloElFuturo() {
+        sessionService.generate(grupo, MARTES_PASADO, FIN_RANGO);
+        long pasadas = sessionService.findAll(grupo, INICIO_TEMPORADA, HOY).size();
+
+        int descartadas = sessionService.discardFutureForSchedule(horario);
+
+        assertThat(descartadas).isPositive();
+        assertThat(sessionService.findAll(grupo, HOY.plusDays(1), FIN_TEMPORADA))
+                .as("un horario que desaparece no puede seguir poniendo entrenamientos")
+                .isEmpty();
+        assertThat(sessionService.findAll(grupo, INICIO_TEMPORADA, HOY))
+                .as("y el registro de lo que se entrenó sigue ahí")
+                .hasSize((int) pasadas);
+    }
+
+    // ----------------------------------------------------------------
+    //  7. Aislamiento
     // ----------------------------------------------------------------
 
     /**

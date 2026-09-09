@@ -47,4 +47,23 @@ public interface TrainingSessionRepository extends JpaRepository<TrainingSession
             + " WHERE s.date BETWEEN :from AND :to"
             + "   AND s.status = es.jaes.cn_servicies.training_session.SessionStatus.SCHEDULED")
     List<TrainingSession> findScheduledBetween(LocalDate from, LocalDate to);
+
+    /**
+     * Las sesiones de un horario posteriores a una fecha, salvo las que ya se
+     * dieron por celebradas.
+     *
+     * <p>La usa la regeneracion al cambiar o borrar un horario. <b>Estrictamente
+     * posteriores</b>: si hoy a las 20:00 se corrige el horario, el
+     * entrenamiento de hoy a las 18:00 ya ocurrio.
+     *
+     * <p>Se lleva tambien las <b>canceladas</b>: si el grupo se mueve del martes
+     * al miercoles, la cancelacion de un martes que ya no existe no explica
+     * nada. Las {@code DONE} se quedan siempre — nadie entrena en el futuro,
+     * pero si una llegara asi, borrarla seria perder una lista pasada.
+     */
+    @Query("SELECT s FROM TrainingSession s"
+            + " WHERE s.schedule.id = :scheduleId"
+            + "   AND s.date > :after"
+            + "   AND s.status <> es.jaes.cn_servicies.training_session.SessionStatus.DONE")
+    List<TrainingSession> findFutureBySchedule(UUID scheduleId, LocalDate after);
 }

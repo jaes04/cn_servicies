@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.Month;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -135,6 +136,19 @@ public class SeasonService {
     public SeasonResponse findActive() {
         return toResponse(seasonRepository.findByActiveTrue()
                 .orElseThrow(() -> new EntityNotFoundException("No hay ninguna temporada activa")));
+    }
+
+    /**
+     * La temporada en curso, o vacio si el club no tiene ninguna activa.
+     *
+     * <p>Lo mismo que {@link #findActive()} pero sin excepcion: para el job de
+     * generacion de sesiones, que recorre todos los clubes y se encuentra
+     * clubes recien creados sin temporada. Ahi no tener temporada activa no es
+     * un error que reportar, es un club por el que hoy no hay que pasar.
+     */
+    @Transactional(readOnly = true)
+    public Optional<Season> findActiveSeason() {
+        return seasonRepository.findByActiveTrue();
     }
 
     public SeasonResponse update(UUID id, SeasonRequest request) {

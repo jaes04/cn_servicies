@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -95,5 +96,24 @@ public class ClubService {
     public Club getById(UUID id) {
         return clubRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Club no encontrado"));
+    }
+
+    /**
+     * Todos los clubes dados de alta, para los procesos que trabajan sobre el
+     * sistema entero en vez de sobre una peticion — hoy el job que genera las
+     * sesiones.
+     *
+     * <p><b>Es la unica consulta del proyecto que cruza clubes a proposito</b>,
+     * y puede hacerlo porque {@code clubs} es la tabla raiz del tenant: no lleva
+     * {@code club_id} ni policy, ya que es la lista de tenants y no datos de
+     * uno. Quien la use tiene que fijar el {@code TenantContext} de cada club
+     * antes de tocar sus datos.
+     *
+     * <p>Deja fuera los inactivos: dar de baja un club es {@code active = false},
+     * y a partir de ahi no se le genera nada.
+     */
+    @Transactional(readOnly = true)
+    public List<Club> findAllActive() {
+        return clubRepository.findByActiveTrue();
     }
 }

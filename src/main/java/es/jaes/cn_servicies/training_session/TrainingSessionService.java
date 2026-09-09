@@ -11,6 +11,7 @@ import es.jaes.cn_servicies.training_group.TrainingGroupService;
 import es.jaes.cn_servicies.training_group.TrainingModality;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +45,15 @@ public class TrainingSessionService {
      * necesite mas de una temporada.
      */
     private static final int MAXIMO_DIAS = 400;
+
+    /**
+     * Cuantas semanas por delante se mantienen generadas. Lo comparten el job
+     * nocturno y la regeneracion al cambiar un horario: si no fuera el mismo
+     * numero, cambiar un horario dejaria un calendario mas corto o mas largo que
+     * el que mantiene el job, y la diferencia solo se notaria semanas despues.
+     */
+    @Value("${app.sessions.generation.weeks-ahead:6}")
+    private int semanasDeHorizonte;
 
     private final TrainingSessionRepository sessionRepository;
     private final ClubClosureRepository closureRepository;
@@ -112,6 +122,39 @@ public class TrainingSessionService {
         resumen.setAlreadyExisted(existentes);
         resumen.setBornCancelled(cerradas);
         return resumen;
+    }
+
+    /**
+     * Rehace las sesiones de un horario que ha cambiado.
+     *
+     * <p><b>Solo hacia adelante.</b> Se tiran las futuras de ese horario y se
+     * vuelven a generar con los datos nuevos; las pasadas no se tocan nunca,
+     * porque son el registro de lo que se entreno de verdad. El dia de hoy
+     * tampoco: a las 20:00, el entrenamiento de las 18:00 ya ocurrio.
+     *
+     * <p>Se tiran tambien las canceladas: si el grupo se mueve del martes al
+     * miercoles, el martes deja de existir y su cancelacion no explica nada.
+     *
+     * <p>Devuelve cuantas sesiones se han rehecho.
+     */
+    public int regenerateForSchedule(UUID groupId, UUID scheduleId) {
+        int descartadas = discardFutureForSchedule(scheduleId);
+        LocalDate desde = LocalDate.now();
+        generate(groupId, desde, desde.plusWeeks(semanasDeHorizonte));
+        return descartadas;
+    }
+
+    /**
+     * Tira las sesiones futuras de un horario sin volver a generarlas. Es lo que
+     * corresponde cuando el horario desaparece: la 2.1 dejo abierto que pasaba
+     * con ellas, y la respuesta es que un horario borrado no puede seguir
+     * poniendo entrenamientos en el calendario.
+     */
+    public int discardFutureForSchedule(UUID scheduleId) {
+        List<TrainingSession> futuras =
+                sessionRepository.findFutureBySchedule(scheduleId, LocalDate.now());
+        sessionRepository.deleteAll(futuras);
+        return futuras.size();
     }
 
     /**
