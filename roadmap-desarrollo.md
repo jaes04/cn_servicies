@@ -495,11 +495,33 @@ La parte con más trampas del proyecto.
 - [x] Cancelar una sesión concreta con motivo — `1h · Baja · Alta`
 - [x] Crear sesión puntual fuera de horario (competición, extra) — `1h · Baja · Media`
 
-**2.2.b — automatización**
+**2.2.b.1 — calendario de excepciones**
+
+- [x] Calendario de excepciones: festivos y cierres de piscina — `3h · Media · Alta`
+- [x] Reactivar una sesión cancelada — `1h · Baja · Alta` *(no estaba en el roadmap; se añadió al hacer que el sistema cancele solo)*
+
+**2.2.b.2 — automatización**
 
 - [ ] Job `@Scheduled` que mantiene generadas las próximas 4–6 semanas — `2h · Media · Crítica`
-- [ ] Calendario de excepciones: festivos y cierres de piscina — `3h · Media · Alta`
 - [ ] Regeneración al cambiar un horario: solo sesiones futuras, jamás las pasadas — `2h · Alta · Crítica`
+
+> **Entidad `ClubClosure`**, tabla `club_closures`, con `club_id` y policy propia (`migrations/2.2-club-closures-rls.sql`) — entidad raíz, así que esta vez por la regla de siempre y no por una excepción. Vive en el paquete `training_session` y no en `club` porque su único efecto es sobre las sesiones: ponerlo ahí evita que los dos módulos se llamen en círculo.
+
+> **Un cierre no impide generar: hace que la sesión nazca cancelada.** Es la decisión de fondo. Si el 6 de diciembre no hubiera nada en el calendario, nadie sabría si es que era festivo o si el job no llegó a pasar por esa semana; así el calendario dice "6 de diciembre, cancelado: festivo". De paso hereda gratis que una cancelada no resucita al regenerar.
+
+> **La modalidad acota el cierre.** Nulo afecta a todo; con `SWIMMING` solo tumba lo del agua. Sin esto, cerrar la piscina cancelaría el entrenamiento del gimnasio, que con la modalidad viviendo en el horario sería un error visible desde el primer festivo.
+
+> **Declarar un cierre cancela lo ya generado, pero solo de hoy en adelante.** Lo pasado no se reescribe: si el 12 de marzo se entrenó y se pasó lista, declarar hoy que aquel día fue festivo no puede borrarlo. El día de hoy sí entra —la piscina se puede romper esta mañana—. Y no pisa el motivo de una sesión ya cancelada a mano.
+
+> **La respuesta del alta trae `cancelledSessions`**: cuántos entrenamientos se ha llevado por delante. Equivocarse de fechas tumba veinte de golpe y quien lo hace tiene que enterarse en ese momento.
+
+> **`POST /api/sessions/{id}/reactivation`**, y lo puede el entrenador igual que cancelar: quien puede equivocarse tiene que poder deshacerlo sin esperar al club. **Reactivar gana sobre el cierre**: el generador solo crea lo que no existe, así que no vuelve a tumbarla. Hay test, porque sin eso la reactivación no serviría de nada.
+
+> **Borrar un cierre no reactiva nada**, a propósito: no hay forma de distinguir las que cayeron por ese cierre de las que alguien canceló a mano el mismo día. Lo que sí consigue es que lo que se genere después ya no nazca cancelado.
+
+> **Sin único sobre las fechas**: dos cierres solapados no son un error. Declarar el puente y además la semana entera es una forma legítima de decirlo.
+
+> **18 tests.** Y una corrección de método: el aislamiento de los cierres en las consultas por rango **lo hace el filtro de Hibernate, no RLS** —se comprobó desactivando la policy y seguían en verde—. Lo que solo tapa RLS es la carga por id, que es como llega el borrado: eso tiene test propio aquí y en `TenantIsolationTest`.
 
 > Si el job duplica sesiones, la asistencia queda inconsistente y el club pierde la confianza en el sistema entero. La idempotencia no es opcional.
 
