@@ -38,6 +38,9 @@ public class AttendanceReportService {
 
     private static final int UMBRAL_AUSENCIAS_POR_DEFECTO = 3;
 
+    /** Ventana del aviso de pendientes cuando no se pide un rango. */
+    private static final int DIAS_DE_PENDIENTES = 30;
+
     private final AttendanceReportRepository reportRepository;
     private final TrainingGroupService groupService;
     private final AthleteService athleteService;
@@ -120,6 +123,58 @@ public class AttendanceReportService {
                     return incidencia;
                 })
                 .toList();
+    }
+
+    // ----------------------------------------------------------------
+    //  Pendientes de registrar
+    // ----------------------------------------------------------------
+
+    /**
+     * Lo que le falta al club por registrar, para que el entrenador se entere.
+     *
+     * <p>Se consulta al entrar y se pinta como aviso. Es la alternativa honesta a
+     * un correo automatico que nadie abre o a un {@code cron} que escribe en un
+     * log que nadie lee: el aviso aparece donde la persona ya esta mirando.
+     *
+     * <p>Sin rango se miran los ultimos {@value #DIAS_DE_PENDIENTES} dias. Un
+     * aviso que arrastrara tres temporadas de olvidos no seria accionable, seria
+     * un numero grande al que se deja de hacer caso.
+     */
+    public PendingAttendanceResponse pending(LocalDate from, LocalDate to) {
+        LocalDate hasta = to != null ? to : LocalDate.now();
+        LocalDate desde = from != null ? from : hasta.minusDays(DIAS_DE_PENDIENTES);
+        validarRango(desde, hasta);
+
+        List<PendingSessionResponse> sinLista = reportRepository
+                .findPastWithoutRosterInClub(desde, hasta, LocalDate.now()).stream()
+                .map(sesion -> {
+                    PendingSessionResponse pendiente = new PendingSessionResponse();
+                    pendiente.setSessionId(sesion.getId());
+                    pendiente.setDate(sesion.getDate());
+                    pendiente.setGroupId(sesion.getTrainingGroup().getId());
+                    pendiente.setGroupName(sesion.getTrainingGroup().getName());
+                    return pendiente;
+                })
+                .toList();
+
+        List<PendingSessionResponse> aMedias = new ArrayList<>();
+        for (Object[] fila : reportRepository.findIncompleteRosters(desde, hasta)) {
+            PendingSessionResponse pendiente = new PendingSessionResponse();
+            pendiente.setSessionId((UUID) fila[0]);
+            pendiente.setDate(((Date) fila[1]).toLocalDate());
+            pendiente.setGroupId((UUID) fila[2]);
+            pendiente.setGroupName((String) fila[3]);
+            pendiente.setUnrecorded(((Number) fila[4]).intValue());
+            aMedias.add(pendiente);
+        }
+
+        PendingAttendanceResponse response = new PendingAttendanceResponse();
+        response.setFrom(desde);
+        response.setTo(hasta);
+        response.setSessionsWithoutRoster(sinLista);
+        response.setIncompleteRosters(aMedias);
+        response.setTotal(sinLista.size() + aMedias.size());
+        return response;
     }
 
     // ----------------------------------------------------------------

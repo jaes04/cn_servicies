@@ -32,6 +32,19 @@ public class AttendanceReportController {
         return ResponseEntity.ok(reportService.forAthlete(athleteId, from, to));
     }
 
+    /**
+     * Lo que el club tiene pendiente de registrar, para pintarlo como aviso.
+     * Sin rango, los ultimos 30 dias.
+     */
+    @GetMapping("/pending")
+    public ResponseEntity<PendingAttendanceResponse> pending(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(reportService.pending(from, to));
+    }
+
     @GetMapping("/group/{groupId}")
     public ResponseEntity<GroupAttendanceResponse> forGroup(
             @PathVariable UUID groupId,

@@ -107,4 +107,54 @@ public interface AttendanceReportRepository extends JpaRepository<TrainingSessio
             + " ORDER BY s.date")
     List<TrainingSession> findPastWithoutRoster(UUID groupId, LocalDate from, LocalDate to,
                                                 LocalDate today);
+
+    /**
+     * Lo mismo para <b>todo el club</b>, sin acotar a un grupo: es lo que
+     * necesita el aviso de pendientes, porque un entrenador quiere saber que le
+     * falta, no ir grupo por grupo preguntando.
+     *
+     * <p>Sin {@code club_id} en la condicion: es JPQL, asi que lo pone el filtro
+     * de tenancy, y debajo esta la policy.
+     */
+    @Query("SELECT s FROM TrainingSession s"
+            + " WHERE s.date BETWEEN :from AND :to"
+            + "   AND s.date < :today"
+            + "   AND s.status = es.jaes.cn_servicies.training_session.SessionStatus.SCHEDULED"
+            + " ORDER BY s.date DESC")
+    List<TrainingSession> findPastWithoutRosterInClub(LocalDate from, LocalDate to,
+                                                      LocalDate today);
+
+    /**
+     * Sesiones celebradas del club a las que les quedaron atletas sin marcar,
+     * con cuantos.
+     *
+     * <p>El {@code a.id IS NULL} despues del {@code LEFT JOIN} es el truco: deja
+     * solo las combinaciones (sesion, atleta que tenia que estar) para las que no
+     * hay fila de asistencia. Son las que ya estan contando como falta en los
+     * informes, asi que son las que corre prisa corregir.
+     *
+     * <p>Nativa: el aislamiento lo pone RLS sobre {@code training_sessions} y
+     * {@code training_groups}, no el filtro de Hibernate, que en las nativas no
+     * interviene.
+     *
+     * <p>Devuelve: {@code session_id, session_date, group_id, group_name, sin_marcar}.
+     */
+    @Query(value = """
+            SELECT s.id, s.session_date, g.id AS group_id, g.name AS group_name,
+                   COUNT(*) AS sin_marcar
+            FROM training_sessions s
+            JOIN training_groups g ON g.id = s.group_id
+            JOIN athlete_groups ag
+              ON ag.group_id = s.group_id
+             AND ag.joined_on <= s.session_date
+             AND (ag.left_on IS NULL OR ag.left_on >= s.session_date)
+            LEFT JOIN attendance a
+              ON a.session_id = s.id AND a.athlete_id = ag.athlete_id
+            WHERE s.session_date BETWEEN :from AND :to
+              AND s.status = 'DONE'
+              AND a.id IS NULL
+            GROUP BY s.id, s.session_date, g.id, g.name
+            ORDER BY s.session_date DESC
+            """, nativeQuery = true)
+    List<Object[]> findIncompleteRosters(LocalDate from, LocalDate to);
 }

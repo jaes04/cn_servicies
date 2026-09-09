@@ -365,6 +365,97 @@ class AttendanceReportServiceTest {
     }
 
     // ----------------------------------------------------------------
+    //  5. Pendientes de registrar
+    // ----------------------------------------------------------------
+
+    @Test
+    @DisplayName("una sesión pasada sin lista sale como pendiente")
+    void pendienteSinLista() {
+        UUID sinLista = sesionConEstado(S2, "SCHEDULED");
+
+        PendingAttendanceResponse pendientes = reportService.pending(INICIO, FIN);
+
+        assertThat(pendientes.getSessionsWithoutRoster())
+                .singleElement()
+                .satisfies(s -> {
+                    assertThat(s.getSessionId()).isEqualTo(sinLista);
+                    assertThat(s.getGroupName()).isEqualTo("Alevín A");
+                    assertThat(s.getUnrecorded()).as("aquí no faltan tres nombres, falta el día").isNull();
+                });
+        assertThat(pendientes.getTotal()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("una sesión con lista a medias sale con cuántos faltan")
+    void pendienteAMedias() {
+        UUID s1 = sesionCelebrada(S1);
+        marcar(s1, ana, "PRESENT");   // a Bruno no lo marcó nadie
+
+        assertThat(reportService.pending(INICIO, FIN).getIncompleteRosters())
+                .singleElement()
+                .satisfies(s -> {
+                    assertThat(s.getSessionId()).isEqualTo(s1);
+                    assertThat(s.getUnrecorded()).isEqualTo(1);
+                });
+    }
+
+    @Test
+    @DisplayName("una sesión con la lista completa no sale como pendiente")
+    void listaCompletaNoEsPendiente() {
+        UUID s1 = sesionCelebrada(S1);
+        marcar(s1, ana, "PRESENT");
+        marcar(s1, bruno, "ABSENT");
+
+        PendingAttendanceResponse pendientes = reportService.pending(INICIO, FIN);
+
+        assertThat(pendientes.getIncompleteRosters()).isEmpty();
+        assertThat(pendientes.getTotal()).isZero();
+    }
+
+    @Test
+    @DisplayName("una sesión futura sin lista no es un pendiente: todavía no toca")
+    void laFuturaNoEsPendiente() {
+        sesionConEstado(LocalDate.now().plusDays(7), "SCHEDULED");
+
+        assertThat(reportService.pending(INICIO, FIN).getTotal()).isZero();
+    }
+
+    @Test
+    @DisplayName("una sesión cancelada no es un pendiente")
+    void laCanceladaNoEsPendiente() {
+        sesionConEstado(S2, "CANCELLED");
+
+        assertThat(reportService.pending(INICIO, FIN).getTotal()).isZero();
+    }
+
+    /**
+     * Las dos consultas de pendientes miran el club entero sin nombrarlo: una es
+     * JPQL y la tapa el filtro, la otra es nativa y solo la tapa RLS.
+     */
+    @Test
+    @DisplayName("los pendientes de otro club no salen en los nuestros")
+    void pendientesAjenos() {
+        crearPendienteAjeno();
+
+        PendingAttendanceResponse pendientes = reportService.pending(INICIO, FIN);
+
+        assertThat(pendientes.getTotal()).isZero();
+    }
+
+    @Test
+    @DisplayName("sin rango se miran los últimos 30 días")
+    void rangoPorDefecto() {
+        sesionConEstado(LocalDate.now().minusDays(5), "SCHEDULED");
+        sesionConEstado(LocalDate.now().minusDays(60), "SCHEDULED");
+
+        PendingAttendanceResponse pendientes = reportService.pending(null, null);
+
+        assertThat(pendientes.getSessionsWithoutRoster())
+                .as("lo de hace dos meses ya no es accionable")
+                .hasSize(1);
+    }
+
+    // ----------------------------------------------------------------
     //  Andamiaje
     // ----------------------------------------------------------------
 
@@ -426,6 +517,64 @@ class AttendanceReportServiceTest {
                         + " VALUES (?, ?, ?, 'Alevín A', 'ALEVIN', 'COMPETICION', now(), now())",
                 grupoId, CLUB, temporada);
         return grupoId;
+    }
+
+    /**
+     * Un club vecino con los DOS tipos de pendiente, y eso importa: la consulta
+     * de sesiones sin lista es JPQL y la tapa el filtro de Hibernate, pero la de
+     * listas a medias es nativa y ahi lo unico que hay es RLS. Con solo la
+     * primera, este test pasaba en verde con la policy desactivada.
+     */
+    private void crearPendienteAjeno() {
+        UUID clubAjeno = UUID.fromString("eeee5555-0000-0000-0000-0000000066ee");
+        UUID temporada = UUID.randomUUID();
+        UUID grupoAjeno = UUID.randomUUID();
+        modoPublico();
+        jdbc.update("DELETE FROM training_sessions WHERE club_id = ?", clubAjeno);
+        jdbc.update("DELETE FROM athlete_groups WHERE athlete_id IN"
+                + " (SELECT id FROM athletes WHERE club_id = ?)", clubAjeno);
+        jdbc.update("DELETE FROM athletes WHERE club_id = ?", clubAjeno);
+        jdbc.update("DELETE FROM training_groups WHERE club_id = ?", clubAjeno);
+        jdbc.update("DELETE FROM seasons WHERE club_id = ?", clubAjeno);
+        jdbc.update("DELETE FROM clubs WHERE id = ?", clubAjeno);
+        jdbc.update("INSERT INTO clubs (id, name, slug, active, created_at)"
+                + " VALUES (?, 'Club Informes Ajeno IT', 'club-informes-ajeno-it', true, now())",
+                clubAjeno);
+        jdbc.update("INSERT INTO seasons"
+                        + " (id, club_id, name, start_date, end_date, active, created_at, updated_at)"
+                        + " VALUES (?, ?, 'Temporada ajena IT', ?, ?, true, now(), now())",
+                temporada, clubAjeno, INICIO, FIN);
+        jdbc.update("INSERT INTO training_groups"
+                        + " (id, club_id, season_id, name, category, level, created_at, updated_at)"
+                        + " VALUES (?, ?, ?, 'Grupo ajeno', 'ALEVIN', 'COMPETICION', now(), now())",
+                grupoAjeno, clubAjeno, temporada);
+        jdbc.update("INSERT INTO training_sessions"
+                        + " (id, club_id, group_id, schedule_id, session_date, start_time, end_time,"
+                        + "  modality, status, created_at, updated_at)"
+                        + " VALUES (?, ?, ?, NULL, ?, '18:00', '19:00', 'SWIMMING', 'SCHEDULED',"
+                        + "  now(), now())",
+                UUID.randomUUID(), clubAjeno, grupoAjeno, S2);
+
+        // Y una celebrada con un atleta al que nadie marco: es la que dispara la
+        // consulta nativa, la que solo tapa la policy.
+        UUID atletaAjeno = UUID.randomUUID();
+        jdbc.update("DELETE FROM athletes WHERE club_id = ?", clubAjeno);
+        jdbc.update("INSERT INTO athletes"
+                        + " (id, club_id, first_name, last_name, birth_date, dni, gender_id,"
+                        + "  created_at, updated_at)"
+                        + " SELECT ?, ?, 'Ajeno', 'Nadador', DATE '2013-01-01', '39999999Z',"
+                        + "  g.id, now(), now() FROM genders g WHERE g.name = 'MALE'",
+                atletaAjeno, clubAjeno);
+        jdbc.update("INSERT INTO athlete_groups (id, athlete_id, group_id, joined_on, created_at)"
+                + " VALUES (?, ?, ?, ?, now())",
+                UUID.randomUUID(), atletaAjeno, grupoAjeno, INICIO);
+        jdbc.update("INSERT INTO training_sessions"
+                        + " (id, club_id, group_id, schedule_id, session_date, start_time, end_time,"
+                        + "  modality, status, created_at, updated_at)"
+                        + " VALUES (?, ?, ?, NULL, ?, '18:00', '19:00', 'SWIMMING', 'DONE',"
+                        + "  now(), now())",
+                UUID.randomUUID(), clubAjeno, grupoAjeno, S1);
+        TenantContext.set(CLUB);
     }
 
     private UUID crearAtleta(String nombre, String dni) {
