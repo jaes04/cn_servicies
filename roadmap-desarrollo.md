@@ -625,6 +625,7 @@ La parte con más trampas del proyecto.
 - [x] Porcentaje de asistencia por atleta en un rango — `2h · Media · Alta`
 - [x] Porcentaje de asistencia por grupo — `2h · Media · Alta`
 - [x] Detección de ausencias consecutivas — `2h · Media · Media`
+- [x] Aviso de lo pendiente de registrar — `2h · Media · Alta` *(no estaba en el roadmap)*
 
 **2.4.b — exportación**
 
@@ -641,6 +642,10 @@ La parte con más trampas del proyecto.
 > **Un solo viaje a la base por informe**, con un `LEFT JOIN` desde las sesiones. El `LEFT` es la pieza: conserva la fila aunque no haya asistencia registrada, que es justo el caso que hay que contar y sacar como incidencia. Catorce atletas por seis semanas resueltos uno a uno serían cientos de consultas para pintar una tabla.
 
 > **Ausencias consecutivas** con `threshold` ajustable, tres por defecto. Las no registradas rompen la racha igual que una falta, por coherencia con el criterio de arriba: si no se apunta a alguien, el sistema no puede decir que viene. **No avisa, no marca y no guarda nada**: es una consulta que el club mira.
+
+> **`GET /api/reports/attendance/pending`** es el aviso: sesiones pasadas sin lista y sesiones con lista a medias, con cuántos faltan, para todo el club. Se consulta al entrar y se pinta como badge. Sin rango, los últimos 30 días — un aviso que arrastrara tres temporadas de olvidos no sería accionable, sería un número grande al que se deja de hacer caso.
+
+> **Se descartó el job de las 00:00** que se planteó para esto. Sin canal de salida —no hay email ni push— un `cron` nocturno solo escribiría en un log que nadie lee. El aviso aparece donde la persona ya está mirando. **Si algún día se quiere correo de verdad**, hace falta `spring-boot-starter-mail`, configuración SMTP y decidir retención; sería el primer envío automático del sistema, y solo a personal del club: a menores no, `docs/rgpd.md` §9.
 
 > **Deuda anotada:** el criterio de pertenencia está escrito **dos veces**, en la consulta por grupo y en la de por atleta. Si alguien cambia una y no la otra, los dos informes dirán cosas distintas del mismo nadador. Hay test en rojo para cada una, que es lo que hoy lo sostiene.
 
