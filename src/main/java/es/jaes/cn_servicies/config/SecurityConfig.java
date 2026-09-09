@@ -113,6 +113,11 @@ public class SecurityConfig {
                         .requestMatchers(PUT, "/api/sessions/*/attendance").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/sessions/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers("/api/sessions/**").hasRole("ADMIN")
+                        // Informes de asistencia. El entrenador los consulta:
+                        // son sobre su trabajo diario y no llevan nada que no
+                        // vea ya al pasar lista.
+                        .requestMatchers(GET, "/api/reports/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers("/api/reports/**").hasRole("ADMIN")
                         // Calendario de excepciones. El entrenador lo consulta
                         // —necesita saber que dias no hay— pero declarar un
                         // festivo es del club: tumba las sesiones de todos los
