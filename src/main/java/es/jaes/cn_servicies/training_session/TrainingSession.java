@@ -46,11 +46,15 @@ import java.util.UUID;
  * fila es lo que explica el hueco en el calendario, y en la 2.3 de ella colgara
  * la asistencia.
  */
+/*
+ * El unico (schedule_id, session_date) NO se declara aqui, sino en schema.sql
+ * como `uk_training_sessions_horario_fecha`. Declararlo en los dos sitios crea
+ * dos restricciones equivalentes, y la que genera Hibernate se llama
+ * `uk5a01qd9seiex615ick5rt6obp`: un nombre distinto en cada base, que no se
+ * puede nombrar en una migracion ni en un ON CONFLICT.
+ */
 @Entity
-@Table(
-    name = "training_sessions",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"schedule_id", "session_date"})
-)
+@Table(name = "training_sessions")
 @Data
 @NoArgsConstructor
 @Filter(name = Club.CLUB_FILTER, condition = Club.CLUB_FILTER_CONDITION)

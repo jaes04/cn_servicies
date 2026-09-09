@@ -525,6 +525,10 @@ La parte con más trampas del proyecto.
 
 > **26 tests**: 19 de servicio y 7 de endpoint, más uno en `TenantIsolationTest`.
 
+> **Los índices únicos se declaran en `schema.sql` y no en la anotación `@Table`.** Declararlos en los dos sitios creaba dos restricciones equivalentes, y la de Hibernate lleva un nombre generado (`uk5a01qd9seiex615ick5rt6obp`) distinto en cada base, que no se puede nombrar en una migración ni en un `ON CONFLICT`. Se quitó de `TrainingSession` y de `TrainingGroup`, que arrastraba lo mismo. Como `ddl-auto=update` solo añade y nunca borra, las que ya existían hay que quitarlas con `migrations/2.2-limpiar-uniques-duplicados.sql`, **una vez por entorno**.
+
+> **Queda abierto, y es el problema contrario:** `user_athletes` y `athlete_guardians` tienen su único **solo** con el nombre generado por Hibernate. El de `schema.sql` va dentro de un `CREATE TABLE IF NOT EXISTS` que no llegó a ejecutarse porque la tabla ya existía, así que nunca se creó. No se puede quitar la anotación sin dejarlas sin restricción: hay que sacar esos únicos a sentencias propias primero.
+
 > **Queda abierto:** una sesión cancelada por error no se puede reactivar. El generador no la repone —es lo correcto— así que hoy el único arreglo es tocar la base. Con la cancelación en manos del entrenador esto se vuelve más probable: ¿hace falta un endpoint de reactivación?
 
 ### 2.3 Asistencia — 12 h

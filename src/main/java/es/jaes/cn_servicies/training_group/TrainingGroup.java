@@ -31,11 +31,14 @@ import java.util.UUID;
  * pertenencias colgando, y un grupo borrado de verdad se llevaria por delante
  * el historico de quien estuvo en el.
  */
+/*
+ * El unico (season_id, name) vive en schema.sql como
+ * `uk_training_groups_season_name`, no aqui: declararlo en los dos sitios crea
+ * dos restricciones equivalentes, y la que genera Hibernate lleva un nombre
+ * distinto en cada base.
+ */
 @Entity
-@Table(
-    name = "training_groups",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"season_id", "name"})
-)
+@Table(name = "training_groups")
 @Data
 @NoArgsConstructor
 @SQLRestriction("deleted_at IS NULL")
