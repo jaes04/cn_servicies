@@ -129,7 +129,7 @@ el código nuevo; no mezcles.
 | `Club` | Tenant raíz. `name`, `slug`, `active`. Sin borrado lógico: dar de baja es `active = false` |
 | `User` | Cuenta de acceso. Lleva `club_id`. `username` único **por club**; `email` todavía único global |
 | `Role` | Rol global. Enum `RoleName`: `ROLE_ADMIN`, `ROLE_EDITOR`, `ROLE_USER`, `ROLE_TECHNICAL_STAFF` |
-| `Athlete` | Deportista. Lleva `club_id`. `dni` único por club, `birthDate` es `LocalDate`. Frecuentemente menor |
+| `Athlete` | Deportista. Lleva `club_id`. `dni` **opcional** (DNI, NIE o pasaporte, hasta 20) y único por club; sin él, el duplicado se detecta por nombre, apellidos y nacimiento. `birthDate` es `LocalDate`. Frecuentemente menor |
 | `Gender` / `GenderEntity` | Enum `MALE`, `FEMALE` y su tabla de catálogo. `Athlete` apunta a la entidad, no al enum |
 | `UserAthlete` | Vínculo usuario–atleta con tipo `TUTOR` o `ATHLETE`. Es el vínculo de **acceso** |
 | `AthleteInviteKey` | Clave de invitación para vincular un usuario a un atleta |
@@ -255,15 +255,11 @@ No las cierres tú. Si una tarea depende de una, pregunta.
   y al blog. Hoy el login resuelve por username a secas y el alta pública cae en el club
   por defecto. Con el segundo club, las dos cosas se rompen. Subdominio, slug en la
   petición o selector en el formulario: sin decidir. **Es cambio de contrato de login.**
-- **`athletes.dni` es `NOT NULL`.** Muchos atletas son menores de 14 y pueden no tener DNI,
-  y los extranjeros tienen NIE. Con la columna obligatoria y el índice único por club, el
-  segundo atleta sin DNI no se puede dar de alta. Hacerla nullable lo resuelve —Postgres
-  ignora los nulos en un índice único— pero obliga a decidir cómo se detectan duplicados
-  sin DNI.
-- **Documentos médicos**: si `AthleteDocument` sigue almacenando archivos de tipo `MEDICAL`
-  tal cual. Para el certificado federativo ya está decidido que sea una entidad aparte solo
-  con metadatos (S.1.b), pero qué pasa con lo que ya hay sigue abierto. Ver
-  `docs/rgpd.md` §1.
+- **Documentos subidos**: desde el bloque 3a la subida de `AthleteDocument` está apagada
+  por defecto (`app.documents.upload.enabled`) y el club registra la entrega de papeles en
+  `DocumentDelivery`. Sigue abierto qué se hace con los archivos que ya existan y si algún
+  día se enciende —antes harían falta cifrado en reposo, directorio propio y registro de
+  accesos—. Ver `docs/rgpd.md` §1.
 - **`User.email`**: único global, igual que lo era `username`. Al pasar el username a único
   por club, el email queda como el nuevo obstáculo para que una persona use el mismo correo
   en dos clubes. Sin resolver.

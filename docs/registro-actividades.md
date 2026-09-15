@@ -71,7 +71,7 @@ plataforma; no se repite en cada ficha.
 
 - **Finalidad:** inscribir y mantener la ficha del deportista, y sostener la relación con el club
 - **Interesados:** deportistas, **mayoritariamente menores de edad**
-- **Datos:** nombre y apellidos, fecha de nacimiento, DNI, sexo
+- **Datos:** nombre y apellidos, fecha de nacimiento, documento de identidad (DNI, NIE o pasaporte, opcional), sexo
 - **Origen:** el propio interesado o su tutor legal, a través del club
 - **Base legal propuesta:** ejecución de la relación asociativa (art. 6.1.b) y, **para menores de 14, consentimiento del titular de la patria potestad o tutela** (art. 8 RGPD y art. 7 LOPDGDD)
 - **Destinatarios:** ninguno fuera del club, salvo lo que exija la federación
@@ -98,11 +98,11 @@ plataforma; no se repite en cada ficha.
 
 - **Finalidad:** acreditar que el deportista tiene certificado médico en vigor
 - **Interesados:** deportistas, mayoritariamente menores
-- **Datos:** fecha de emisión, fecha de caducidad, quién validó el papel y cuándo
+- **Datos:** fecha de emisión, temporada que cubre —su caducidad es el final de la temporada—, quién validó el papel y cuándo
 - **Categoría especial (art. 9):** sí. Es un **dato de salud, aunque esté minimizado a dos fechas**
 - **Base legal propuesta:** ⚠️ **a decidir.** Consentimiento explícito (art. 9.2.a) es la vía más directa; conviene valorar si la exigencia federativa aporta alguna otra
 - **Conservación:** ⚠️ **PENDIENTE**
-- **Nota técnica:** **no se almacena el veredicto médico.** No hay campo `apto`, ni diagnóstico, ni observaciones: la existencia de un certificado en plazo *es* la aptitud, y el estado se calcula desde la fecha de caducidad
+- **Nota técnica:** **no se almacena el veredicto médico.** No hay campo `apto`, ni diagnóstico, ni observaciones: la existencia de un certificado en plazo *es* la aptitud, y el estado se calcula contra la temporada activa
 
 ### B.5 Documentos de la ficha del deportista — apagado en el despliegue inicial
 

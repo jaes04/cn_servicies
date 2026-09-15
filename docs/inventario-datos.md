@@ -53,7 +53,7 @@ igual, porque el conjunto es lo que identifica.
 | `club_id` | UUID | Tenant. Con RLS activo |
 | **`first_name`, `last_name`** | texto | |
 | **`birth_date`** | fecha | Se usa para categoría deportiva, para saber si es menor de 14 y si necesita permiso de viaje |
-| **`dni`** | texto (9) | **`NOT NULL` hoy.** Único por club. Ver "puntos abiertos" |
+| **`dni`** | texto (20) | Documento de identidad: DNI, NIE o pasaporte. **Opcional.** Único por club; sin documento, el duplicado se detecta por nombre, apellidos y fecha de nacimiento |
 | `gender_id` | catálogo | `MALE` / `FEMALE` |
 | `created_at`, `updated_at`, `deleted_at` | fecha/hora | `deleted_at` es **borrado lógico: la fila sigue con nombre y DNI** |
 
@@ -100,12 +100,14 @@ quién firmó y con qué papel, solo el administrador.
 
 | Campo | Tipo | Nota |
 |---|---|---|
-| `issued_on`, `expires_on` | fecha | |
+| `season_id` | UUID | La temporada que cubre: el club pide uno por curso |
+| `issued_on`, `expires_on` | fecha | La caducidad es el final de la temporada, no se teclea |
 | `validated_by_id`, `validated_at` | UUID / fecha | Quién dio el papel por bueno |
 
 **No hay campo `apto`, ni diagnóstico, ni observaciones.** La existencia de un certificado
 en plazo *es* la aptitud. El estado (`VALID`, `EXPIRING_SOON`, `EXPIRED`, `MISSING`) **se
-calcula, no se almacena**.
+calcula, no se almacena**, y se mide contra la temporada activa: el certificado de otro
+curso no cubre este.
 
 **Quién accede:** el entrenador ve el **estado** de los deportistas de sus grupos, porque
 lo necesita antes de meterlos al agua; las fechas y quién validó, solo el administrador.
@@ -272,9 +274,9 @@ Cada uno necesita una decisión que no es técnica:
 1. **Los `athlete_documents` que ya existan.** La subida está apagada, así que no entran
    más, pero los que ya estuvieran siguen en disco y en la base. Hay que decidir si se
    borran, y si algún día se vuelve a encender la subida.
-2. **`athletes.dni` es obligatorio.** Muchos deportistas son menores de 14 sin DNI, y los
-   extranjeros tienen NIE. Decidido hacerlo opcional y admitir NIE y pasaporte; pendiente
-   de implementar.
+2. **Documento de identidad opcional: hecho.** Admite DNI, NIE o pasaporte y puede quedar
+   vacío. Sin documento, el duplicado se detecta por nombre, apellidos y fecha de
+   nacimiento.
 3. **Nada se borra automáticamente.** No hay ningún plazo de conservación definido ni
    aplicado. El borrado lógico deja nombre y DNI en la fila. Incluye ahora los papeles
    entregados: ¿cuánto se conserva la constancia de un permiso de viaje ya pasado?
