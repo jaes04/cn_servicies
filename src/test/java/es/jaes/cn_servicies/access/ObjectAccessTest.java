@@ -50,8 +50,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Desde la S.3.3.b el entrenador tampoco abre los de cualquiera: solo los de
  * los atletas que hoy estan en sus grupos. El acotado general del entrenador se
  * prueba en {@code CoachScopeTest}; aqui queda el caso de los documentos.
+ *
+ * <p><b>Con la subida de archivos encendida</b>, que por defecto esta apagada desde
+ * el bloque 3a. Estos tests protegen lo que pasaria el dia que un club la
+ * encienda, y tienen que seguir probandolo aunque hoy no se use. Que apagada no
+ * contesta nadie se prueba en {@code DocumentDeliveryEndpointTest}.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "app.documents.upload.enabled=true")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ObjectAccessTest {
 

@@ -589,6 +589,40 @@ ALTER TABLE medical_certificates DROP CONSTRAINT IF EXISTS fk_medical_certificat
 ALTER TABLE medical_certificates ADD CONSTRAINT fk_medical_certificates_athlete
     FOREIGN KEY (athlete_id) REFERENCES athletes (id) ON DELETE CASCADE;
 
+-- ENTREGAS DE PAPELES (bloque 3a)
+--  Constancia de que la familia entrego un papel al club y hasta cuando vale:
+--  licencia (por temporada), documento de identidad (hasta su caducidad) y
+--  permiso de viaje (fechas del viaje). El papel se queda en el club; aqui no
+--  hay archivo, ni numero de documento, ni notas.
+--
+--  Lleva club_id y policy propia: migrations/S.1-document-deliveries-rls.sql.
+--
+--  El CREATE TABLE documenta la forma; la tabla la crea Hibernate antes. Lo que
+--  tiene que existir de verdad son las sentencias sueltas de debajo.
+CREATE TABLE IF NOT EXISTS document_deliveries (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    club_id          UUID        NOT NULL,
+    athlete_id       UUID        NOT NULL,
+    type             VARCHAR(30) NOT NULL,
+    season_id        UUID,
+    valid_from       DATE,
+    valid_until      DATE,
+    delivered_on     DATE        NOT NULL,
+    registered_by_id UUID        NOT NULL,
+    registered_at    TIMESTAMP   NOT NULL,
+    created_at       TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_document_deliveries_club_id ON document_deliveries (club_id);
+
+-- El estado se pregunta por atleta y por tipo, en cada ficha y en cada roster.
+CREATE INDEX IF NOT EXISTS idx_document_deliveries_athlete_type
+    ON document_deliveries (athlete_id, type);
+
+ALTER TABLE document_deliveries DROP CONSTRAINT IF EXISTS fk_document_deliveries_athlete;
+ALTER TABLE document_deliveries ADD CONSTRAINT fk_document_deliveries_athlete
+    FOREIGN KEY (athlete_id) REFERENCES athletes (id) ON DELETE CASCADE;
+
 ALTER TABLE training_groups DROP CONSTRAINT IF EXISTS fk_training_groups_coach;
 ALTER TABLE training_groups ADD CONSTRAINT fk_training_groups_coach
     FOREIGN KEY (coach_id) REFERENCES users (id) ON DELETE SET NULL;

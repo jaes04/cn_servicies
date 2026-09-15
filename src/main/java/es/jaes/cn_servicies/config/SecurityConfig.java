@@ -144,6 +144,14 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/medical-certificates/expiring").hasRole("ADMIN")
                         .requestMatchers(GET, "/api/medical-certificates/athlete/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/medical-certificates/athlete/**").hasRole("ADMIN")
+                        // Papeles entregados (bloque 3a). Mismo reparto que el
+                        // certificado: el entrenador ve el estado y si el
+                        // nadador puede viajar —de los atletas de sus grupos,
+                        // eso lo acota AccessGuard—; registrar la entrega y el
+                        // historial con fechas son del club.
+                        .requestMatchers(GET, "/api/document-deliveries/athlete/*/status").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers(GET, "/api/document-deliveries/athlete/*/travel-permit").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers("/api/document-deliveries/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/athlete-documents/athlete/**").authenticated()
                         .requestMatchers(GET, "/api/athlete-documents/athlete/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/athlete-documents/my").authenticated()
