@@ -43,17 +43,17 @@ public class UserAthleteService {
                 .orElseThrow(() -> new IllegalArgumentException("Key no válida"));
 
         if (inviteKey.isUsed()) {
-            throw new IllegalStateException("Esta key ya ha sido utilizada");
+            throw new IllegalArgumentException("Esta key ya ha sido utilizada");
         }
         if (inviteKey.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new IllegalStateException("La key ha expirado");
+            throw new IllegalArgumentException("La key ha expirado");
         }
 
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado"));
 
         if (userAthleteRepository.existsByUserIdAndAthleteId(user.getId(), inviteKey.getAthlete().getId())) {
-            throw new IllegalStateException("Este usuario ya está vinculado a este atleta");
+            throw new IllegalArgumentException("Este usuario ya está vinculado a este atleta");
         }
 
         UserAthlete link = new UserAthlete();
