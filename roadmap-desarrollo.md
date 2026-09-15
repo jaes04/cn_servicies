@@ -787,13 +787,65 @@ Nada de esto es código, pero sin ello no puedes vender.
 
 #### S.3.3 Autorización — 10 h
 
-- [ ] Roles definidos: `SUPERADMIN`, `ADMIN_CLUB`, `ENTRENADOR`, `TUTOR` — `2h · Media · Crítica`
-- [ ] **Autorización a nivel de objeto, no solo de tenant** — `4h · Alta · Crítica`
-- [ ] Test específico de IDOR: pedir un atleta de otro grupo del mismo club — `2h · Alta · Crítica`
-- [ ] Denegar por defecto en cada endpoint — `1h · Media · Crítica`
-- [ ] Los tutores solo ven a sus propios hijos — `1h · Media · Alta`
+**Partida en dos bloques**, porque son dos cambios de contrato distintos y meterlos en el
+mismo commit deja sin saber cuál rompió qué. La a) cierra lo que hoy alcanza una cuenta de
+tutor; la b) acota al entrenador.
+
+**S.3.3.a — el guardián y el IDOR de tutores**
+
+- [x] **Autorización a nivel de objeto, no solo de tenant** — `4h · Alta · Crítica`
+- [x] Test específico de IDOR — `2h · Alta · Crítica`
+- [x] Los tutores solo ven a sus propios hijos — `1h · Media · Alta`
+
+**S.3.3.b — acotar al entrenador a sus grupos**
+
+- [x] `coach_id` pasa a dar permisos: grupos, sesiones, roster, asistencia, informes y CSV — `4h · Alta · Crítica`
+- [x] Entrenadores ayudantes: varios por grupo, con los mismos permisos que el principal — *(no estaba en el roadmap)*
+- [x] Fichas, resultados, estados de consentimiento y certificado, documentos y claves de invitación: solo atletas que hoy están en sus grupos
+- [ ] Denegar por defecto en cada endpoint — `1h · Media · Crítica` — **sigue pendiente**: `SecurityConfig` termina en `anyRequest().authenticated()` y no en `denyAll()`, así que una ruta nueva nace abierta a cualquier autenticado
+- [ ] ~~Roles definidos: `SUPERADMIN`, `ADMIN_CLUB`, `ENTRENADOR`, `TUTOR`~~ — **descartado**
 
 > El `club_id` no te protege del IDOR interno. Un entrenador del club A pidiendo la ficha de un atleta de otro grupo del club A pasa el filtro de tenant sin problema. Con datos de menores, es el fallo que peor sienta en una auditoría.
+
+> **La lista de roles estaba desfasada y se retira.** Los reales son `ROLE_ADMIN`, `ROLE_EDITOR`, `ROLE_USER` y `ROLE_TECHNICAL_STAFF`; renombrarlos es cambio de contrato a cambio de nada, y "roles por club" sigue siendo decisión abierta. Lo que esta tarea tenía de trabajo real es la autorización por objeto.
+
+> **`AccessGuard`, en un paquete `access/` propio** y no en `config/`. Responde una sola pregunta —"¿es tuyo?"— apoyándose en los servicios de los otros módulos, nunca en sus repositorios.
+
+> **Se llama desde los controladores, jamás desde los servicios.** Es lo que evita el ciclo `athlete → access → athlete_link → athlete`, con el que Spring no arrancaría. La contrapartida es que quien llegue al servicio por otra vía se lo salta: hoy no hay ninguna, y lo que lo sostiene son los tests de endpoint.
+
+> **Deniega con 404, no con 403**, siguiendo `docs/convenciones.md`. Hay test de que un documento ajeno y uno inexistente contestan lo mismo: con 403, el propio código de error confirma que ese documento existe.
+
+> **El agujero que cierra, y era real:** `GET /api/athlete-documents/{id}/file` estaba en `isAuthenticated()` y el servicio no comprobaba nada. Cualquier cuenta del sistema abría el archivo de cualquier atleta con solo tener el id, **`MEDICAL` incluido**, que es lo más sensible que guarda el sistema. Y `athlete_documents` es tabla hija: sin `club_id` ni policy, tampoco lo tapaba RLS, así que el id de otro club también servía — y el `DELETE`, que es físico y se lleva el archivo del disco, igual.
+
+> **La foto de perfil tenía lo mismo:** `POST /api/users/{id}/profile-photo` está en `authenticated()` porque cada uno cambia la suya, y sin comprobar el id eso significaba que cualquiera sobrescribía la de cualquier otro.
+
+> **La regla de la subida vivía dentro de `AthleteDocumentService`**, leyendo el `SecurityContext` a mano. Se movió al guardián: era la misma regla que la de la descarga, escrita una sola vez y aplicada solo en la mitad de los sitios. El efecto visible es que subir a un atleta ajeno pasa de **403 a 404**.
+
+> **12 tests en `access/ObjectAccessTest`, y verificado que fallan cuando deben:** desactivando el guardián se ponen rojos exactamente los seis negativos y los seis positivos siguen verdes. Uno de los negativos —la foto sobre una cuenta de otro club— **se queda verde**, porque a ese lo sostiene RLS y no el guardián; está anotado en el propio test para que nadie cuente con él como prueba de esta tarea.
+
+> **Decisiones del club para la b):** un grupo tiene entrenador principal y ayudantes, con los mismos permisos; el entrenador ve a los atletas que **hoy** están en sus grupos; mantiene el alta de atletas y las claves de invitación —estas, solo para atletas suyos—; y el listado de grupos le muestra solo los suyos.
+
+> **`coach_id` sigue siendo el principal y los ayudantes van en `group_assistant_coaches`**, tabla hija sin `club_id`: se llega a ella siempre por el grupo, que sí está bajo policy. Así `coachId` sigue en la API y el contrato solo crece: `assistantCoachIds` en la petición y `assistantCoaches` en la respuesta. La duplicación de temporada copia también a los ayudantes. Claves foráneas como `ALTER` sueltos con su `ON DELETE CASCADE`, y las dos añadidas a `SchemaIntegrityTest`.
+
+> **Ficha vigente, roster histórico.** La ficha de un nadador que dejó el grupo ayer deja de ser visible, pero el roster de la sesión de la semana pasada lo sigue trayendo: a la sesión se llega por el grupo, no por el atleta. Hay test de las dos cosas, porque es justo la diferencia que un cambio descuidado borraría.
+
+> **Asignar entrenador exige rol técnico o de administrador**, y devuelve 400 si no. Hasta ahora no se comprobaba a propósito —la columna no daba permisos—, y el comentario del propio servicio pedía cambiarlo el día que los diera.
+
+> **Consecuencia aceptada de dejar el alta al entrenador:** un atleta recién creado no está en ningún grupo, así que quien lo crea no lo ve hasta que el administrador lo mete en uno de los suyos.
+
+> **El informe de asistencia de un atleta suma todos sus grupos** también para un entrenador que solo lleva uno: es el dato del nadador y no lleva más que números.
+
+> **Corregido de paso, y era mío de la a):** `requireUserAccess` documentaba "la propia cuenta o el administrador", pero dejaba pasar cualquier rol de club. Un entrenador podía cambiar la foto de perfil de cualquier usuario. Hay test.
+
+> **Verificado que los tests fallan cuando deben.** Tratando al entrenador como administrador —que es el comportamiento anterior a la b)— se ponen rojos 13: los once negativos de `CoachScopeTest` y los dos del entrenador en `ObjectAccessTest`. Siguen verdes los positivos y las dos validaciones de asignación, que viven en el servicio.
+
+> **Siete archivos de test ajustados**, todos del mismo modo: sus fixtures montaban grupos sin entrenador y comprobaban que un entrenador entraba. Es el cambio de contrato, no una regresión. La suite pasa de 265 a 284.
+
+> **Deuda anotada:** el criterio de pertenencia con los dos extremos incluidos ya está escrito **tres veces** —`findMembersOn`, la consulta del informe de la 2.4 y ahora `findAthleteIdsInGroupsOn`—. Si uno cambia y otro no, un entrenador vería en el roster a un nadador cuya ficha no puede abrir.
+
+> **Rendimiento, anotado para la Fase 3:** comprobar el acceso de un entrenador a un atleta cuesta tres consultas. Con un club no se nota; el endpoint de sincronización del móvil tendrá que resolverlo de una vez.
+
+> **Cambio de contrato para el frontend:** para un entrenador, los grupos, sesiones, rosters, informes, fichas, resultados, estados y claves fuera de sus grupos pasan a 404, y los listados de grupos, atletas, resultados y pendientes llegan filtrados. El administrador no cambia.
 
 #### S.3.4 Entrada y salida — 10 h
 
