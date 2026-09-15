@@ -14,12 +14,16 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Certificados medicos: registrarlos, ver el estado de un atleta y saber cuales
- * caducan pronto.
+ * Certificados medicos: registrarlos y ver el estado de un atleta.
  *
  * <p>Mismo reparto que en los consentimientos y por el mismo motivo: el
  * entrenador necesita saber si un nadador esta cubierto antes de que entre al
  * agua, pero las fechas concretas y quien valido el papel son del club.
+ *
+ * <p>La lista de los que caducan pronto ({@code /expiring}) se retiro en el bloque
+ * 3c. Con el certificado por temporada se llenaba de golpe al final del curso, y
+ * la sustituye el informe de documentacion pendiente, en
+ * {@code /api/reports/documents/pending}.
  */
 @RestController
 @RequestMapping("/api/medical-certificates")
@@ -61,16 +65,5 @@ public class MedicalCertificateController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(certificateService.toResponse(certificate));
-    }
-
-    /**
-     * Los que caducan en los proximos dias, el mas urgente primero. Es lo que el
-     * club mira para reclamar los certificados que faltan, y sustituye al aviso
-     * automatico mientras no haya envio de correo.
-     */
-    @GetMapping("/expiring")
-    public ResponseEntity<List<MedicalCertificateResponse>> expiring(
-            @RequestParam(defaultValue = "30") int days) {
-        return ResponseEntity.ok(certificateService.expiringWithin(days));
     }
 }

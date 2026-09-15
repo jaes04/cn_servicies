@@ -141,7 +141,6 @@ public class SecurityConfig {
                         // necesita antes de meterlo al agua, pero las fechas y
                         // quien valido el papel son del club.
                         .requestMatchers(GET, "/api/medical-certificates/athlete/*/status").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
-                        .requestMatchers(GET, "/api/medical-certificates/expiring").hasRole("ADMIN")
                         .requestMatchers(GET, "/api/medical-certificates/athlete/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/medical-certificates/athlete/**").hasRole("ADMIN")
                         // Papeles entregados (bloque 3a). Mismo reparto que el

@@ -225,29 +225,27 @@ class MedicalCertificateServiceTest {
     }
 
     // ----------------------------------------------------------------
-    //  3. Avisos
+    //  3. Varios atletas de una vez (bloque 3c)
     // ----------------------------------------------------------------
 
+    /**
+     * El informe de documentacion pendiente pide el estado de todo el club de una
+     * vez. Tiene que contestar lo mismo que la pregunta de uno en uno, o el aviso y
+     * la ficha del atleta dirian cosas distintas.
+     */
     @Test
-    @DisplayName("las caducidades próximas recogen los de una temporada que acaba en diez días")
-    void laListaDeCaducidadesProximas() {
-        jdbc.update("UPDATE seasons SET end_date = ? WHERE id = ?", HOY.plusDays(10), temporadaActiva);
-        registrar(HOY.minusDays(1), temporadaActiva);
-
-        assertThat(certificateService.expiringWithin(30))
-                .as("la temporada acaba en 10 días: entra")
-                .hasSize(1);
-        assertThat(certificateService.expiringWithin(5))
-                .as("con la ventana en 5 días ya no entra")
-                .isEmpty();
-    }
-
-    @Test
-    @DisplayName("el del curso pasado no sale en las caducidades próximas: eso es otra lista")
-    void elCaducadoNoEsUnAviso() {
+    @DisplayName("el estado en bloque coincide con el de uno en uno, también para quien no tiene ninguno")
+    void enBloqueComoDeUnoEnUno() {
         registrar(INICIO.minusMonths(6), temporadaPasada);
+        UUID sinNinguno = UUID.randomUUID();
 
-        assertThat(certificateService.expiringWithin(30)).isEmpty();
+        java.util.Map<UUID, MedicalCertificateStatus> estados =
+                certificateService.statusesForAthletes(java.util.List.of(atleta, sinNinguno));
+
+        assertThat(estados.get(atleta))
+                .isEqualTo(certificateService.statusForAthlete(atleta))
+                .isEqualTo(MedicalCertificateStatus.EXPIRED);
+        assertThat(estados.get(sinNinguno)).isEqualTo(MedicalCertificateStatus.MISSING);
     }
 
     // ----------------------------------------------------------------

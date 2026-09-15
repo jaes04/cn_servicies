@@ -5,20 +5,22 @@ import es.jaes.cn_servicies.club.ClubService;
 import es.jaes.cn_servicies.season.Season;
 import es.jaes.cn_servicies.season.SeasonService;
 import es.jaes.cn_servicies.tenant.TenantContext;
+import es.jaes.cn_servicies.user.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-
-import es.jaes.cn_servicies.user.UserService;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -133,11 +135,41 @@ public class DocumentDeliveryService {
      */
     @Transactional(readOnly = true)
     public Map<DocumentDeliveryType, DocumentDeliveryStatus> statusForAthlete(Athlete athlete) {
+        return estadoSegun(athlete,
+                deliveryRepository.findByAthleteIdOrderByDeliveredOnDesc(athlete.getId()),
+                seasonService.findActiveSeason(), LocalDate.now());
+    }
+
+    /**
+     * El estado de muchos atletas de una vez, con una sola consulta de entregas.
+     * Lo usa el informe de documentacion pendiente (bloque 3c).
+     *
+     * <p><b>Pasa por el mismo {@link #estadoSegun} que la pregunta de uno en
+     * uno</b>: si fueran dos criterios, el aviso de pendientes y la ficha del atleta
+     * acabarian diciendo cosas distintas.
+     *
+     * <p>Recibe las fichas y no los ids porque el documento de identidad depende de
+     * si la ficha tiene numero.
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, Map<DocumentDeliveryType, DocumentDeliveryStatus>> statusesForAthletes(
+            Collection<Athlete> athletes) {
+        if (athletes.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> ids = athletes.stream().map(Athlete::getId).toList();
+        Map<UUID, List<DocumentDelivery>> porAtleta = deliveryRepository.findByAthleteIdIn(ids).stream()
+                .collect(Collectors.groupingBy(entrega -> entrega.getAthlete().getId()));
+
+        Optional<Season> activa = seasonService.findActiveSeason();
         LocalDate hoy = LocalDate.now();
-        Map<DocumentDeliveryType, DocumentDeliveryStatus> estado = new EnumMap<>(DocumentDeliveryType.class);
-        estado.put(DocumentDeliveryType.LICENSE_APPLICATION, licenseStatus(athlete.getId(), hoy));
-        estado.put(DocumentDeliveryType.IDENTITY_DOCUMENT, identityStatus(athlete, hoy));
-        return estado;
+
+        Map<UUID, Map<DocumentDeliveryType, DocumentDeliveryStatus>> estados = new HashMap<>();
+        for (Athlete athlete : athletes) {
+            estados.put(athlete.getId(),
+                    estadoSegun(athlete, porAtleta.getOrDefault(athlete.getId(), List.of()), activa, hoy));
+        }
+        return estados;
     }
 
     /**
@@ -162,6 +194,20 @@ public class DocumentDeliveryService {
     //  Reglas
     // ----------------------------------------------------------------
 
+    private static Map<DocumentDeliveryType, DocumentDeliveryStatus> estadoSegun(
+            Athlete athlete, List<DocumentDelivery> entregas, Optional<Season> activa, LocalDate hoy) {
+        Map<DocumentDeliveryType, DocumentDeliveryStatus> estado = new EnumMap<>(DocumentDeliveryType.class);
+        estado.put(DocumentDeliveryType.LICENSE_APPLICATION,
+                licenseStatus(delTipo(entregas, DocumentDeliveryType.LICENSE_APPLICATION), activa, hoy));
+        estado.put(DocumentDeliveryType.IDENTITY_DOCUMENT,
+                identityStatus(athlete, delTipo(entregas, DocumentDeliveryType.IDENTITY_DOCUMENT), hoy));
+        return estado;
+    }
+
+    private static List<DocumentDelivery> delTipo(List<DocumentDelivery> entregas, DocumentDeliveryType tipo) {
+        return entregas.stream().filter(entrega -> entrega.getType() == tipo).toList();
+    }
+
     /**
      * La licencia que manda es la de la <b>temporada activa</b>, nunca la ultima
      * registrada: anotar en agosto la del curso que viene no puede dar por buena
@@ -171,14 +217,11 @@ public class DocumentDeliveryService {
      * ninguna, {@code MISSING}. La diferencia le sirve al club en septiembre: a
      * unos hay que pedirles que renueven y a otros que la traigan por primera vez.
      */
-    private DocumentDeliveryStatus licenseStatus(UUID athleteId, LocalDate hoy) {
-        List<DocumentDelivery> licencias =
-                deliveryRepository.findByAthleteIdAndType(athleteId, DocumentDeliveryType.LICENSE_APPLICATION);
+    private static DocumentDeliveryStatus licenseStatus(List<DocumentDelivery> licencias,
+                                                        Optional<Season> activa, LocalDate hoy) {
         if (licencias.isEmpty()) {
             return DocumentDeliveryStatus.MISSING;
         }
-
-        Optional<Season> activa = seasonService.findActiveSeason();
         if (activa.isEmpty()) {
             // Sin temporada activa no hay "la de este curso" contra la que medir:
             // se cuenta la que mas lejos llega, como con el documento de identidad.
@@ -197,16 +240,13 @@ public class DocumentDeliveryService {
      * Manda el que mas lejos caduca, no el ultimo registrado: teclear hoy la
      * fotocopia del DNI anterior no puede empeorar el estado.
      *
-     * <p>Si la ficha no tiene numero de documento, no se exige. Hoy todas lo
-     * tienen, porque el campo es obligatorio; cuando deje de serlo (bloque 3b)
-     * esto ya contesta lo correcto.
+     * <p>Si la ficha no tiene numero de documento, no se exige.
      */
-    private DocumentDeliveryStatus identityStatus(Athlete athlete, LocalDate hoy) {
+    private static DocumentDeliveryStatus identityStatus(Athlete athlete, List<DocumentDelivery> documentos,
+                                                         LocalDate hoy) {
         if (athlete.getDni() == null || athlete.getDni().isBlank()) {
             return DocumentDeliveryStatus.NOT_REQUIRED;
         }
-        List<DocumentDelivery> documentos =
-                deliveryRepository.findByAthleteIdAndType(athlete.getId(), DocumentDeliveryType.IDENTITY_DOCUMENT);
         return documentos.isEmpty()
                 ? DocumentDeliveryStatus.MISSING
                 : statusOf(masLejana(documentos), hoy);

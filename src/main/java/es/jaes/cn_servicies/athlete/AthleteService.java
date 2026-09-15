@@ -238,6 +238,17 @@ public class AthleteService {
                 .orElseThrow(() -> new EntityNotFoundException("Atleta no encontrado"));
     }
 
+    /**
+     * Varias fichas de una vez. Es una consulta y no una carga por clave primaria,
+     * asi que pasa por el filtro del club y por RLS: un id de otro club, o de una
+     * ficha borrada, simplemente no aparece. Lo usa el informe de documentacion
+     * pendiente (bloque 3c).
+     */
+    @Transactional(readOnly = true)
+    public List<Athlete> findAllByIds(java.util.Collection<UUID> ids) {
+        return ids.isEmpty() ? List.of() : athleteRepository.findAllById(ids);
+    }
+
     private GenderEntity resolveGender(Gender gender) {
         return genderRepository.findByName(gender)
                 .orElseThrow(() -> new IllegalArgumentException("Género no encontrado: " + gender));

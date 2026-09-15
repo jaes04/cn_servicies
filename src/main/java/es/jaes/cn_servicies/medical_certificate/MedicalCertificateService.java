@@ -14,9 +14,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -76,43 +81,42 @@ public class MedicalCertificateService {
 
     /**
      * Si el atleta esta cubierto hoy. Es lo que hace falta antes de que entre al
-     * agua, y no requiere saber nada mas.
-     *
-     * <p><b>Manda el certificado de la temporada activa</b>, nunca el ultimo
-     * registrado: anotar en agosto el del curso que viene no puede cubrir este.
-     * <ul>
-     *   <li>{@code VALID} o {@code EXPIRING_SOON}: tiene el de la temporada activa,
-     *       y el aviso salta cuando la temporada acaba en 30 dias o menos.</li>
-     *   <li>{@code EXPIRED}: el ultimo que trajo es de otra temporada. Hay que
-     *       pedirle que renueve.</li>
-     *   <li>{@code MISSING}: nunca ha traido ninguno. Que no conste es una
-     *       respuesta, no un error, y la mas frecuente al empezar el curso.</li>
-     * </ul>
-     *
-     * <p>Sin temporada activa no hay "la de este curso" contra la que medir, y
-     * cuenta el que mas lejos llega.
+     * agua, y no requiere saber nada mas. El criterio esta en {@link #estadoSegun}.
      */
     @Transactional(readOnly = true)
     public MedicalCertificateStatus statusForAthlete(UUID athleteId) {
-        List<MedicalCertificate> certificados =
-                certificateRepository.findByAthleteIdOrderByExpiresOnDesc(athleteId);
-        if (certificados.isEmpty()) {
-            return MedicalCertificateStatus.MISSING;
-        }
+        return estadoSegun(certificateRepository.findByAthleteIdOrderByExpiresOnDesc(athleteId),
+                seasonService.findActiveSeason(), LocalDate.now());
+    }
 
-        LocalDate hoy = LocalDate.now();
+    /**
+     * El estado de muchos atletas de una vez, con una sola consulta de
+     * certificados. Lo usa el informe de documentacion pendiente (bloque 3c).
+     *
+     * <p><b>Pasa por el mismo {@link #estadoSegun} que la pregunta de uno en
+     * uno</b>, y no por una consulta propia: si fueran dos criterios, el aviso de
+     * pendientes y la ficha del atleta acabarian diciendo cosas distintas.
+     *
+     * @return un estado por cada id pedido; {@code MISSING} para quien no tiene
+     *         ninguno
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, MedicalCertificateStatus> statusesForAthletes(Collection<UUID> athleteIds) {
+        if (athleteIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, List<MedicalCertificate>> porAtleta = certificateRepository.findByAthleteIdIn(athleteIds)
+                .stream()
+                .collect(Collectors.groupingBy(certificado -> certificado.getAthlete().getId()));
+
         Optional<Season> activa = seasonService.findActiveSeason();
-        if (activa.isEmpty()) {
-            return certificados.get(0).statusOn(hoy);
-        }
+        LocalDate hoy = LocalDate.now();
 
-        UUID temporadaActiva = activa.get().getId();
-        return certificados.stream()
-                .filter(certificado -> certificado.getSeason() != null
-                        && certificado.getSeason().getId().equals(temporadaActiva))
-                .findFirst()
-                .map(certificado -> certificado.statusOn(hoy))
-                .orElse(MedicalCertificateStatus.EXPIRED);
+        Map<UUID, MedicalCertificateStatus> estados = new HashMap<>();
+        for (UUID athleteId : athleteIds) {
+            estados.put(athleteId, estadoSegun(porAtleta.getOrDefault(athleteId, List.of()), activa, hoy));
+        }
+        return estados;
     }
 
     /** Cubierto hoy: vale tanto vigente como a punto de caducar, que todavia cubre. */
@@ -124,21 +128,40 @@ public class MedicalCertificateService {
     }
 
     /**
-     * Los que caducan de aqui a {@code days} dias, el mas urgente primero.
+     * El estado de un atleta a partir de sus certificados.
      *
-     * <p>Con el certificado por temporada, la caducidad es el final de la
-     * temporada, asi que esta lista se llena de golpe en las ultimas semanas del
-     * curso. <b>Se mantiene hasta el bloque 3c</b>, donde la sustituye el informe de
-     * documentacion pendiente, para que el frontend no se quede sin aviso entre
-     * medias.
+     * <p><b>Manda el de la temporada activa</b>, nunca el ultimo registrado:
+     * anotar en agosto el del curso que viene no puede cubrir este.
+     * <ul>
+     *   <li>{@code VALID} o {@code EXPIRING_SOON}: tiene el de la temporada activa,
+     *       y el aviso salta cuando la temporada acaba en 30 dias o menos.</li>
+     *   <li>{@code EXPIRED}: el ultimo que trajo es de otra temporada. Hay que
+     *       pedirle que renueve.</li>
+     *   <li>{@code MISSING}: nunca ha traido ninguno.</li>
+     * </ul>
+     *
+     * <p>Sin temporada activa no hay "la de este curso" contra la que medir, y
+     * cuenta el que mas lejos llega.
      */
-    @Transactional(readOnly = true)
-    public List<MedicalCertificateResponse> expiringWithin(int days) {
-        LocalDate hoy = LocalDate.now();
-        return certificateRepository
-                .findByExpiresOnBetweenOrderByExpiresOnAsc(hoy, hoy.plusDays(days)).stream()
-                .map(this::toResponse)
-                .toList();
+    private static MedicalCertificateStatus estadoSegun(List<MedicalCertificate> certificados,
+                                                        Optional<Season> activa, LocalDate hoy) {
+        if (certificados.isEmpty()) {
+            return MedicalCertificateStatus.MISSING;
+        }
+        if (activa.isEmpty()) {
+            return certificados.stream()
+                    .max(Comparator.comparing(MedicalCertificate::lastValidDay))
+                    .orElseThrow()
+                    .statusOn(hoy);
+        }
+
+        UUID temporadaActiva = activa.get().getId();
+        return certificados.stream()
+                .filter(certificado -> certificado.getSeason() != null
+                        && certificado.getSeason().getId().equals(temporadaActiva))
+                .findFirst()
+                .map(certificado -> certificado.statusOn(hoy))
+                .orElse(MedicalCertificateStatus.EXPIRED);
     }
 
     public MedicalCertificateResponse toResponse(MedicalCertificate certificate) {

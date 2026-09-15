@@ -166,13 +166,16 @@ class MedicalCertificateEndpointTest {
                 .doesNotContain(ADMIN);
     }
 
+    /**
+     * Bloque 3c: la lista de caducidades se retiro, y la sustituye el informe de
+     * documentacion pendiente. Quien la siga llamando tiene que recibir un 404, no
+     * un 500 que parezca un fallo del servidor.
+     */
     @Test
-    @DisplayName("la lista de caducidades próximas es solo del administrador")
-    void lasCaducidadesSonDelAdmin() {
+    @DisplayName("la lista de caducidades próximas ya no existe: 404, no 500")
+    void laListaDeCaducidadesYaNoExiste() {
         assertThat(get("/api/medical-certificates/expiring", ADMIN).getStatusCode())
-                .isEqualTo(HttpStatus.OK);
-        assertThat(get("/api/medical-certificates/expiring", ENTRENADOR).getStatusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN);
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     // ----------------------------------------------------------------

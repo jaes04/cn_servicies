@@ -3,19 +3,24 @@ package es.jaes.cn_servicies.document_delivery;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
 public interface DocumentDeliveryRepository extends JpaRepository<DocumentDelivery, UUID> {
 
+    /**
+     * Todas las de un atleta, de todos los tipos. Cual manda depende del tipo —la
+     * licencia de la temporada activa, el documento que mas lejos caduca— y se
+     * decide en el servicio.
+     */
     List<DocumentDelivery> findByAthleteIdOrderByDeliveredOnDesc(UUID athleteId);
 
     /**
-     * Todos los de un tipo, sin ordenar: cual manda depende del tipo —la licencia
-     * de la temporada activa, el documento que mas lejos caduca— y se decide en el
-     * servicio. Un atleta tiene pocos, no merece la pena una consulta por caso.
+     * Las de varios atletas de una vez. Lo usa el informe de documentacion
+     * pendiente (bloque 3c): de uno en uno seria una consulta por atleta.
      */
-    List<DocumentDelivery> findByAthleteIdAndType(UUID athleteId, DocumentDeliveryType type);
+    List<DocumentDelivery> findByAthleteIdIn(Collection<UUID> athleteIds);
 
     /** Si hay un permiso que empieza antes o el mismo dia de la salida y acaba despues o el mismo dia de la vuelta. */
     boolean existsByAthleteIdAndTypeAndValidFromLessThanEqualAndValidUntilGreaterThanEqual(

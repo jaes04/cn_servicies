@@ -12,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -52,6 +53,17 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST,
                 "El valor de '" + ex.getName() + "' no tiene el formato esperado",
                 request.getRequestURI());
+    }
+
+    /**
+     * Una ruta que no existe. Sin esto acaba en el manejador generico y sale un 500,
+     * que el frontend leeria como un fallo del servidor y no como una ruta mal
+     * escrita. Se añadio al retirar {@code /api/medical-certificates/expiring} en el
+     * bloque 3c: quien la siga llamando tiene que recibir un 404.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResource(HttpServletRequest request) {
+        return buildResponse(HttpStatus.NOT_FOUND, "La ruta no existe", request.getRequestURI());
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
