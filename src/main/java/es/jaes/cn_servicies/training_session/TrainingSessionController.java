@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.training_session;
 
+import es.jaes.cn_servicies.access.AccessGuard;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -23,12 +24,16 @@ import java.util.UUID;
  * id suelto se resuelve por clave primaria, donde el filtro de Hibernate no
  * llega. Lo que la tapa es la policy de RLS. La 2.3 colgara de aqui el
  * {@code /roster} que consume el movil.
+ *
+ * <p>Desde la tarea S.3.3.b el entrenador solo alcanza las sesiones de los
+ * grupos que lleva. RLS dice "de tu club"; el guardian dice "de tus grupos".
  */
 @RestController
 @RequiredArgsConstructor
 public class TrainingSessionController {
 
     private final TrainingSessionService sessionService;
+    private final AccessGuard accessGuard;
 
     /** El calendario del grupo en un rango. Las dos fechas son obligatorias. */
     @GetMapping("/api/groups/{groupId}/sessions")
@@ -36,6 +41,7 @@ public class TrainingSessionController {
             @PathVariable UUID groupId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        accessGuard.requireGroupAccess(groupId);
         return ResponseEntity.ok(sessionService.findAll(groupId, from, to));
     }
 
@@ -65,6 +71,7 @@ public class TrainingSessionController {
 
     @GetMapping("/api/sessions/{sessionId}")
     public ResponseEntity<TrainingSessionResponse> findById(@PathVariable UUID sessionId) {
+        accessGuard.requireSessionAccess(sessionId);
         return ResponseEntity.ok(sessionService.findById(sessionId));
     }
 
@@ -80,6 +87,7 @@ public class TrainingSessionController {
     public ResponseEntity<TrainingSessionResponse> cancel(
             @PathVariable UUID sessionId,
             @RequestParam CancellationReason reason) {
+        accessGuard.requireSessionAccess(sessionId);
         return ResponseEntity.ok(sessionService.cancel(sessionId, reason));
     }
 
@@ -93,6 +101,7 @@ public class TrainingSessionController {
      */
     @PostMapping("/api/sessions/{sessionId}/reactivation")
     public ResponseEntity<TrainingSessionResponse> reactivate(@PathVariable UUID sessionId) {
+        accessGuard.requireSessionAccess(sessionId);
         return ResponseEntity.ok(sessionService.reactivate(sessionId));
     }
 }

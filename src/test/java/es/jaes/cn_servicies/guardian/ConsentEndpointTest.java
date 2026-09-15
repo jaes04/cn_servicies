@@ -72,6 +72,10 @@ class ConsentEndpointTest {
         tutor = crearTutor("55555552B");
         vincular(atleta, tutor);
         consentimientoDeImagen = crearConsentimiento("IMAGE");
+
+        // Desde la S.3.3.b el entrenador solo ve el estado de los atletas que hoy
+        // estan en sus grupos, asi que este atleta tiene que estar en uno suyo.
+        ponerEnUnGrupoDelEntrenador(atleta);
     }
 
     @AfterAll
@@ -84,11 +88,33 @@ class ConsentEndpointTest {
         jdbc.queryForObject("SELECT set_config('app.club_id', 'public', false)", String.class);
     }
 
+    private void ponerEnUnGrupoDelEntrenador(UUID atletaId) {
+        UUID temporada = UUID.randomUUID();
+        UUID grupo = UUID.randomUUID();
+        jdbc.update("INSERT INTO seasons"
+                        + " (id, club_id, name, start_date, end_date, active, created_at, updated_at)"
+                        + " VALUES (?, ?, 'Temporada consent', CURRENT_DATE - 90, CURRENT_DATE + 240,"
+                        + "  true, now(), now())",
+                temporada, CLUB);
+        jdbc.update("INSERT INTO training_groups"
+                        + " (id, club_id, season_id, coach_id, name, category, level, created_at, updated_at)"
+                        + " SELECT ?, ?, ?, u.id, 'Alevín A', 'ALEVIN', 'COMPETICION', now(), now()"
+                        + " FROM users u WHERE u.club_id = ? AND u.username = ?",
+                grupo, CLUB, temporada, CLUB, ENTRENADOR);
+        jdbc.update("INSERT INTO athlete_groups (id, athlete_id, group_id, joined_on, created_at)"
+                        + " VALUES (?, ?, ?, CURRENT_DATE - 30, now())",
+                UUID.randomUUID(), atletaId, grupo);
+    }
+
     private void borrarDatos() {
         jdbc.update("DELETE FROM consents WHERE club_id = ?", CLUB);
         jdbc.update("DELETE FROM athlete_guardians WHERE guardian_id IN"
                 + " (SELECT id FROM guardians WHERE club_id = ?)", CLUB);
         jdbc.update("DELETE FROM guardians WHERE club_id = ?", CLUB);
+        jdbc.update("DELETE FROM athlete_groups WHERE athlete_id IN"
+                + " (SELECT id FROM athletes WHERE club_id = ?)", CLUB);
+        jdbc.update("DELETE FROM training_groups WHERE club_id = ?", CLUB);
+        jdbc.update("DELETE FROM seasons WHERE club_id = ?", CLUB);
         jdbc.update("DELETE FROM athletes WHERE club_id = ?", CLUB);
         jdbc.update("DELETE FROM user_roles WHERE user_id IN"
                 + " (SELECT id FROM users WHERE club_id = ?)", CLUB);

@@ -593,6 +593,36 @@ ALTER TABLE training_groups DROP CONSTRAINT IF EXISTS fk_training_groups_coach;
 ALTER TABLE training_groups ADD CONSTRAINT fk_training_groups_coach
     FOREIGN KEY (coach_id) REFERENCES users (id) ON DELETE SET NULL;
 
+-- ENTRENADORES AYUDANTES (tarea S.3.3.b)
+--  El principal sigue en training_groups.coach_id; aqui van los demas. Los
+--  permisos son los mismos: estar en cualquiera de los dos sitios da acceso al
+--  grupo, a sus sesiones y a los atletas que hoy estan en el.
+--
+--  Tabla hija sin club_id: se llega a ella siempre por el grupo, que si esta
+--  bajo policy, y su contenido nunca viaja con un id propio en la API.
+--
+--  El CREATE TABLE documenta la forma; la tabla la crea Hibernate antes. Lo que
+--  tiene que existir de verdad son las sentencias sueltas de debajo.
+CREATE TABLE IF NOT EXISTS group_assistant_coaches (
+    group_id UUID NOT NULL,
+    user_id  UUID NOT NULL,
+    PRIMARY KEY (group_id, user_id)
+);
+
+-- "¿Que grupos lleva este usuario?" se pregunta en cada peticion de un
+-- entrenador, y la clave primaria empieza por group_id: no sirve para eso.
+CREATE INDEX IF NOT EXISTS idx_group_assistant_coaches_user
+    ON group_assistant_coaches (user_id);
+
+ALTER TABLE group_assistant_coaches DROP CONSTRAINT IF EXISTS fk_group_assistant_coaches_group;
+ALTER TABLE group_assistant_coaches ADD CONSTRAINT fk_group_assistant_coaches_group
+    FOREIGN KEY (group_id) REFERENCES training_groups (id) ON DELETE CASCADE;
+
+-- Borrar a un usuario lo quita de ayudante sin tocar el grupo.
+ALTER TABLE group_assistant_coaches DROP CONSTRAINT IF EXISTS fk_group_assistant_coaches_user;
+ALTER TABLE group_assistant_coaches ADD CONSTRAINT fk_group_assistant_coaches_user
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE;
+
 ALTER TABLE athlete_groups DROP CONSTRAINT IF EXISTS fk_athlete_groups_athlete;
 ALTER TABLE athlete_groups ADD CONSTRAINT fk_athlete_groups_athlete
     FOREIGN KEY (athlete_id) REFERENCES athletes (id) ON DELETE CASCADE;

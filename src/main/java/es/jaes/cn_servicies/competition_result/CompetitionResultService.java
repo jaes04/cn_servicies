@@ -58,11 +58,39 @@ public class CompetitionResultService {
         return toResponse(findOrThrow(id));
     }
 
+    /**
+     * El atleta del que es la marca, para que {@code AccessGuard} decida sin
+     * entrar en este repositorio desde fuera del modulo.
+     */
+    @Transactional(readOnly = true)
+    public UUID athleteIdOf(UUID resultId) {
+        return findOrThrow(resultId).getAthlete().getId();
+    }
+
     @Transactional(readOnly = true)
     public Page<CompetitionResultResponse> findAll(
             String q, Stroke stroke, Integer distanceMeters, Integer poolLength, Boolean partial, Gender gender,
             Pageable pageable) {
+        return findAll(q, stroke, distanceMeters, poolLength, partial, gender, pageable, null);
+    }
+
+    /**
+     * El listado, acotado a los resultados de {@code onlyAthleteIds}.
+     *
+     * @param onlyAthleteIds los atletas que puede ver quien pide; {@code null} no
+     *                       acota, y una coleccion vacia no devuelve nada
+     */
+    @Transactional(readOnly = true)
+    public Page<CompetitionResultResponse> findAll(
+            String q, Stroke stroke, Integer distanceMeters, Integer poolLength, Boolean partial, Gender gender,
+            Pageable pageable, java.util.Collection<UUID> onlyAthleteIds) {
+        if (onlyAthleteIds != null && onlyAthleteIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
         Specification<CompetitionResult> spec = Specification.where(null);
+        if (onlyAthleteIds != null) {
+            spec = spec.and(CompetitionResultSpecification.athleteIdIn(new java.util.ArrayList<>(onlyAthleteIds)));
+        }
         if (q != null && !q.isBlank()) spec = spec.and(CompetitionResultSpecification.athleteNameContains(q));
         if (stroke != null) spec = spec.and(CompetitionResultSpecification.hasStroke(stroke));
         if (distanceMeters != null) spec = spec.and(CompetitionResultSpecification.hasDistance(distanceMeters));

@@ -58,4 +58,18 @@ public interface AthleteGroupRepository extends JpaRepository<AthleteGroup, UUID
             + " WHERE m.leftOn IS NULL AND m.trainingGroup.id IN :groupIds"
             + " GROUP BY m.trainingGroup.id")
     List<Object[]> countOpenByGroup(Collection<UUID> groupIds);
+
+    /**
+     * Atletas que eran miembros de alguno de esos grupos en una fecha.
+     *
+     * <p>El criterio de pertenencia es el mismo de {@link #findMembersOn}, con los
+     * dos extremos incluidos. Si alguien cambia uno, tiene que cambiar el otro:
+     * si no, un entrenador veria en el roster a un nadador cuya ficha no puede
+     * abrir, o al reves.
+     */
+    @Query("SELECT DISTINCT m.athlete.id FROM AthleteGroup m"
+            + " WHERE m.trainingGroup.id IN :groupIds"
+            + "   AND m.joinedOn <= :date"
+            + "   AND (m.leftOn IS NULL OR m.leftOn >= :date)")
+    List<UUID> findAthleteIdsInGroupsOn(Collection<UUID> groupIds, LocalDate date);
 }

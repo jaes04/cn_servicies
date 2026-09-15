@@ -105,7 +105,9 @@ class SchemaIntegrityTest {
                 "training_sessions.schedule_id", "SET NULL",
                 "group_schedules.group_id", "CASCADE",
                 "athlete_groups.athlete_id", "CASCADE",
-                "athlete_groups.group_id", "CASCADE");
+                "athlete_groups.group_id", "CASCADE",
+                "group_assistant_coaches.group_id", "CASCADE",
+                "group_assistant_coaches.user_id", "CASCADE");
 
         esperado.forEach((columna, accion) -> {
             String[] partes = columna.split("\\.");

@@ -179,6 +179,18 @@ public class AthleteGroupService {
                 .collect(Collectors.toMap(fila -> (UUID) fila[0], fila -> (Long) fila[1]));
     }
 
+    /**
+     * Atletas que en esa fecha estaban en alguno de esos grupos. Es lo que
+     * decide a que fichas llega un entrenador (tarea S.3.3.b).
+     */
+    @Transactional(readOnly = true)
+    public java.util.Set<UUID> athleteIdsInGroupsOn(Collection<UUID> groupIds, LocalDate date) {
+        if (groupIds.isEmpty()) {
+            return java.util.Set.of();
+        }
+        return new java.util.HashSet<>(membershipRepository.findAthleteIdsInGroupsOn(groupIds, date));
+    }
+
     private AthleteGroupResponse toResponse(AthleteGroup membership) {
         AthleteGroupResponse response = new AthleteGroupResponse();
         response.setId(membership.getId());

@@ -121,7 +121,24 @@ public class AthleteService {
 
     @Transactional(readOnly = true)
     public Page<AthleteResponse> findAll(String q, Gender gender, Pageable pageable) {
+        return findAll(q, gender, pageable, null);
+    }
+
+    /**
+     * El listado, acotado a {@code onlyIds}.
+     *
+     * @param onlyIds los atletas que puede ver quien pide; {@code null} no acota,
+     *                y una coleccion vacia no devuelve nada. Es lo que usa el
+     *                listado de un entrenador (tarea S.3.3.b).
+     */
+    @Transactional(readOnly = true)
+    public Page<AthleteResponse> findAll(String q, Gender gender, Pageable pageable,
+                                         java.util.Collection<UUID> onlyIds) {
+        if (onlyIds != null && onlyIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
         Specification<Athlete> spec = Specification.where(null);
+        if (onlyIds != null) spec = spec.and(AthleteSpecification.idIn(onlyIds));
         if (q != null && !q.isBlank()) spec = spec.and(AthleteSpecification.nameOrDniContains(q));
         if (gender != null) spec = spec.and(AthleteSpecification.hasGender(gender));
         return athleteRepository.findAll(spec, pageable).map(this::toResponse);

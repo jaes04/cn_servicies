@@ -46,6 +46,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * descarga. Antes de esta tarea, ese id era lo unico que hacia falta para abrir
  * el documento de cualquier atleta — {@code MEDICAL} incluido, que es lo mas
  * sensible que guarda el sistema. Ver {@code docs/rgpd.md} §1.
+ *
+ * <p>Desde la S.3.3.b el entrenador tampoco abre los de cualquiera: solo los de
+ * los atletas que hoy estan en sus grupos. El acotado general del entrenador se
+ * prueba en {@code CoachScopeTest}; aqui queda el caso de los documentos.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -77,6 +81,7 @@ class ObjectAccessTest {
 
     private UUID ana;
     private UUID docDeAna;
+    private UUID docDeBruno;
     private UUID docAjeno;
 
     @BeforeAll
@@ -100,9 +105,13 @@ class ObjectAccessTest {
         vincular(TUTOR_ANA, ana);
         vincular(TUTOR_BRUNO, bruno);
 
+        // El entrenador lleva el grupo de Ana. Bruno no esta en ninguno suyo.
+        apuntar(ana, montarGrupo(usuarios.get(ENTRENADOR)));
+
         // El de Ana es MEDICAL a proposito: es el peor caso de la fuga que
         // cierra esta tarea.
         docDeAna = crearDocumento(ana, ADMIN, "MEDICAL");
+        docDeBruno = crearDocumento(bruno, ADMIN, "OTHER");
         docAjeno = crearDocumento(ajeno, ADMIN_AJENO, "OTHER");
     }
 
@@ -147,9 +156,17 @@ class ObjectAccessTest {
     }
 
     @Test
-    @DisplayName("el entrenador sigue abriendo los documentos del club: acotarlo a sus grupos es el bloque siguiente")
-    void elEntrenadorSigueEntrando() {
+    @DisplayName("el entrenador abre los documentos de los atletas que hoy están en su grupo")
+    void elEntrenadorAbreLosDeSuGrupo() {
         assertThat(get(archivo(docDeAna), ENTRENADOR).getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    /** Hasta la S.3.3.b lo abria: cualquier entrenador del club llegaba a cualquier documento. */
+    @Test
+    @DisplayName("pero no los de un atleta que no está en ninguno de sus grupos")
+    void elEntrenadorNoAbreLosDeOtroGrupo() {
+        assertThat(get(archivo(docDeBruno), ENTRENADOR).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
@@ -207,6 +224,18 @@ class ObjectAccessTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    /**
+     * Un entrenador tampoco. En la S.3.3.a la comprobacion dejaba pasar a
+     * cualquier rol de club y no solo al administrador, que es lo que dice su
+     * documentacion; se corrigio en la S.3.3.b.
+     */
+    @Test
+    @DisplayName("ni siquiera un entrenador cambia la foto de otra cuenta")
+    void elEntrenadorTampoco() {
+        assertThat(subirFoto(usuarios.get(TUTOR_ANA), ENTRENADOR).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
     @Test
     @DisplayName("el administrador sí puede, dentro de su club")
     void elAdminSi() {
@@ -217,9 +246,9 @@ class ObjectAccessTest {
     /**
      * A este no lo sostiene el guardian sino RLS: {@code users} lleva
      * {@code club_id} y policy, asi que la carga por id ya no encuentra la fila.
-     * Se comprobo desactivando el guardian: los otros cinco negativos se ponen
-     * rojos y este se queda verde. Esta aqui porque describe el limite —hasta
-     * donde llega cada capa— no porque pruebe lo de esta tarea.
+     * Se comprobo desactivando el guardian: los otros negativos se ponen rojos y
+     * este se queda verde. Esta aqui porque describe el limite —hasta donde llega
+     * cada capa— no porque pruebe lo de esta tarea.
      */
     @Test
     @DisplayName("pero no sobre una cuenta de otro club: eso ya lo tapaba RLS")
@@ -277,6 +306,10 @@ class ObjectAccessTest {
                 + " (SELECT id FROM athletes WHERE club_id IN (?, ?))", CLUB, CLUB_AJENO);
         jdbc.update("DELETE FROM user_athletes WHERE athlete_id IN"
                 + " (SELECT id FROM athletes WHERE club_id IN (?, ?))", CLUB, CLUB_AJENO);
+        jdbc.update("DELETE FROM athlete_groups WHERE athlete_id IN"
+                + " (SELECT id FROM athletes WHERE club_id IN (?, ?))", CLUB, CLUB_AJENO);
+        jdbc.update("DELETE FROM training_groups WHERE club_id IN (?, ?)", CLUB, CLUB_AJENO);
+        jdbc.update("DELETE FROM seasons WHERE club_id IN (?, ?)", CLUB, CLUB_AJENO);
         jdbc.update("DELETE FROM athletes WHERE club_id IN (?, ?)", CLUB, CLUB_AJENO);
         jdbc.update("DELETE FROM user_roles WHERE user_id IN"
                 + " (SELECT id FROM users WHERE club_id IN (?, ?))", CLUB, CLUB_AJENO);
@@ -338,6 +371,27 @@ class ObjectAccessTest {
         jdbc.update("INSERT INTO user_athletes (id, user_id, athlete_id, type, created_at)"
                         + " VALUES (?, ?, ?, 'TUTOR', now())",
                 UUID.randomUUID(), usuarios.get(usuario), atleta);
+    }
+
+    /** Temporada activa alrededor de hoy y un grupo que lleva ese entrenador. */
+    private UUID montarGrupo(UUID entrenador) {
+        UUID temporada = UUID.randomUUID();
+        UUID grupo = UUID.randomUUID();
+        jdbc.update("INSERT INTO seasons"
+                        + " (id, club_id, name, start_date, end_date, active, created_at, updated_at)"
+                        + " VALUES (?, ?, 'Temporada acceso', ?, ?, true, now(), now())",
+                temporada, CLUB, LocalDate.now().minusMonths(3), LocalDate.now().plusMonths(8));
+        jdbc.update("INSERT INTO training_groups"
+                        + " (id, club_id, season_id, coach_id, name, category, level, created_at, updated_at)"
+                        + " VALUES (?, ?, ?, ?, 'Alevín A', 'ALEVIN', 'COMPETICION', now(), now())",
+                grupo, CLUB, temporada, entrenador);
+        return grupo;
+    }
+
+    private void apuntar(UUID atleta, UUID grupo) {
+        jdbc.update("INSERT INTO athlete_groups (id, athlete_id, group_id, joined_on, created_at)"
+                        + " VALUES (?, ?, ?, ?, now())",
+                UUID.randomUUID(), atleta, grupo, LocalDate.now().minusMonths(1));
     }
 
     /** Siembra el documento y su archivo: la descarga permitida tiene que devolver algo de verdad. */

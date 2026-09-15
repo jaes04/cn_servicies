@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.training_group;
 
+import es.jaes.cn_servicies.access.AccessGuard;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -24,6 +25,7 @@ import java.util.UUID;
 public class AthleteGroupController {
 
     private final AthleteGroupService membershipService;
+    private final AccessGuard accessGuard;
 
     /**
      * Miembros del grupo. Sin {@code date}, los de hoy; con ella, <b>los que
@@ -35,6 +37,7 @@ public class AthleteGroupController {
             @PathVariable UUID groupId,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        accessGuard.requireGroupAccess(groupId);
         return ResponseEntity.ok(membershipService.membersOnAsResponse(groupId, date));
     }
 
@@ -75,6 +78,7 @@ public class AthleteGroupController {
     public ResponseEntity<List<AthleteGroupResponse>> history(
             @PathVariable UUID athleteId,
             @RequestParam(required = false) UUID seasonId) {
+        accessGuard.requireAthleteAccess(athleteId);
         return ResponseEntity.ok(membershipService.historyAsResponse(athleteId, seasonId));
     }
 }

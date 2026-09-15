@@ -141,12 +141,25 @@ public class AttendanceReportService {
      * un numero grande al que se deja de hacer caso.
      */
     public PendingAttendanceResponse pending(LocalDate from, LocalDate to) {
+        return pending(from, to, null);
+    }
+
+    /**
+     * Lo mismo, acotado a unos grupos: lo que ve un entrenador, que son los
+     * pendientes de los grupos que lleva y no los de todo el club (tarea S.3.3.b).
+     *
+     * @param onlyGroups los grupos a los que se acota; {@code null} no acota
+     */
+    public PendingAttendanceResponse pending(LocalDate from, LocalDate to,
+                                             java.util.Collection<UUID> onlyGroups) {
         LocalDate hasta = to != null ? to : LocalDate.now();
         LocalDate desde = from != null ? from : hasta.minusDays(DIAS_DE_PENDIENTES);
         validarRango(desde, hasta);
 
         List<PendingSessionResponse> sinLista = reportRepository
                 .findPastWithoutRosterInClub(desde, hasta, LocalDate.now()).stream()
+                .filter(sesion -> onlyGroups == null
+                        || onlyGroups.contains(sesion.getTrainingGroup().getId()))
                 .map(sesion -> {
                     PendingSessionResponse pendiente = new PendingSessionResponse();
                     pendiente.setSessionId(sesion.getId());
@@ -159,6 +172,9 @@ public class AttendanceReportService {
 
         List<PendingSessionResponse> aMedias = new ArrayList<>();
         for (Object[] fila : reportRepository.findIncompleteRosters(desde, hasta)) {
+            if (onlyGroups != null && !onlyGroups.contains((UUID) fila[2])) {
+                continue;
+            }
             PendingSessionResponse pendiente = new PendingSessionResponse();
             pendiente.setSessionId((UUID) fila[0]);
             pendiente.setDate(((Date) fila[1]).toLocalDate());

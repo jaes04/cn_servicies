@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.guardian;
 
+import es.jaes.cn_servicies.access.AccessGuard;
 import es.jaes.cn_servicies.athlete.AthleteService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -31,6 +32,7 @@ public class ConsentController {
 
     private final ConsentService consentService;
     private final AthleteService athleteService;
+    private final AccessGuard accessGuard;
 
     /** Historial completo, con la evidencia de cada decision. Solo administradores. */
     @GetMapping("/athlete/{athleteId}")
@@ -42,10 +44,12 @@ public class ConsentController {
     /**
      * Que ampara hoy cada finalidad. Es lo que necesita un entrenador antes de
      * publicar una foto, y no le hace falta saber quien firmo ni cuando.
+     *
+     * <p>Desde la tarea S.3.3.b, solo de los atletas que hoy estan en sus grupos.
      */
     @GetMapping("/athlete/{athleteId}/status")
     public ResponseEntity<Map<ConsentType, Boolean>> status(@PathVariable UUID athleteId) {
-        athleteService.findOrThrow(athleteId);
+        accessGuard.requireAthleteAccess(athleteId);
         return ResponseEntity.ok(consentService.statusForAthlete(athleteId));
     }
 

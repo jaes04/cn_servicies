@@ -5,13 +5,17 @@ import es.jaes.cn_servicies.season.Season;
 import es.jaes.cn_servicies.user.User;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -58,17 +62,40 @@ public class TrainingGroup {
     private Season season;
 
     /**
-     * Opcional: en septiembre se montan los grupos antes de cerrar quien lleva
-     * cada uno, y al duplicar la temporada anterior el entrenador puede haberse
-     * ido del club. Obligarlo forzaria a inventar un titular provisional.
+     * Entrenador principal. Opcional: en septiembre se montan los grupos antes
+     * de cerrar quien lleva cada uno, y al duplicar la temporada anterior el
+     * entrenador puede haberse ido del club. Obligarlo forzaria a inventar un
+     * titular provisional.
      *
-     * <p>Estar aqui <b>no da permisos</b>: lo que un entrenador puede ver lo
-     * decide su rol, no esta columna.
+     * <p><b>Estar aqui da acceso al grupo</b> desde la tarea S.3.3.b: a sus
+     * sesiones, a su roster y a los atletas que hoy estan en el. Por eso solo
+     * puede asignarse a personal tecnico o a un administrador.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "coach_id",
             foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private User coach;
+
+    /**
+     * Ayudantes. <b>Mismos permisos que el principal</b>: la distincion es de
+     * organizacion del club, no de acceso.
+     *
+     * <p>Las claves foraneas de la tabla intermedia viven en {@code schema.sql}
+     * con su {@code ON DELETE}; aqui van sin constraint para que Hibernate no
+     * cree las suyas en paralelo, que es el patron de la tarea 2.6.
+     *
+     * <p>Fuera de {@code toString} y {@code equals}: es una coleccion perezosa, y
+     * {@code @Data} la recorreria en cualquier log o mensaje de fallo.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "group_assistant_coaches",
+            joinColumns = @JoinColumn(name = "group_id"),
+            inverseJoinColumns = @JoinColumn(name = "user_id"),
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT),
+            inverseForeignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private Set<User> assistantCoaches = new HashSet<>();
 
     /** Unico dentro de la temporada: dos "Alevin A" el mismo curso son un error. */
     @Column(nullable = false)

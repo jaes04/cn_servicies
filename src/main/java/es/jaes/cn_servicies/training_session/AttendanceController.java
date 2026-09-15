@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.training_session;
 
+import es.jaes.cn_servicies.access.AccessGuard;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,10 @@ import java.util.UUID;
  * completo. Guardar contesta con la lista ya actualizada para que el movil no
  * tenga que volver a pedirla — al borde de una piscina, cada llamada de mas es
  * una oportunidad de quedarse a medias.
+ *
+ * <p>Desde la tarea S.3.3.b solo pasa lista quien lleva el grupo, como principal
+ * o como ayudante. Antes lo podia cualquier entrenador del club, y era la unica
+ * escritura de datos de menores que no pedia ninguna relacion con ellos.
  */
 @RestController
 @RequestMapping("/api/sessions/{sessionId}")
@@ -21,6 +26,7 @@ import java.util.UUID;
 public class AttendanceController {
 
     private final AttendanceService attendanceService;
+    private final AccessGuard accessGuard;
 
     /**
      * Los atletas que pertenecian al grupo <b>el dia de la sesion</b>, con su
@@ -28,6 +34,7 @@ public class AttendanceController {
      */
     @GetMapping("/roster")
     public ResponseEntity<RosterResponse> roster(@PathVariable UUID sessionId) {
+        accessGuard.requireSessionAccess(sessionId);
         return ResponseEntity.ok(attendanceService.roster(sessionId));
     }
 
@@ -43,6 +50,7 @@ public class AttendanceController {
     public ResponseEntity<RosterResponse> save(
             @PathVariable UUID sessionId,
             @Valid @RequestBody AttendanceRequest request) {
+        accessGuard.requireSessionAccess(sessionId);
         return ResponseEntity.ok(attendanceService.save(sessionId, request));
     }
 }

@@ -84,6 +84,11 @@ class GroupScheduleEndpointTest {
         modoPublico();
         vaciarHorariosYGrupos(CLUB);
         grupo = crearGrupo(CLUB, "Alevín A");
+        // Desde la S.3.3.b el entrenador solo consulta los grupos que lleva. Que
+        // lleve este no le deja montar horarios en el: eso sigue siendo del club.
+        jdbc.update("UPDATE training_groups SET coach_id ="
+                + " (SELECT id FROM users WHERE club_id = ? AND username = ?) WHERE id = ?",
+                CLUB, ENTRENADOR, grupo);
     }
 
     @AfterAll

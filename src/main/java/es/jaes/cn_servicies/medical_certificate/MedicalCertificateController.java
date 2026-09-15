@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.medical_certificate;
 
+import es.jaes.cn_servicies.access.AccessGuard;
 import es.jaes.cn_servicies.athlete.AthleteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class MedicalCertificateController {
 
     private final MedicalCertificateService certificateService;
     private final AthleteService athleteService;
+    private final AccessGuard accessGuard;
 
     /** Historial con fechas y validador. */
     @GetMapping("/athlete/{athleteId}")
@@ -38,10 +40,13 @@ public class MedicalCertificateController {
     /**
      * Si esta cubierto hoy. Una sola palabra: {@code VALID}, {@code EXPIRING_SOON},
      * {@code EXPIRED} o {@code MISSING}.
+     *
+     * <p>Desde la tarea S.3.3.b, el entrenador solo lo consulta de los atletas que
+     * hoy estan en sus grupos.
      */
     @GetMapping("/athlete/{athleteId}/status")
     public ResponseEntity<Map<String, MedicalCertificateStatus>> status(@PathVariable UUID athleteId) {
-        athleteService.findOrThrow(athleteId);
+        accessGuard.requireAthleteAccess(athleteId);
         return ResponseEntity.ok(Map.of("status", certificateService.statusForAthlete(athleteId)));
     }
 

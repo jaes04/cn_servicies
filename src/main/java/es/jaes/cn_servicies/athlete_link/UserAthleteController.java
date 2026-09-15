@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.athlete_link;
 
+import es.jaes.cn_servicies.access.AccessGuard;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,12 +18,19 @@ import java.util.UUID;
 public class UserAthleteController {
 
     private final UserAthleteService userAthleteService;
+    private final AccessGuard accessGuard;
 
+    /**
+     * Genera una clave que, canjeada, da a una cuenta acceso a los datos de un
+     * menor. Desde la tarea S.3.3.b un entrenador solo la genera para atletas que
+     * hoy estan en sus grupos.
+     */
     @PostMapping("/{athleteId}/key")
     @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICAL_STAFF')")
     public ResponseEntity<AthleteInviteKeyResponse> generateKey(
             @PathVariable UUID athleteId,
             @Valid @RequestBody GenerateKeyRequest request) {
+        accessGuard.requireAthleteAccess(athleteId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(userAthleteService.generateKey(athleteId, request.getType()));
     }
@@ -45,9 +53,11 @@ public class UserAthleteController {
         return ResponseEntity.ok(userAthleteService.findTuteesByUser(principal.getName()));
     }
 
+    /** Quien tiene acceso a este atleta. Mismo acotado que la clave. */
     @GetMapping("/by-athlete/{athleteId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TECHNICAL_STAFF')")
     public ResponseEntity<List<UserAthleteResponse>> byAthlete(@PathVariable UUID athleteId) {
+        accessGuard.requireAthleteAccess(athleteId);
         return ResponseEntity.ok(userAthleteService.findByAthlete(athleteId));
     }
 }

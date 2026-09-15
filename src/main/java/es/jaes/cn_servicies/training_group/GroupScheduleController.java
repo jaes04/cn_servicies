@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.training_group;
 
+import es.jaes.cn_servicies.access.AccessGuard;
 import es.jaes.cn_servicies.training_session.ScheduleChangeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -38,16 +39,21 @@ public class GroupScheduleController {
      */
     private final ScheduleChangeService scheduleChangeService;
 
+    private final AccessGuard accessGuard;
+
     /**
      * Sin {@code date}, todos los horarios vivos del grupo; con ella, los que
      * estaban en vigor ese dia. Lo segundo es lo que hara falta para explicar
      * por que existio una sesion de hace tres meses.
+     *
+     * <p>El entrenador solo consulta los de los grupos que lleva (tarea S.3.3.b).
      */
     @GetMapping
     public ResponseEntity<List<GroupScheduleResponse>> findAll(
             @PathVariable UUID groupId,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        accessGuard.requireGroupAccess(groupId);
         return ResponseEntity.ok(scheduleService.findAll(groupId, date));
     }
 

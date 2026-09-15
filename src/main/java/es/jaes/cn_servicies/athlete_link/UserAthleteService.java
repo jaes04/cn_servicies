@@ -99,6 +99,19 @@ public class UserAthleteService {
                 .orElse(false);
     }
 
+    /**
+     * Los atletas con los que esa cuenta tiene vinculo, del tipo que sea. Vacio
+     * si el usuario no existe, por lo mismo que {@link #isLinkedTo}.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Set<UUID> linkedAthleteIds(String username) {
+        return userRepository.findByUsername(username)
+                .map(user -> userAthleteRepository.findByUserId(user.getId()).stream()
+                        .map(link -> link.getAthlete().getId())
+                        .collect(java.util.stream.Collectors.toSet()))
+                .orElse(java.util.Set.of());
+    }
+
     @Transactional(readOnly = true)
     public List<UserAthleteResponse> findTuteesByUser(String username) {
         User user = userRepository.findByUsername(username)

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.Set;
 import java.util.UUID;
 
 @Data
@@ -30,4 +31,10 @@ public class TrainingGroupRequest {
 
     /** Opcional: un grupo puede existir antes de saber quién lo lleva. */
     private UUID coachId;
+
+    /**
+     * Opcional. Como el resto de campos del {@code PUT}, <b>sustituye</b> a los
+     * que hubiera: sin valor, el grupo se queda sin ayudantes.
+     */
+    private Set<UUID> assistantCoachIds;
 }

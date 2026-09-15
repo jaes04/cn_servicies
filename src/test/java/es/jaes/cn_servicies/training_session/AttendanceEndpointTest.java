@@ -88,6 +88,10 @@ class AttendanceEndpointTest {
         modoPublico();
         vaciar(CLUB);
         grupo = montarGrupo(CLUB);
+        // Desde la S.3.3.b solo pasa lista quien lleva el grupo.
+        jdbc.update("UPDATE training_groups SET coach_id ="
+                + " (SELECT id FROM users WHERE club_id = ? AND username = ?) WHERE id = ?",
+                CLUB, ENTRENADOR, grupo);
         ana = crearAtleta(CLUB, "Ana", DNI_ANA);
         apuntar(ana, grupo);
         sesion = crearSesion(CLUB, grupo, MARTES);

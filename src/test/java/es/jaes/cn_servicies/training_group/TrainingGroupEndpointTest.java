@@ -61,10 +61,12 @@ class TrainingGroupEndpointTest {
                         + " VALUES (?, ?, '2026/2027', DATE '2026-09-01', DATE '2027-08-31',"
                         + "  true, now(), now())",
                 temporada, CLUB);
+        // Lo lleva el entrenador: desde la S.3.3.b solo ve los grupos que lleva.
         jdbc.update("INSERT INTO training_groups"
-                        + " (id, club_id, season_id, name, category, level, created_at, updated_at)"
-                        + " VALUES (?, ?, ?, 'Alevín A', 'ALEVIN', 'COMPETICION', now(), now())",
-                UUID.randomUUID(), CLUB, temporada);
+                        + " (id, club_id, season_id, coach_id, name, category, level, created_at, updated_at)"
+                        + " SELECT ?, ?, ?, u.id, 'Alevín A', 'ALEVIN', 'COMPETICION', now(), now()"
+                        + " FROM users u WHERE u.club_id = ? AND u.username = ?",
+                UUID.randomUUID(), CLUB, temporada, CLUB, ENTRENADOR);
     }
 
     @AfterAll
