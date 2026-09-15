@@ -20,7 +20,8 @@ documentación, que en algunos puntos va por detrás del código.
 | Identificación del tutor legal | `guardians` | No | Alta: DNI, email, teléfono |
 | Consentimientos y su evidencia | `consents` | Referida a menores | **Crítica**: sostiene la licitud de todo lo demás |
 | Aptitud médica | `medical_certificates` | Sí | **Art. 9** aunque minimizada a fechas |
-| Archivos subidos a la ficha | `athlete_documents` | Sí | **La más alta del sistema**: el tipo `MEDICAL` puede contener datos de salud reales |
+| Papeles entregados al club | `document_deliveries` | Sí | Baja: solo tipo y fechas, sin el papel |
+| Archivos subidos a la ficha | `athlete_documents` | Sí | **La más alta del sistema**, pero **la subida está apagada por defecto** |
 | Asistencia a entrenamientos | `attendance` | Sí | Media: es un registro de presencia diaria de un menor |
 | Marcas de competición | `competition_results` | Sí | Baja, pero identificable |
 | Cuentas de acceso | `users` | Puede haberlas | Alta: credenciales |
@@ -51,7 +52,7 @@ igual, porque el conjunto es lo que identifica.
 | `id` | UUID | Identificador interno, no derivado de ningún dato personal |
 | `club_id` | UUID | Tenant. Con RLS activo |
 | **`first_name`, `last_name`** | texto | |
-| **`birth_date`** | fecha | Se usa para categoría deportiva y para saber si es menor de 14 |
+| **`birth_date`** | fecha | Se usa para categoría deportiva, para saber si es menor de 14 y si necesita permiso de viaje |
 | **`dni`** | texto (9) | **`NOT NULL` hoy.** Único por club. Ver "puntos abiertos" |
 | `gender_id` | catálogo | `MALE` / `FEMALE` |
 | `created_at`, `updated_at`, `deleted_at` | fecha/hora | `deleted_at` es **borrado lógico: la fila sigue con nombre y DNI** |
@@ -88,6 +89,9 @@ Es la pieza que sostiene la licitud del tratamiento de un menor.
 **Registro append-only:** nada se actualiza ni se borra. Volver a consentir es una fila
 nueva. El historial completo es la prueba del art. 7.1.
 
+**El derecho de imagen firmado al darse de alta se registra aquí**, como consentimiento
+`IMAGE` con evidencia en papel, y no como papel entregado.
+
 **Quién accede:** el **estado** por finalidad lo ve también el entrenador de los
 deportistas de sus grupos —lo necesita antes de publicar una foto—; el **historial**,
 quién firmó y con qué papel, solo el administrador.
@@ -106,7 +110,7 @@ calcula, no se almacena**.
 **Quién accede:** el entrenador ve el **estado** de los deportistas de sus grupos, porque
 lo necesita antes de meterlos al agua; las fechas y quién validó, solo el administrador.
 
-### 2.5 `athlete_documents` — el punto más delicado
+### 2.5 `athlete_documents` — archivos subidos, apagados por defecto
 
 | Campo | Tipo | Nota |
 |---|---|---|
@@ -116,17 +120,20 @@ lo necesita antes de meterlos al agua; las fechas y quién validó, solo el admi
 | **`original_filename`** | texto | El nombre que puso quien lo subió. Suele ser descriptivo: `informe-cardiologia-maria.pdf` |
 | `uploaded_by_id` | UUID | |
 
-**El archivo real vive en disco**, en el directorio `app.upload.dir`. **Sin cifrado en
-reposo.** Con tipo `MEDICAL` esto significa que el sistema puede estar guardando datos de
-salud de menores en archivos.
+**Desde el bloque 3a la subida está apagada por defecto** (`app.documents.upload.enabled`).
+Apagada, subir, listar y descargar contestan 404 a todo el mundo, administrador incluido.
+Para el despliegue inicial el club no sube papeles: registra su entrega en
+`document_deliveries` (§2.12).
 
-**Quién accede:** subir y abrir el archivo, el administrador, el entrenador de un grupo en
-el que hoy está el deportista, o quien tenga vínculo con él; borrar, solo el
-administrador. **Antes de la tarea S.3.3, cualquier cuenta con el identificador abría
-cualquier archivo.**
+**No se ha eliminado, se ha apagado**, para que un club que lo necesite pueda
+encenderlo. Pero encendido vuelve a ser el punto más expuesto del sistema: el archivo
+vive en disco, **sin cifrado en reposo**, en el mismo directorio que las imágenes del
+blog y **sin registro de accesos**. Con tipo `MEDICAL` puede contener datos de salud de
+menores. Eso hay que resolverlo antes de encenderlo.
 
-**Decisión en curso:** el club ha propuesto no subir documentos y registrar solo su
-entrega y su caducidad. La subida se desactivará para el despliegue inicial.
+**Quién accede, si está encendida:** subir y abrir el archivo, el administrador, el
+entrenador de un grupo en el que hoy está el deportista, o quien tenga vínculo con él;
+borrar, solo el administrador.
 
 ### 2.6 `attendance` y `training_sessions` — la asistencia
 
@@ -191,6 +198,39 @@ cuenta.
 datos de un menor a quien no debe.** No aparece en logs, listados ni URLs registradas. La
 genera el administrador, o el entrenador para los deportistas de sus grupos.
 
+### 2.12 `document_deliveries` — papeles entregados al club
+
+Constancia de que la familia entregó un papel y de hasta cuándo vale. **El papel se queda
+en el club**, que es quien lo custodia como responsable del tratamiento.
+
+| Campo | Tipo | Nota |
+|---|---|---|
+| `type` | enum | `LICENSE_APPLICATION`, `IDENTITY_DOCUMENT`, `TRAVEL_PERMIT` |
+| `season_id` | UUID | Solo en la solicitud de licencia, que vale por temporada |
+| **`valid_from`** | fecha | Solo en el permiso de viaje: el día de salida |
+| **`valid_until`** | fecha | Caducidad del documento de identidad, o día de vuelta del viaje |
+| `delivered_on` | fecha | Día en que se entregó |
+| `registered_by_id`, `registered_at` | UUID / fecha-hora | Quién lo anotó y cuándo |
+
+**Sin número de documento, sin destino del viaje y sin campo de notas.** El número ya está
+en la ficha del deportista, y para saber si un permiso cubre unas fechas no hace falta
+saber adónde se viaja.
+
+**Faltan dos tipos a propósito.** El certificado médico no está aquí: es dato de salud y
+tiene su propia tabla, con sus propios permisos (§2.4). Y el derecho de imagen tampoco:
+es un consentimiento (§2.3).
+
+**El permiso de viaje solo se admite para menores de edad el día de salida.** El de un
+adulto no sirve para nada, y guardarlo sería guardar sus fechas de viaje sin motivo.
+
+El estado (`VALID`, `EXPIRING_SOON`, `EXPIRED`, `MISSING`, `NOT_REQUIRED`) **se calcula,
+no se almacena**. La licencia se mide contra la temporada activa y el documento de
+identidad contra la fecha de hoy. El permiso de viaje no tiene estado general: se pregunta
+si cubre las fechas de un viaje concreto.
+
+**Quién accede:** el entrenador ve el estado de los deportistas de sus grupos y si pueden
+viajar; las fechas, el historial y el registro de entregas son del administrador.
+
 ---
 
 ## 3. Dónde vive todo
@@ -198,13 +238,14 @@ genera el administrador, o el entrenador para los deportistas de sus grupos.
 | Soporte | Contenido | Cifrado |
 |---|---|---|
 | PostgreSQL | Todo lo anterior salvo archivos | **No, hoy** |
-| Directorio `app.upload.dir` | Documentos de atleta, fotos de perfil e imágenes del blog | **No** |
+| Directorio `app.upload.dir` | Fotos de perfil e imágenes del blog. Documentos de atleta solo si se enciende la subida | **No** |
 | Logs de aplicación | Identificadores (UUID), nunca nombres. Queda rastro de quién exporta un CSV | n/a |
 | Exportaciones CSV | Nombre del atleta y números de asistencia. Ni DNI ni fecha de nacimiento | **Sale del sistema y no vuelve** |
+| Archivo en papel del club | Licencias, copias del documento de identidad, permisos de viaje, certificados | Fuera del sistema: custodia del club |
 
-**Los documentos de atleta y las imágenes públicas del blog comparten directorio.** Son dos
-servicios distintos (`DocumentStorageService` e `ImageStorageService`) escribiendo en el
-mismo sitio. Conviene separarlos antes de desplegar.
+**Los documentos de atleta y las imágenes públicas del blog comparten directorio.** Con la
+subida apagada no hay documentos nuevos, pero si algún día se enciende hay que separarlos
+antes.
 
 ---
 
@@ -213,7 +254,8 @@ mismo sitio. Conviene separarlos antes de desplegar.
 | | Administrador | Entrenador | Tutor / socio | Anónimo |
 |---|---|---|---|---|
 | Ficha del atleta (con DNI) | Sí | Solo de sus grupos, hoy | Solo los suyos, sin DNI | No |
-| Documentos, incluido `MEDICAL` | Sí | Solo de sus grupos, hoy | Solo los de los suyos | No |
+| Documentos subidos (apagado por defecto) | Sí | Solo de sus grupos, hoy | Solo los de los suyos | No |
+| Papeles entregados | Sí, con fechas | Solo el estado y el permiso de viaje, de sus grupos | No | No |
 | Estado de consentimiento | Sí | Solo de sus grupos, hoy | No | No |
 | Historial de consentimiento | Sí | No | No | No |
 | Certificado médico | Sí, con fechas | Solo el estado, de sus grupos | No | No |
@@ -227,21 +269,22 @@ mismo sitio. Conviene separarlos antes de desplegar.
 
 Cada uno necesita una decisión que no es técnica:
 
-1. **`athlete_documents` de tipo `MEDICAL`.** El diseño previsto era guardar solo metadatos;
-   el modelo actual almacena archivos. Sin cifrado en reposo y sin registro de accesos. El
-   club propone registrar solo la entrega de los papeles, y la subida se desactivará.
+1. **Los `athlete_documents` que ya existan.** La subida está apagada, así que no entran
+   más, pero los que ya estuvieran siguen en disco y en la base. Hay que decidir si se
+   borran, y si algún día se vuelve a encender la subida.
 2. **`athletes.dni` es obligatorio.** Muchos deportistas son menores de 14 sin DNI, y los
    extranjeros tienen NIE. Decidido hacerlo opcional y admitir NIE y pasaporte; pendiente
    de implementar.
 3. **Nada se borra automáticamente.** No hay ningún plazo de conservación definido ni
-   aplicado. El borrado lógico deja nombre y DNI en la fila.
-4. **`title` y `original_filename` de los documentos son texto libre** y pueden acabar
-   conteniendo información clínica.
-5. **No hay registro de auditoría.** Hoy no se puede responder quién abrió la ficha de un
+   aplicado. El borrado lógico deja nombre y DNI en la fila. Incluye ahora los papeles
+   entregados: ¿cuánto se conserva la constancia de un permiso de viaje ya pasado?
+4. **No hay registro de auditoría.** Hoy no se puede responder quién abrió la ficha de un
    menor. Solo queda rastro en el log de quién exportó un CSV.
-6. **No hay registro de eventos de autenticación**, así que tampoco se detecta un acceso
+5. **No hay registro de eventos de autenticación**, así que tampoco se detecta un acceso
    indebido a posteriori.
-7. **La IP del consentimiento online se conserva sin plazo.**
-8. **Fotocopias del DNI.** Si el club las archiva en papel, conviene confirmar si hace falta
-   guardarlas o basta con comprobarlas; el sistema solo registrará que se vieron y hasta
-   cuándo valen.
+6. **La IP del consentimiento online se conserva sin plazo.**
+7. **Fotocopias del documento de identidad.** Si el club las archiva en papel, conviene
+   confirmar si hace falta guardarlas o basta con comprobarlas: el sistema solo registra
+   que se vieron y hasta cuándo valen.
+8. **Custodia del papel.** El club guarda los originales. Conviene que el contrato de
+   encargo deje claro que ese archivo es del club y no de la plataforma.

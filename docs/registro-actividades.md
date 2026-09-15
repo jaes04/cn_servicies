@@ -104,14 +104,27 @@ plataforma; no se repite en cada ficha.
 - **Conservación:** ⚠️ **PENDIENTE**
 - **Nota técnica:** **no se almacena el veredicto médico.** No hay campo `apto`, ni diagnóstico, ni observaciones: la existencia de un certificado en plazo *es* la aptitud, y el estado se calcula desde la fecha de caducidad
 
-### B.5 Documentos de la ficha del deportista
+### B.5 Documentos de la ficha del deportista — apagado en el despliegue inicial
 
+- **Estado:** **la subida de archivos está apagada por defecto.** Para el despliegue inicial el club no sube papeles: registra su entrega (ficha B.5.b). Si este tratamiento se enciende algún día, esta ficha vuelve a aplicar entera
 - **Finalidad:** conservar la documentación que aporta la familia
 - **Datos:** archivo, título libre, nombre original del archivo, tipo, quién lo subió
 - **Categoría especial (art. 9):** ⚠️ **posiblemente sí.** El tipo `MEDICAL` permite subir archivos clínicos reales
-- **Base legal propuesta:** ⚠️ **a decidir junto con la pregunta de si este tratamiento debe seguir existiendo**
-- **Conservación:** ⚠️ **PENDIENTE.** El borrado es físico y se lleva el archivo del disco
-- **Nota técnica:** **sin cifrado en reposo y sin registro de accesos.** Es el punto más expuesto del sistema
+- **Base legal propuesta:** ⚠️ **a decidir, solo si se enciende**
+- **Conservación:** ⚠️ **PENDIENTE.** El borrado es físico y se lleva el archivo del disco. Queda por decidir qué pasa con los archivos que ya existieran
+- **Nota técnica:** **sin cifrado en reposo y sin registro de accesos.** Encendido, es el punto más expuesto del sistema
+
+### B.5.b Entregas de papeles
+
+- **Finalidad:** saber si cada deportista tiene entregada y en vigor la documentación que el club le pide
+- **Interesados:** deportistas, mayoritariamente menores
+- **Datos:** tipo de papel —solicitud de licencia, documento de identidad o permiso de viaje—, temporada a la que corresponde la licencia, caducidad del documento de identidad, fechas de salida y vuelta del permiso de viaje, fecha de entrega y quién la anotó
+- **Lo que no se guarda:** el papel, que se queda en el club; el número del documento; el destino del viaje; notas de ningún tipo
+- **Base legal propuesta:** ejecución de la relación asociativa (art. 6.1.b) para licencia y documento de identidad; para el permiso de viaje, ⚠️ **a validar** —lo exige la salida de un menor al extranjero, no la actividad del club en sí—
+- **Destinatarios:** ninguno fuera del club
+- **Conservación:** ⚠️ **PENDIENTE**. Especialmente la del permiso de viaje una vez pasado el viaje
+- **Nota técnica:** el permiso de viaje **solo se admite para menores de edad** el día de salida. El certificado médico no está aquí —tiene su tabla propia por ser dato de salud— ni el derecho de imagen, que es un consentimiento
+- **Custodia del papel:** del club, fuera del sistema. ⚠️ **A validar:** si hace falta conservar fotocopia del documento de identidad o basta con comprobarlo
 
 ### B.6 Entrenamientos y asistencia
 
