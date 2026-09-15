@@ -372,6 +372,36 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 
 > **Queda abierto:** qué se hace con los `athlete_documents` que ya existan; y, como en el certificado, que una entrega mal tecleada no se puede corregir, porque no hay `PUT` ni `DELETE`.
 
+### S.1.d Certificado por temporada y documento de identidad opcional — bloque 3b
+
+- [x] Certificado médico por temporada: `season_id`, y la caducidad pasa a ser el final de la temporada — `2h · Media · Alta`
+- [x] Documento de identidad del atleta opcional, admitiendo DNI, NIE y pasaporte — `2h · Media · Alta`
+- [x] Duplicados sin documento, por nombre, apellidos y fecha de nacimiento — `1h · Media · Alta`
+
+> **Decisiones del club y tuyas:** el certificado vale una temporada aunque el anterior siga en fecha; el documento de identidad es genérico y no se exige a quien no lo tiene; sin documento, un alta con el mismo nombre, apellidos y nacimiento se rechaza; y `GET /api/medical-certificates/expiring` se mantiene hasta el 3c.
+
+> **El alta de certificado pide `seasonId` y ya no `expiresOn`.** La temporada es explícita y no la activa por defecto: a finales de agosto es muy fácil registrar el certificado del curso que empieza en la temporada que acaba. La caducidad la pone el servicio.
+
+> **Manda el certificado de la temporada activa**, nunca el último registrado, igual que la licencia del 3a: `EXPIRED` si el último que trajo es de otro curso y `MISSING` si nunca trajo ninguno. El del curso que viene no cubre el actual.
+
+> **Los certificados que ya existían se reparten en `schema.sql`**: van a la temporada que cubre su fecha de emisión, si no a la activa y si no a la más reciente, y solo después la columna pasa a obligatoria. La anotación no declara el `NOT NULL`, porque Hibernate intentaría añadir la columna obligatoria a una tabla con filas y fallaría antes del relleno. Si un club tuviera certificados y ninguna temporada, la aplicación no arrancaría, y es a propósito: un certificado sin temporada no se puede medir.
+
+> **El campo sigue llamándose `dni`** aunque guarde NIE y pasaporte: renombrarlo rompe contrato y `Specification` sin que falle la compilación (regla 9). Admite letras y números entre 5 y 20, y se guarda sin espacios y en mayúsculas. Un vacío se guarda como nulo: dos cadenas vacías chocarían en el índice único, dos nulos no.
+
+> **El duplicado sin documento se busca contra cualquier ficha del club, tenga documento o no**, sin distinguir mayúsculas. Es algo más amplio que "entre fichas sin documento": si alguien ya está fichado con su DNI y se le vuelve a dar de alta sin él, es la misma persona.
+
+> **Corregido de paso:** editar una ficha sin DNI hacía `athlete.getDni().equals(...)`, que habría reventado con `NullPointerException`; y comprobar el DNI con un nulo habría encontrado a todos los atletas sin documento y rechazado el alta del segundo.
+
+> **El `NOT_REQUIRED` del 3a ya contesta**: una ficha sin documento no tiene documento de identidad que traer. Hay test.
+
+> **Hueco encontrado al preparar las mutaciones:** ningún test distinguía "manda la temporada activa" de "cuenta la que más lejos llega", ni en el certificado ni en la licencia; cambiar la regla habría dejado todo en verde. Hay un test nuevo para cada uno.
+
+> **Verificado que los tests fallan cuando deben**, con cuatro mutaciones y siete rojos: sin el duplicado por nombre, sin normalizar el documento, y contando el certificado o la licencia que más lejos llega en lugar de la de la temporada activa.
+
+> **28 tests nuevos**: 11 de identidad, 14 de validación del formato sin base de datos, uno más de certificado —el servicio se reescribió para la temporada— y dos en entregas. La suite pasa de 310 a 338. Tres fixtures ajustadas: `TenantIsolationTest` creaba certificados antes que temporadas y borraba las temporadas antes que los certificados, y `MedicalCertificateEndpointTest` insertaba certificados sin temporada.
+
+> **Cambio de contrato:** el alta de certificado pide `seasonId` y no `expiresOn`; la respuesta añade `seasonId` y `seasonName`, y su `expiresOn` es el final de la temporada. En atletas, `dni` puede llegar `null` y admite NIE y pasaporte, y un alta duplicada sin documento devuelve 400.
+
 ---
 
 ## Fase 1 — Temporadas y grupos
