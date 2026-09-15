@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -44,17 +45,15 @@ public class AthleteService {
         // require() revienta en vez de inventarse uno.
         Club club = clubService.getById(TenantContext.require());
 
-        // El dni es unico por club, asi que la comprobacion va acotada: que el
-        // mismo nadador este fichado en otro club no impide darlo de alta aqui.
-        if (athleteRepository.existsByClubAndDni(club, request.getDni())) {
-            throw new IllegalArgumentException("Ya existe un atleta con ese DNI");
-        }
+        String documento = normalizarDocumento(request.getDni());
+        comprobarQueNoEstaRepetido(club, documento, request, null);
+
         Athlete athlete = new Athlete();
         athlete.setClub(club);
         athlete.setFirstName(request.getFirstName());
         athlete.setLastName(request.getLastName());
         athlete.setBirthDate(request.getBirthDate());
-        athlete.setDni(request.getDni());
+        athlete.setDni(documento);
         athlete.setGender(resolveGender(request.getGender()));
         Athlete saved = athleteRepository.save(athlete);
 
@@ -153,18 +152,70 @@ public class AthleteService {
             throw new IllegalArgumentException(
                     "El tutor y sus consentimientos no se modifican desde la ficha del atleta");
         }
+
         // Acotado al club del propio atleta, no al club por defecto: es el suyo
-        // el que no puede tener dos fichas con el mismo dni.
-        if (!athlete.getDni().equals(request.getDni())
-                && athleteRepository.existsByClubAndDni(athlete.getClub(), request.getDni())) {
-            throw new IllegalArgumentException("Ya existe un atleta con ese DNI");
-        }
+        // el que no puede tener dos fichas de la misma persona.
+        String documento = normalizarDocumento(request.getDni());
+        comprobarQueNoEstaRepetido(athlete.getClub(), documento, request, athlete);
+
         athlete.setFirstName(request.getFirstName());
         athlete.setLastName(request.getLastName());
         athlete.setBirthDate(request.getBirthDate());
-        athlete.setDni(request.getDni());
+        athlete.setDni(documento);
         athlete.setGender(resolveGender(request.getGender()));
         return toResponse(athleteRepository.save(athlete));
+    }
+
+    /**
+     * Que la ficha no sea la de alguien que ya esta en el club.
+     *
+     * <p><b>Con documento</b>, manda el documento: el mismo en dos fichas es un
+     * error, igual que antes del bloque 3b.
+     *
+     * <p><b>Sin documento</b> no hay nada exacto con que comparar, y el indice unico
+     * no ayuda: deja convivir a todas las fichas sin documento. Lo que se compara
+     * entonces es nombre, apellidos y fecha de nacimiento, <b>contra cualquier
+     * ficha del club, tenga documento o no</b>. Sin esto, un doble clic en el
+     * formulario deja dos fichas del mismo niño, con su asistencia repartida entre
+     * las dos. Los gemelos no chocan: tienen nombres distintos.
+     *
+     * @param actual la ficha que se edita, para no contarla contra si misma;
+     *               {@code null} en el alta
+     */
+    private void comprobarQueNoEstaRepetido(Club club, String documento,
+                                            AthleteRequest request, Athlete actual) {
+        if (documento != null) {
+            boolean cambia = actual == null || !documento.equals(actual.getDni());
+            if (cambia && athleteRepository.existsByClubAndDni(club, documento)) {
+                throw new IllegalArgumentException("Ya existe un atleta con ese DNI");
+            }
+            return;
+        }
+
+        boolean repetido = actual == null
+                ? athleteRepository.existsByClubAndFirstNameIgnoreCaseAndLastNameIgnoreCaseAndBirthDate(
+                        club, request.getFirstName(), request.getLastName(), request.getBirthDate())
+                : athleteRepository.existsByClubAndFirstNameIgnoreCaseAndLastNameIgnoreCaseAndBirthDateAndIdNot(
+                        club, request.getFirstName(), request.getLastName(), request.getBirthDate(),
+                        actual.getId());
+        if (repetido) {
+            throw new IllegalArgumentException(
+                    "Ya existe un atleta con el mismo nombre, apellidos y fecha de nacimiento."
+                            + " Si es otra persona, indica su documento de identidad");
+        }
+    }
+
+    /**
+     * Sin espacios y en mayusculas, y {@code null} si viene vacio. Sin esto,
+     * {@code x1234567l} y {@code X1234567L} serian dos documentos distintos, y dos
+     * fichas con {@code ""} chocarian en el indice unico, que si considera iguales
+     * dos cadenas vacias aunque no dos nulos.
+     */
+    static String normalizarDocumento(String documento) {
+        if (documento == null || documento.isBlank()) {
+            return null;
+        }
+        return documento.trim().toUpperCase(Locale.ROOT);
     }
 
     @Transactional(readOnly = true)

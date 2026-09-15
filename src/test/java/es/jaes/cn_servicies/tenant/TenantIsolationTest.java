@@ -129,10 +129,12 @@ class TenantIsolationTest {
         tutorB = crearTutor(CLUB_B, "TutorDeB", DNI_TUTOR_B);
         consentimientoA = crearConsentimiento(CLUB_A, atletaA, tutorA);
         consentimientoB = crearConsentimiento(CLUB_B, atletaB, tutorB);
-        certificadoA = crearCertificado(CLUB_A, atletaA);
-        certificadoB = crearCertificado(CLUB_B, atletaB);
+        // Las temporadas antes que los certificados: desde el bloque 3b cada
+        // certificado es de una temporada.
         temporadaA = crearTemporada(CLUB_A, "Temporada de A");
         temporadaB = crearTemporada(CLUB_B, "Temporada de B");
+        certificadoA = crearCertificado(CLUB_A, atletaA, temporadaA);
+        certificadoB = crearCertificado(CLUB_B, atletaB, temporadaB);
         grupoA = crearGrupo(CLUB_A, temporadaA, "Grupo de A");
         grupoB = crearGrupo(CLUB_B, temporadaB, "Grupo de B");
         sesionA = crearSesion(CLUB_A, grupoA);
@@ -163,8 +165,8 @@ class TenantIsolationTest {
         jdbc.update("DELETE FROM club_closures WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM training_sessions WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM training_groups WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
-        jdbc.update("DELETE FROM seasons WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM medical_certificates WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
+        jdbc.update("DELETE FROM seasons WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM user_roles WHERE user_id IN"
                 + " (SELECT id FROM users WHERE club_id IN (?, ?))", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM users WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
@@ -313,14 +315,15 @@ class TenantIsolationTest {
         assertThat(propio).as("el tutor del propio club si debe verse").isPresent();
     }
 
-    private UUID crearCertificado(UUID clubId, UUID atletaId) {
+    private UUID crearCertificado(UUID clubId, UUID atletaId, UUID temporadaId) {
         UUID id = UUID.randomUUID();
         jdbc.update("INSERT INTO medical_certificates"
-                        + " (id, club_id, athlete_id, issued_on, expires_on,"
+                        + " (id, club_id, athlete_id, season_id, issued_on, expires_on,"
                         + "  validated_by_id, validated_at, created_at)"
-                        + " SELECT ?, ?, ?, CURRENT_DATE, CURRENT_DATE + 365, u.id, now(), now()"
-                        + " FROM users u WHERE u.club_id = ? LIMIT 1",
-                id, clubId, atletaId, clubId);
+                        + " SELECT ?, ?, ?, s.id, CURRENT_DATE, s.end_date, u.id, now(), now()"
+                        + " FROM users u JOIN seasons s ON s.id = ?"
+                        + " WHERE u.club_id = ? LIMIT 1",
+                id, clubId, atletaId, temporadaId, clubId);
         return id;
     }
 

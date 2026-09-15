@@ -20,11 +20,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Tarea S.1.b, opcion A: el certificado medico como metadatos.
+ * El certificado medico como metadatos, <b>por temporada</b> desde el bloque 3b.
  *
  * <p>Lo que hay que demostrar es que <b>el estado se calcula</b> y no se guarda
  * —si se almacenara, un certificado caducaria sin que nadie se enterase— y que
- * cuando hay varios manda el que mas lejos caduca, no el ultimo registrado.
+ * <b>manda el de la temporada activa</b>, no el ultimo registrado.
  */
 @SpringBootTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -34,12 +34,18 @@ class MedicalCertificateServiceTest {
     private static final String SLUG = "club-certificados-it";
     private static final String ADMIN = "admin_cert_it";
 
+    private static final LocalDate HOY = LocalDate.now();
+    private static final LocalDate INICIO = HOY.minusMonths(3);
+    private static final LocalDate FIN = HOY.plusMonths(8);
+
     @Autowired private MedicalCertificateService certificateService;
     @Autowired private AthleteService athleteService;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JdbcTemplate jdbc;
 
     private UUID atleta;
+    private UUID temporadaActiva;
+    private UUID temporadaPasada;
 
     @BeforeAll
     void inicio() {
@@ -49,12 +55,16 @@ class MedicalCertificateServiceTest {
                 + " VALUES (?, 'Club Certificados IT', ?, true, now())", CLUB, SLUG);
         crearAdmin();
         atleta = crearAtleta();
+        temporadaActiva = crearTemporada("Temporada actual", INICIO, FIN, true);
+        temporadaPasada = crearTemporada("Temporada pasada", INICIO.minusYears(1), INICIO.minusDays(1), false);
     }
 
     @BeforeEach
     void contexto() {
         modoPublico();
         jdbc.update("DELETE FROM medical_certificates WHERE club_id = ?", CLUB);
+        // Algunos tests acercan el final de la temporada; cada uno empieza con la de siempre.
+        jdbc.update("UPDATE seasons SET end_date = ? WHERE id = ?", FIN, temporadaActiva);
         TenantContext.set(CLUB);
     }
 
@@ -71,6 +81,7 @@ class MedicalCertificateServiceTest {
 
     private void borrarTodo() {
         jdbc.update("DELETE FROM medical_certificates WHERE club_id = ?", CLUB);
+        jdbc.update("DELETE FROM seasons WHERE club_id = ?", CLUB);
         jdbc.update("DELETE FROM athletes WHERE club_id = ?", CLUB);
         jdbc.update("DELETE FROM user_roles WHERE user_id IN"
                 + " (SELECT id FROM users WHERE club_id = ?)", CLUB);
@@ -98,15 +109,24 @@ class MedicalCertificateServiceTest {
         return id;
     }
 
-    private MedicalCertificate registrar(LocalDate emision, LocalDate caducidad) {
+    private UUID crearTemporada(String nombre, LocalDate inicio, LocalDate fin, boolean activa) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO seasons"
+                        + " (id, club_id, name, start_date, end_date, active, created_at, updated_at)"
+                        + " VALUES (?, ?, ?, ?, ?, ?, now(), now())",
+                id, CLUB, nombre, inicio, fin, activa);
+        return id;
+    }
+
+    private MedicalCertificate registrar(LocalDate emision, UUID temporada) {
         MedicalCertificateRequest request = new MedicalCertificateRequest();
         request.setIssuedOn(emision);
-        request.setExpiresOn(caducidad);
+        request.setSeasonId(temporada);
         return certificateService.register(athleteService.findOrThrow(atleta), request, ADMIN);
     }
 
     // ----------------------------------------------------------------
-    //  1. El estado sale de las fechas
+    //  1. El estado se mide contra la temporada activa
     // ----------------------------------------------------------------
 
     @Test
@@ -118,9 +138,9 @@ class MedicalCertificateServiceTest {
     }
 
     @Test
-    @DisplayName("uno con un año por delante está vigente")
-    void unoConMargenEstaVigente() {
-        registrar(LocalDate.now().minusDays(1), LocalDate.now().plusYears(1));
+    @DisplayName("el de la temporada activa, con meses por delante, está vigente")
+    void elDeLaTemporadaActivaEstaVigente() {
+        registrar(HOY.minusDays(1), temporadaActiva);
 
         assertThat(certificateService.statusForAthlete(atleta))
                 .isEqualTo(MedicalCertificateStatus.VALID);
@@ -128,9 +148,10 @@ class MedicalCertificateServiceTest {
     }
 
     @Test
-    @DisplayName("a diez días de caducar avisa, y todavía cubre")
-    void aDiezDiasAvisa() {
-        registrar(LocalDate.now().minusYears(1), LocalDate.now().plusDays(10));
+    @DisplayName("si la temporada acaba en diez días avisa, y todavía cubre")
+    void aDiezDiasDelFinalAvisa() {
+        jdbc.update("UPDATE seasons SET end_date = ? WHERE id = ?", HOY.plusDays(10), temporadaActiva);
+        registrar(HOY.minusDays(1), temporadaActiva);
 
         assertThat(certificateService.statusForAthlete(atleta))
                 .isEqualTo(MedicalCertificateStatus.EXPIRING_SOON);
@@ -139,10 +160,15 @@ class MedicalCertificateServiceTest {
                 .isTrue();
     }
 
+    /**
+     * Es lo que le sirve al club en septiembre: a quien trajo el del curso pasado
+     * hay que pedirle que renueve, que no es lo mismo que pedirselo a quien nunca
+     * trajo ninguno.
+     */
     @Test
-    @DisplayName("uno caducado ayer ya no cubre, sin que nadie lo haya tocado")
-    void elCaducadoDejaDeCubrirSolo() {
-        registrar(LocalDate.now().minusYears(1), LocalDate.now().minusDays(1));
+    @DisplayName("si solo tiene el del curso pasado, EXPIRED y no MISSING")
+    void soloElDelCursoPasadoEsExpired() {
+        registrar(INICIO.minusMonths(6), temporadaPasada);
 
         assertThat(certificateService.statusForAthlete(atleta))
                 .isEqualTo(MedicalCertificateStatus.EXPIRED);
@@ -150,50 +176,66 @@ class MedicalCertificateServiceTest {
     }
 
     @Test
-    @DisplayName("el día de la caducidad todavía cubre")
-    void elDiaDeLaCaducidadCubre() {
-        registrar(LocalDate.now().minusYears(1), LocalDate.now());
-
-        assertThat(certificateService.statusForAthlete(atleta))
-                .isEqualTo(MedicalCertificateStatus.EXPIRING_SOON);
-    }
-
-    // ----------------------------------------------------------------
-    //  2. Cuál manda cuando hay varios
-    // ----------------------------------------------------------------
-
-    @Test
-    @DisplayName("manda el que más lejos caduca, no el último registrado")
-    void mandaElQueMasLejosCaduca() {
-        // El del año que viene primero, y después se teclea el viejo: es lo que
-        // pasa cuando alguien pone al día el archivo. El estado no puede
-        // empeorar por eso.
-        registrar(LocalDate.now().minusDays(2), LocalDate.now().plusMonths(11));
-        registrar(LocalDate.now().minusYears(2), LocalDate.now().minusYears(1));
+    @DisplayName("manda el de la temporada activa, no el último registrado")
+    void mandaElDeLaTemporadaActiva() {
+        // El de este curso primero, y después se teclea el del pasado: es lo que
+        // pasa cuando alguien pone al día el archivo. El estado no puede empeorar.
+        registrar(HOY.minusDays(2), temporadaActiva);
+        registrar(INICIO.minusMonths(6), temporadaPasada);
 
         assertThat(certificateService.statusForAthlete(atleta))
                 .isEqualTo(MedicalCertificateStatus.VALID);
         assertThat(certificateService.historyForAthlete(atleta)).hasSize(2);
     }
 
+    /**
+     * Anotar en agosto el certificado del curso que viene no puede cubrir el que
+     * acaba. Contar "el que mas lejos llega" diria VALID, y es justo lo que este
+     * test impide: el curso actual sigue sin certificado.
+     */
+    @Test
+    @DisplayName("el certificado del curso que viene no cubre el actual")
+    void elDelCursoQueVieneNoCubreEste() {
+        UUID siguiente = crearTemporada("Temporada siguiente", FIN.plusDays(1), FIN.plusYears(1), false);
+        registrar(HOY, siguiente);
+
+        assertThat(certificateService.statusForAthlete(atleta))
+                .isEqualTo(MedicalCertificateStatus.EXPIRED);
+    }
+
     // ----------------------------------------------------------------
-    //  3. Validación y avisos
+    //  2. La caducidad es la de la temporada
     // ----------------------------------------------------------------
 
     @Test
-    @DisplayName("una caducidad anterior a la emisión se rechaza")
-    void caducidadAnteriorALaEmisionSeRechaza() {
-        assertThatThrownBy(() -> registrar(LocalDate.now(), LocalDate.now().minusDays(1)))
-                .isInstanceOf(IllegalArgumentException.class);
+    @DisplayName("la caducidad no se teclea: es el último día de la temporada")
+    void laCaducidadEsElFinalDeLaTemporada() {
+        MedicalCertificate certificado = registrar(HOY.minusDays(1), temporadaActiva);
+
+        assertThat(certificado.getExpiresOn()).isEqualTo(FIN);
+        assertThat(certificateService.toResponse(certificado).getExpiresOn()).isEqualTo(FIN);
     }
 
     @Test
-    @DisplayName("la lista de caducidades próximas recoge el que vence dentro de 30 días y no el de dentro de un año")
+    @DisplayName("una emisión posterior al final de la temporada se rechaza")
+    void emisionPosteriorAlFinalSeRechaza() {
+        assertThatThrownBy(() -> registrar(HOY, temporadaPasada))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("temporada");
+    }
+
+    // ----------------------------------------------------------------
+    //  3. Avisos
+    // ----------------------------------------------------------------
+
+    @Test
+    @DisplayName("las caducidades próximas recogen los de una temporada que acaba en diez días")
     void laListaDeCaducidadesProximas() {
-        registrar(LocalDate.now().minusYears(1), LocalDate.now().plusDays(10));
+        jdbc.update("UPDATE seasons SET end_date = ? WHERE id = ?", HOY.plusDays(10), temporadaActiva);
+        registrar(HOY.minusDays(1), temporadaActiva);
 
         assertThat(certificateService.expiringWithin(30))
-                .as("el que vence en 10 días entra")
+                .as("la temporada acaba en 10 días: entra")
                 .hasSize(1);
         assertThat(certificateService.expiringWithin(5))
                 .as("con la ventana en 5 días ya no entra")
@@ -201,9 +243,9 @@ class MedicalCertificateServiceTest {
     }
 
     @Test
-    @DisplayName("un certificado ya caducado no sale en las caducidades próximas: eso es otra lista")
+    @DisplayName("el del curso pasado no sale en las caducidades próximas: eso es otra lista")
     void elCaducadoNoEsUnAviso() {
-        registrar(LocalDate.now().minusYears(1), LocalDate.now().minusDays(1));
+        registrar(INICIO.minusMonths(6), temporadaPasada);
 
         assertThat(certificateService.expiringWithin(30)).isEmpty();
     }
@@ -213,16 +255,16 @@ class MedicalCertificateServiceTest {
     // ----------------------------------------------------------------
 
     @Test
-    @DisplayName("la respuesta no expone nada clínico: solo fechas, estado y quién validó")
+    @DisplayName("la respuesta no expone nada clínico: fechas, temporada, estado y quién validó")
     void laRespuestaSoloLlevaMetadatos() {
-        MedicalCertificate certificado =
-                registrar(LocalDate.now().minusDays(1), LocalDate.now().plusYears(1));
+        MedicalCertificate certificado = registrar(HOY.minusDays(1), temporadaActiva);
 
         MedicalCertificateResponse response = certificateService.toResponse(certificado);
 
         assertThat(response.getStatus()).isEqualTo(MedicalCertificateStatus.VALID);
         assertThat(response.getValidatedBy()).isEqualTo(ADMIN);
+        assertThat(response.getSeasonId()).isEqualTo(temporadaActiva);
+        assertThat(response.getSeasonName()).isEqualTo("Temporada actual");
         assertThat(response.getIssuedOn()).isNotNull();
-        assertThat(response.getExpiresOn()).isNotNull();
     }
 }

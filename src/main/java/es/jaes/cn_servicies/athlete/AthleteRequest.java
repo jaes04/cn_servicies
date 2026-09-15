@@ -5,7 +5,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -22,9 +21,22 @@ public class AthleteRequest {
     @NotNull
     private LocalDate birthDate;
 
-    @NotBlank
-    @Size(min = 9, max = 9, message = "El DNI debe tener exactamente 9 caracteres")
-    @Pattern(regexp = "^[0-9]{8}[A-Z]$", message = "El DNI debe tener 8 dígitos y una letra mayúscula")
+    /**
+     * Documento de identidad: DNI, NIE o pasaporte. <b>Opcional</b> desde el
+     * bloque 3b.
+     *
+     * <p>Hasta entonces era obligatorio y solo admitia el formato del DNI, asi que
+     * un nadador extranjero no se podia dar de alta y un menor sin DNI obligaba a
+     * inventarse uno. Ahora se aceptan letras y numeros, entre 5 y 20, que cubre
+     * los tres documentos. Lo que se pierde es comprobar la forma exacta de un DNI:
+     * un pasaporte no tiene una forma exacta que comprobar.
+     *
+     * <p>Se admiten minusculas y espacios alrededor: el servicio lo guarda sin
+     * espacios y en mayusculas, para que {@code x1234567l} y {@code X1234567L} sean
+     * el mismo documento.
+     */
+    @Pattern(regexp = "^\\s*$|^\\s*[A-Za-z0-9]{5,20}\\s*$",
+            message = "El documento de identidad admite solo letras y números, entre 5 y 20")
     private String dni;
 
     @NotNull

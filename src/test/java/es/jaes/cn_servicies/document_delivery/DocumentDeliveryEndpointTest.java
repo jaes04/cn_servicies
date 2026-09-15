@@ -204,6 +204,21 @@ class DocumentDeliveryEndpointTest {
         assertThat(estado(ana, ADMIN)).contains("\"LICENSE_APPLICATION\":\"EXPIRED\"");
     }
 
+    /**
+     * Anotar en agosto la licencia del curso que viene no puede dar por buena la
+     * de este. Contar "la que mas lejos llega" diria VALID.
+     */
+    @Test
+    @DisplayName("la licencia del curso que viene no cubre el actual")
+    void licenciaDelCursoQueViene() {
+        modoPublico();
+        UUID siguiente = crearTemporada(CLUB, "Temporada siguiente " + UUID.randomUUID(),
+                FIN.plusDays(1), FIN.plusYears(1), false);
+        registrar(ana, licencia(siguiente));
+
+        assertThat(estado(ana, ADMIN)).contains("\"LICENSE_APPLICATION\":\"EXPIRED\"");
+    }
+
     @Test
     @DisplayName("un DNI que caduca en diez días avisa, y uno caducado sale como tal")
     void caducidadDelDni() {
@@ -221,6 +236,21 @@ class DocumentDeliveryEndpointTest {
         registrar(ana, identidad(HOY.minusYears(1)));
 
         assertThat(estado(ana, ADMIN)).contains("\"IDENTITY_DOCUMENT\":\"VALID\"");
+    }
+
+    /**
+     * Bloque 3b: el documento de la ficha pasa a ser opcional, y a quien no lo
+     * tiene no hay papel que pedirle. Se crea con documento y se le quita despues
+     * porque un nulo sin tipo en un {@code INSERT ... SELECT} no lo acepta Postgres.
+     */
+    @Test
+    @DisplayName("a un atleta sin documento de identidad no se le exige: NOT_REQUIRED")
+    void sinDocumentoNoSeExige() {
+        modoPublico();
+        UUID elena = crearAtleta(CLUB, "Elena", "60000009Z", LocalDate.of(2016, 6, 6));
+        jdbc.update("UPDATE athletes SET dni = NULL WHERE id = ?", elena);
+
+        assertThat(estado(elena, ADMIN)).contains("\"IDENTITY_DOCUMENT\":\"NOT_REQUIRED\"");
     }
 
     // ----------------------------------------------------------------

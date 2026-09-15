@@ -28,10 +28,10 @@ import java.util.UUID;
  * pide guardar el PDF, eso es la Opcion B de la S.1.b y son otras siete
  * restricciones: para, y preguntalo.
  *
- * <p>No lleva {@code season_id}: la vigencia la definen sus propias fechas, y
- * {@code Season} no existe hasta la Fase 1. Tampoco lleva estado almacenado —se
- * calcula desde {@link #expiresOn}— porque un estado a mano se queda obsoleto
- * solo con que pase un dia.
+ * <p><b>Vale una temporada</b> desde el bloque 3b: el club pide uno por curso, asi
+ * que su caducidad es el final de la temporada y no una fecha que se teclea. No
+ * lleva estado almacenado —se calcula desde {@link #lastValidDay()}— porque un
+ * estado a mano se queda obsoleto solo con que pase un dia.
  *
  * <p>Lleva {@code club_id} con policy de RLS propia, misma decision explicita
  * que en {@code consents}: es lo mas sensible que toca esta fase y el
@@ -60,9 +60,28 @@ public class MedicalCertificate {
             foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Athlete athlete;
 
+    /**
+     * La temporada que cubre (bloque 3b): el club pide un certificado por
+     * temporada, y ese es su plazo.
+     *
+     * <p>El {@code NOT NULL} no se declara aqui sino en {@code schema.sql}, despues
+     * de asignar temporada a los certificados que ya existian: declarado en la
+     * anotacion, Hibernate intentaria añadir la columna obligatoria a una tabla con
+     * filas, y fallaria antes de que el relleno llegara a ejecutarse.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "season_id",
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
+    private es.jaes.cn_servicies.season.Season season;
+
     @Column(nullable = false)
     private LocalDate issuedOn;
 
+    /**
+     * Ultimo dia en que cubre. Desde el bloque 3b es el final de su temporada y lo
+     * pone el servicio; se guarda igualmente porque es por donde se consulta que
+     * caduca pronto.
+     */
     @Column(nullable = false)
     private LocalDate expiresOn;
 
@@ -77,12 +96,22 @@ public class MedicalCertificate {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
-    /** Derivado de la fecha de caducidad, nunca almacenado. */
+    /**
+     * Ultimo dia en que cubre: el final de su temporada. Solo un certificado
+     * anterior al bloque 3b que no se pudo asignar a ninguna cae en su fecha de
+     * caducidad antigua.
+     */
+    public LocalDate lastValidDay() {
+        return season != null ? season.getEndDate() : expiresOn;
+    }
+
+    /** Derivado del ultimo dia en que cubre, nunca almacenado. Ese dia todavia cubre. */
     public MedicalCertificateStatus statusOn(LocalDate date) {
-        if (expiresOn.isBefore(date)) {
+        LocalDate ultimoDia = lastValidDay();
+        if (ultimoDia.isBefore(date)) {
             return MedicalCertificateStatus.EXPIRED;
         }
-        if (expiresOn.isBefore(date.plusDays(EXPIRY_WARNING_DAYS))) {
+        if (ultimoDia.isBefore(date.plusDays(EXPIRY_WARNING_DAYS))) {
             return MedicalCertificateStatus.EXPIRING_SOON;
         }
         return MedicalCertificateStatus.VALID;

@@ -55,11 +55,13 @@ class MedicalCertificateEndpointTest {
         crearUsuario(ADMIN, "ROLE_ADMIN");
         crearUsuario(ENTRENADOR, "ROLE_TECHNICAL_STAFF");
         atleta = crearAtleta();
-        crearCertificado();
 
         // Desde la S.3.3.b el entrenador solo ve el estado de los atletas que hoy
         // estan en sus grupos, asi que este atleta tiene que estar en uno suyo.
+        // Va antes que el certificado porque crea la temporada activa, y desde el
+        // bloque 3b cada certificado es de una.
         ponerEnUnGrupoDelEntrenador(atleta);
+        crearCertificado();
     }
 
     @AfterAll
@@ -125,10 +127,11 @@ class MedicalCertificateEndpointTest {
 
     private void crearCertificado() {
         jdbc.update("INSERT INTO medical_certificates"
-                        + " (id, club_id, athlete_id, issued_on, expires_on,"
+                        + " (id, club_id, athlete_id, season_id, issued_on, expires_on,"
                         + "  validated_by_id, validated_at, created_at)"
-                        + " SELECT ?, ?, ?, CURRENT_DATE, CURRENT_DATE + 365, u.id, now(), now()"
-                        + " FROM users u WHERE u.club_id = ? AND u.username = ?",
+                        + " SELECT ?, ?, ?, s.id, CURRENT_DATE, s.end_date, u.id, now(), now()"
+                        + " FROM users u JOIN seasons s ON s.club_id = u.club_id AND s.active"
+                        + " WHERE u.club_id = ? AND u.username = ?",
                 UUID.randomUUID(), CLUB, atleta, CLUB, ADMIN);
     }
 

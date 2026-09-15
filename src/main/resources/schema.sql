@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS athletes (
     first_name VARCHAR(255) NOT NULL,
     last_name  VARCHAR(255) NOT NULL,
     birth_date DATE         NOT NULL,
-    dni        VARCHAR(9)   NOT NULL UNIQUE,
+    dni        VARCHAR(20),
     gender     VARCHAR(10)  NOT NULL,
     created_at TIMESTAMP,
     updated_at TIMESTAMP,
@@ -247,14 +247,16 @@ CREATE INDEX IF NOT EXISTS idx_consents_guardian ON consents (guardian_id);
 --  certificado en plazo, esa es la aptitud. El estado no se almacena, se
 --  calcula desde expires_on.
 --
---  Sin season_id: la vigencia la definen sus fechas, y `seasons` no existe
---  hasta la Fase 1.
+--  Por temporada desde el bloque 3b: el club pide un certificado cada curso,
+--  asi que lleva season_id y expires_on es el final de la temporada. La columna
+--  se añade y se rellena con sentencias sueltas, junto a sus claves foraneas.
 --
 --  Lleva club_id y policy propia, misma decision explicita que en consents.
 CREATE TABLE IF NOT EXISTS medical_certificates (
     id               UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
     club_id          UUID      NOT NULL REFERENCES clubs(id),
     athlete_id       UUID      NOT NULL,
+    season_id        UUID      NOT NULL,
     issued_on        DATE      NOT NULL,
     expires_on       DATE      NOT NULL,
     validated_by_id  UUID      NOT NULL REFERENCES users(id),
@@ -589,6 +591,42 @@ ALTER TABLE medical_certificates DROP CONSTRAINT IF EXISTS fk_medical_certificat
 ALTER TABLE medical_certificates ADD CONSTRAINT fk_medical_certificates_athlete
     FOREIGN KEY (athlete_id) REFERENCES athletes (id) ON DELETE CASCADE;
 
+-- CERTIFICADO MEDICO POR TEMPORADA (bloque 3b)
+--  La columna la añade Hibernate sin NOT NULL, porque la anotacion no lo
+--  declara: añadirla obligatoria a una tabla con filas fallaria antes del
+--  relleno. Aqui se rellena y despues se hace obligatoria.
+--
+--  Cada certificado que ya existia va a la temporada que cubre su fecha de
+--  emision. Si ninguna la cubre, a la activa del club. Si el club no tiene
+--  activa, a la mas reciente. Solo un club sin ninguna temporada dejaria un
+--  certificado sin asignar, y entonces el SET NOT NULL falla y la aplicacion
+--  no arranca: es a proposito, un certificado sin temporada no se puede medir.
+ALTER TABLE medical_certificates ADD COLUMN IF NOT EXISTS season_id UUID;
+
+UPDATE medical_certificates mc SET season_id = (
+    SELECT s.id FROM seasons s
+    WHERE s.club_id = mc.club_id AND mc.issued_on BETWEEN s.start_date AND s.end_date
+    ORDER BY s.start_date DESC LIMIT 1)
+WHERE mc.season_id IS NULL;
+
+UPDATE medical_certificates mc SET season_id = (
+    SELECT s.id FROM seasons s WHERE s.club_id = mc.club_id AND s.active LIMIT 1)
+WHERE mc.season_id IS NULL;
+
+UPDATE medical_certificates mc SET season_id = (
+    SELECT s.id FROM seasons s WHERE s.club_id = mc.club_id
+    ORDER BY s.start_date DESC LIMIT 1)
+WHERE mc.season_id IS NULL;
+
+ALTER TABLE medical_certificates ALTER COLUMN season_id SET NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_medical_certificates_athlete_season
+    ON medical_certificates (athlete_id, season_id);
+
+ALTER TABLE medical_certificates DROP CONSTRAINT IF EXISTS fk_medical_certificates_season;
+ALTER TABLE medical_certificates ADD CONSTRAINT fk_medical_certificates_season
+    FOREIGN KEY (season_id) REFERENCES seasons (id);
+
 -- ENTREGAS DE PAPELES (bloque 3a)
 --  Constancia de que la familia entrego un papel al club y hasta cuando vale:
 --  licencia (por temporada), documento de identidad (hasta su caducidad) y
@@ -713,6 +751,14 @@ CREATE INDEX IF NOT EXISTS idx_athletes_club_id ON athletes (club_id);
 -- mismo club dos fichas con el mismo dni siguen siendo un error.
 ALTER TABLE athletes DROP CONSTRAINT IF EXISTS athletes_dni_key;
 CREATE UNIQUE INDEX IF NOT EXISTS uk_athletes_club_dni ON athletes (club_id, dni);
+
+-- El documento de identidad pasa a ser opcional y admite NIE y pasaporte
+-- (bloque 3b): hay menores sin DNI y extranjeros sin DNI. ddl-auto no quita un
+-- NOT NULL ni cambia la longitud de una columna que ya existe, asi que va aqui.
+-- El indice unico de arriba sigue sirviendo: Postgres no considera iguales dos
+-- nulos, y dos fichas sin documento no chocan.
+ALTER TABLE athletes ALTER COLUMN dni DROP NOT NULL;
+ALTER TABLE athletes ALTER COLUMN dni TYPE VARCHAR(20);
 
 -- POSTS
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS club_id UUID;
