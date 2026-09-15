@@ -33,13 +33,19 @@ public class GuardianService {
     public Guardian resolveOrCreate(GuardianRequest request) {
         Club club = clubService.getById(TenantContext.require());
 
-        return guardianRepository.findByClubAndDni(club, request.getDni())
+        // Sin espacios y en mayusculas, igual que el documento del atleta: si no,
+        // el segundo hijo tecleado con el NIE en minusculas crearia otro tutor.
+        String documento = request.getDni() == null
+                ? null
+                : request.getDni().trim().toUpperCase(java.util.Locale.ROOT);
+
+        return guardianRepository.findByClubAndDni(club, documento)
                 .orElseGet(() -> {
                     Guardian guardian = new Guardian();
                     guardian.setClub(club);
                     guardian.setFirstName(request.getFirstName());
                     guardian.setLastName(request.getLastName());
-                    guardian.setDni(request.getDni());
+                    guardian.setDni(documento);
                     guardian.setEmail(request.getEmail());
                     guardian.setPhone(request.getPhone());
                     return guardianRepository.save(guardian);

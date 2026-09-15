@@ -62,7 +62,12 @@ public class Guardian {
      * <p>Aqui si es obligatorio, a diferencia del atleta: el tutor es siempre
      * mayor de edad y tiene documento.
      */
-    @Column(nullable = false, length = 9)
+    /**
+     * DNI, NIE o pasaporte, sin espacios y en mayusculas. Unico por club
+     * ({@code uk_guardians_club_dni}). Los 20 caracteres los fija {@code schema.sql}:
+     * {@code ddl-auto} no cambia la longitud de una columna que ya existe.
+     */
+    @Column(nullable = false, length = 20)
     private String dni;
 
     /**

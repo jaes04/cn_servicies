@@ -117,10 +117,14 @@ class AthleteMinorConsentTest {
     }
 
     private AthleteGuardianRequest tutor(boolean tratamiento, boolean imagen) {
+        return tutor(DNI_TUTOR, tratamiento, imagen);
+    }
+
+    private AthleteGuardianRequest tutor(String documentoDelTutor, boolean tratamiento, boolean imagen) {
         GuardianRequest guardian = new GuardianRequest();
         guardian.setFirstName("Tutora");
         guardian.setLastName("De Prueba");
-        guardian.setDni(DNI_TUTOR);
+        guardian.setDni(documentoDelTutor);
         guardian.setEmail("tutora@it.local");
 
         AthleteGuardianRequest request = new AthleteGuardianRequest();
@@ -235,5 +239,37 @@ class AthleteMinorConsentTest {
 
         assertThatThrownBy(() -> athleteService.update(id, cambio))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // ----------------------------------------------------------------
+    //  4. Tutor con NIE o pasaporte
+    // ----------------------------------------------------------------
+
+    /**
+     * Hasta el arreglo que acompaño al bloque 3c, el documento del tutor solo
+     * admitia el formato del DNI: un tutor extranjero no podia dar de alta a su
+     * hijo menor de 14, que es justo cuando hace falta.
+     */
+    @Test
+    @DisplayName("un tutor con NIE puede dar de alta a su hijo menor de 14")
+    void tutorConNie() {
+        AthleteRequest request = atleta(DNI_MENOR, nacimientoDeMenor());
+        request.setGuardianConsent(tutor("X1234567L", true, true));
+
+        assertThat(athleteService.create(request).getId()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("el mismo NIE en minúsculas y con espacios es el mismo tutor: no crea otra ficha")
+    void elDocumentoDelTutorSeNormaliza() {
+        AthleteRequest primero = atleta(DNI_MENOR, nacimientoDeMenor());
+        primero.setGuardianConsent(tutor("X1234567L", true, true));
+        athleteService.create(primero);
+
+        AthleteRequest hermano = atleta(DNI_HERMANO, nacimientoDeMenor());
+        hermano.setGuardianConsent(tutor(" x1234567l ", true, true));
+        athleteService.create(hermano);
+
+        assertThat(tutoresEnElClub()).isEqualTo(1);
     }
 }

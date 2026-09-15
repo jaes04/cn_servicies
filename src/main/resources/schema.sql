@@ -170,7 +170,7 @@ CREATE TABLE IF NOT EXISTS guardians (
     club_id    UUID         NOT NULL REFERENCES clubs(id),
     first_name VARCHAR(255) NOT NULL,
     last_name  VARCHAR(255) NOT NULL,
-    dni        VARCHAR(9)   NOT NULL,
+    dni        VARCHAR(20)  NOT NULL,
     email      VARCHAR(255) NOT NULL,
     phone      VARCHAR(255),
     user_id    UUID,
@@ -184,6 +184,11 @@ CREATE INDEX IF NOT EXISTS idx_guardians_club_id ON guardians (club_id);
 -- El dni del tutor es unico por club, no global: la misma persona puede ser
 -- tutora en dos clubes y cada uno tiene su ficha.
 CREATE UNIQUE INDEX IF NOT EXISTS uk_guardians_club_dni ON guardians (club_id, dni);
+
+-- El documento del tutor admite NIE y pasaporte, como el del atleta (bloque 3c).
+-- Sigue siendo obligatorio. ddl-auto no cambia la longitud de una columna que ya
+-- existe, asi que va aqui.
+ALTER TABLE guardians ALTER COLUMN dni TYPE VARCHAR(20);
 
 -- Una cuenta corresponde a una sola ficha de tutor. El indice unico de Postgres
 -- ignora los nulos, asi que esto no estorba a los tutores sin cuenta, que son
