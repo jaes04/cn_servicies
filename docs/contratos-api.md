@@ -8,8 +8,8 @@ Sacado del código real (controladores, DTOs y `SecurityConfig`) a fecha de
 **15 de septiembre de 2026**, rama `develop`. `API_DOCS.md`, en la raíz, es de mayo y no
 recoge nada de esto.
 
-> **Esta semana cambian más cosas** y se avisará: el refresco de tokens (§2), el límite de
-> intentos en el login y un informe nuevo de documentación pendiente. Ver §19.
+> **Esta semana cambian más cosas** y se avisará: el refresco de tokens (§2) y el límite de
+> intentos en el login. Ver §19.
 
 ---
 
@@ -514,6 +514,34 @@ Descárgalo como archivo, no lo muestres como texto.
 
 `total` es el número a enseñar en el aviso.
 
+### 12.b Documentación pendiente
+
+`GET /api/reports/documents/pending` — admin; entrenador, **solo sus grupos**.
+
+Quién tiene algo sin resolver de la documentación que el club pide cada temporada:
+certificado médico, solicitud de licencia y documento de identidad. Es el aviso del
+principio de temporada, y sustituye a `/api/medical-certificates/expiring`.
+
+```json
+{
+  "seasonId": "…", "seasonName": "2026/2027", "total": 2,
+  "athletes": [
+    { "athleteId": "…", "athleteName": "Bruno Gil", "groups": ["Alevín A"],
+      "medicalCertificate": "MISSING", "licenseApplication": "MISSING", "identityDocument": "EXPIRING_SOON" }
+  ]
+}
+```
+
+- **Solo los atletas que hoy están en algún grupo de la temporada activa.** Una ficha que no
+  está en ningún grupo no aparece: en septiembre, primero hay que meter a cada nadador en su
+  grupo. Así no salen como pendientes las fichas antiguas de quien ya no está.
+- Aparece un atleta si **alguno** de los tres no está en regla: `MISSING`, `EXPIRED` o
+  `EXPIRING_SOON`. `NOT_REQUIRED` cuenta como en regla.
+- Ordenados por nombre. `groups` son los grupos de la temporada en los que está hoy; para un
+  entrenador, solo los suyos.
+- Sin temporada activa, `seasonId` y `seasonName` llegan `null` y la lista vacía.
+- El permiso de viaje no está: no se pide hasta que hay un viaje (§16).
+
 ---
 
 ## 13. Atletas
@@ -575,10 +603,9 @@ Descárgalo como archivo, no lo muestres como texto.
 - **No uses `evidenceType: ONLINE_FORM` desde el panel del club**: registraría la IP de quien
   teclea, no la de quien consiente.
 
-> ⚠️ **Limitación conocida: el DNI del tutor sigue exigiendo formato de DNI español**
-> (8 dígitos y letra). Un tutor con NIE o pasaporte **no se puede registrar**, y por tanto
-> tampoco dar de alta a su hijo menor de 14. Está pendiente de decidir si se corrige como
-> se hizo con el atleta.
+**El documento del tutor es obligatorio** y admite DNI, NIE o pasaporte, con el mismo
+formato que el del atleta. Se guarda en mayúsculas y sin espacios, así que `x1234567l` y
+`X1234567L` son el mismo tutor, y el segundo hijo no crea una ficha nueva.
 
 ---
 
@@ -632,7 +659,6 @@ Descárgalo como archivo, no lo muestres como texto.
 | `GET /api/medical-certificates/athlete/{athleteId}/status` | Admin; entrenador si es su atleta | `{ "status": "VALID" }` |
 | `GET /api/medical-certificates/athlete/{athleteId}` | Admin | Historial |
 | `POST /api/medical-certificates/athlete/{athleteId}` | Admin | 201 |
-| `GET /api/medical-certificates/expiring?days=30` | Admin | Los que caducan pronto |
 
 ### ⚠️ Cambio del bloque 3b: un certificado por temporada
 
@@ -670,7 +696,8 @@ Descárgalo como archivo, no lo muestres como texto.
 **No hay diagnóstico, observaciones ni campo de apto:** no los pidas en el formulario. No se
 puede corregir un certificado mal tecleado, porque no hay `PUT` ni `DELETE`.
 
-`/expiring` se retirará cuando exista el informe de documentación pendiente (bloque 3c).
+**`/api/medical-certificates/expiring` ya no existe** y responde 404. Lo sustituye el informe
+de documentación pendiente (§12.b).
 
 ---
 
@@ -752,13 +779,8 @@ Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atle
 **Canjear:** `{ "key": "…" }`.
 
 - La clave caduca a las **72 horas** y es de un solo uso.
-- Una clave que no existe es **400** `"Key no válida"`.
-
-> ⚠️ **Fallo conocido: tres errores del canje salen hoy como 500, no como 400.** Son la clave ya
-> usada, la clave caducada y el usuario ya vinculado a ese atleta. El mensaje llega, pero con
-> el nombre de la excepción delante: `"IllegalStateException: La key ha expirado"`. Mientras no
-> se corrija, trata un 500 en esta ruta como error del usuario y enseña el mensaje sin ese
-> prefijo.
+- Una clave que no existe, ya usada o caducada, o un usuario que ya tiene vínculo con ese
+  atleta: **400** con su mensaje.
 - **La clave da acceso a los datos de un menor:** enséñala una vez para copiarla, no la
   guardes ni la pongas en una URL.
 
@@ -776,6 +798,7 @@ Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atle
 | **Mis documentos** y subida de documentos en la ficha | `/api/athlete-documents/**` responde **404 a todo el mundo**: la subida está apagada | Quitar o esconder la pantalla y pasar a entregas de papeles (§16) |
 | Gestión de atletas | `dni` opcional y puede llegar `null`; nuevo 400 por duplicado | §13 |
 | Alta de certificado, si existe | Pide `seasonId`, ya no `expiresOn` | §15 |
+| Aviso de certificados que caducan, si existe | `/api/medical-certificates/expiring` responde 404 | Pasar al informe de documentación pendiente (§12.b) |
 | Todo lo que use un entrenador | Fuera de sus grupos, **404**; listados filtrados | Tratar 404 como "no disponible", no como fallo |
 | Foto de perfil | Solo la propia, o cualquiera siendo administrador; si no, 404 | |
 | Grupos | La respuesta añade `assistantCoaches`; la petición admite `assistantCoachIds` | §6 |
@@ -787,8 +810,3 @@ Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atle
 - **Refresco de tokens** (esta semana): `/api/auth/refresh` solo aceptará refresh tokens (§2).
 - **Límite de intentos en el login** (esta semana): demasiados intentos fallidos devolverán un
   error en lugar de 401. El código exacto se documentará al hacerlo.
-- **Informe de documentación pendiente** (bloque 3c, esta semana): quién no tiene certificado,
-  licencia o documento de identidad para la temporada activa. Sustituirá a
-  `/api/medical-certificates/expiring`.
-- **DNI del tutor** con NIE o pasaporte: sin decidir (§13).
-- **Errores del canje de claves** que hoy salen como 500 (§17): pendiente de corregir.
