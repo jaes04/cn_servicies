@@ -311,7 +311,7 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 - [x] Entidad `CertificadoMedico`: `id`, `atleta_id`, `temporada_id`, `fecha_emision`, `fecha_caducidad`, `estado`, `validado_por`, `validado_en` — `1h · Baja · Crítica`
 - [x] **Sin diagnóstico, sin observaciones médicas, sin campo `apto`** — `0h · Baja · Crítica`
 - [x] Estado calculado desde `fecha_caducidad`, no almacenado a mano — `1h · Baja · Alta`
-- [ ] Aviso al alta en grupo si no hay certificado vigente — `1h · Media · Alta`
+- [x] Aviso al alta en grupo si no hay certificado vigente — `1h · Media · Alta` — *cubierto por el informe de documentación pendiente del bloque 3c*
 - [ ] Aviso automático al tutor 30 días antes del vencimiento — `2h · Media · Alta`
 
 > **Hecho como opción A: solo metadatos.** Entidades en inglés: `MedicalCertificate`, `MedicalCertificateStatus`. **Sin `season_id`** —la vigencia la definen sus fechas y `Season` no existe hasta la Fase 1— y con `club_id` y policy de RLS propia, misma decisión explícita que en `consents`.
@@ -401,6 +401,37 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 > **28 tests nuevos**: 11 de identidad, 14 de validación del formato sin base de datos, uno más de certificado —el servicio se reescribió para la temporada— y dos en entregas. La suite pasa de 310 a 338. Tres fixtures ajustadas: `TenantIsolationTest` creaba certificados antes que temporadas y borraba las temporadas antes que los certificados, y `MedicalCertificateEndpointTest` insertaba certificados sin temporada.
 
 > **Cambio de contrato:** el alta de certificado pide `seasonId` y no `expiresOn`; la respuesta añade `seasonId` y `seasonName`, y su `expiresOn` es el final de la temporada. En atletas, `dni` puede llegar `null` y admite NIE y pasaporte, y un alta duplicada sin documento devuelve 400.
+
+### S.1.e Documentación pendiente — bloque 3c
+
+- [x] Informe de lo que falta para la temporada activa: certificado, licencia y documento de identidad — `3h · Media · Alta`
+- [x] Retirar `GET /api/medical-certificates/expiring`, que queda sustituido — `30min · Baja · Media`
+- [x] Documento del tutor con NIE o pasaporte — `1h · Baja · Alta` *(encontrado al escribir los contratos)*
+- [x] Errores del canje de claves de invitación como 400 y no como 500 — `30min · Baja · Media` *(encontrado al escribir los contratos)*
+
+> **`GET /api/reports/documents/pending`**, bajo la regla de `/api/reports/**`: lo consultan el administrador y el entrenador, y al entrenador le llega acotado a sus grupos. Cada atleta sale con sus grupos y el estado de los tres papeles, sin documento de identidad ni fecha de nacimiento.
+
+> **Solo cuentan los atletas que hoy están en algún grupo de la temporada activa.** Una ficha sin grupo puede ser de alguien que dejó el club hace años, y un aviso lleno de esas fichas deja de leerse. El precio: en septiembre hay que meter a cada nadador en su grupo antes de que aparezca.
+
+> **A punto de caducar cuenta como pendiente**, porque es justo cuando conviene pedir el papel. `NOT_REQUIRED` no cuenta.
+
+> **El informe no calcula ningún estado.** Se los pide a los servicios de certificados y de entregas, que ahora tienen versión en bloque y pasan por el mismo método que la consulta de un atleta suelto. Si fueran dos criterios, el aviso diría que falta algo que la ficha da por bueno. Hay test de que el certificado en bloque y el de uno en uno coinciden.
+
+> **Los miembros se sacan grupo a grupo con la consulta de pertenencia de siempre**, y no con una consulta nueva: el criterio "quién está en un grupo en una fecha" ya está escrito tres veces.
+
+> **El aviso al dar de alta en un grupo sin certificado**, pendiente desde la S.1.b, queda cubierto por este informe: en cuanto el nadador está en el grupo sin certificado, aparece. No se añade un aviso aparte en la respuesta del alta.
+
+> **Una ruta que no existe devuelve 404, no 500.** Salió al retirar `/expiring`: sin manejador, quien la siguiera llamando recibía un error de servidor. Afecta a cualquier ruta mal escrita, no solo a esa.
+
+> **Documento del tutor:** el mismo criterio que el del atleta en el 3b —DNI, NIE o pasaporte, normalizado a mayúsculas sin espacios—, pero **obligatorio**: el tutor firma el consentimiento y su documento es lo que reutiliza su ficha con el segundo hijo. Columna a 20 caracteres con un `ALTER` suelto.
+
+> **Canje de claves:** clave usada, caducada y usuario ya vinculado lanzaban `IllegalStateException`, que el manejador no trata. Salían como 500, con el nombre de la excepción en el mensaje. Pasan a 400.
+
+> **Verificado con seis mutaciones y diez rojos:** la clave usada volviendo a 500; el documento del tutor sin normalizar; el patrón del tutor de solo DNI; sin el manejador de rutas inexistentes; sin contar lo que está a punto de caducar; y el entrenador recibiendo el informe de todo el club.
+
+> **Tests:** 10 del informe, 5 del canje de claves, 12 de validación del documento del tutor y 2 de alta con tutor extranjero. En certificados, los dos tests de `/expiring` se sustituyen por uno de estado en bloque. La suite pasa de 338 a 366.
+
+> **Cambio de contrato:** ruta nueva `/api/reports/documents/pending`; `/api/medical-certificates/expiring` responde 404; el documento del tutor admite NIE y pasaporte; y el canje de claves devuelve 400 donde antes devolvía 500. Todo recogido en `docs/contratos-api.md`.
 
 ---
 
