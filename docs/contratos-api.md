@@ -1,0 +1,794 @@
+# Contratos de la API para el frontend
+
+Rutas, cuerpos, respuestas y reglas que necesitan las pantallas nuevas: temporadas, grupos,
+horarios, sesiones, pasar lista, cierres, informes, consentimientos, certificados, entregas
+de papeles y vínculos. Incluye también lo que cambia en pantallas que ya existen.
+
+Sacado del código real (controladores, DTOs y `SecurityConfig`) a fecha de
+**15 de septiembre de 2026**, rama `develop`. `API_DOCS.md`, en la raíz, es de mayo y no
+recoge nada de esto.
+
+> **Esta semana cambian más cosas** y se avisará: el refresco de tokens (§2), el límite de
+> intentos en el login y un informe nuevo de documentación pendiente. Ver §19.
+
+---
+
+## 1. Convenciones
+
+**Base:** todas las rutas cuelgan de `/api`. El frontend la toma de `import.meta.env.VITE_API_URL`.
+
+**Autenticación:** cabecera `Authorization: Bearer <accessToken>` en todas las rutas salvo
+login, refresh, alta pública y blog publicado.
+
+**Formatos en JSON:**
+
+| Tipo | Ejemplo |
+|---|---|
+| Identificador | `"3f2a9c1e-…"` (UUID) |
+| Fecha | `"2026-09-15"` |
+| Hora | `"18:00:00"` |
+| Fecha y hora | `"2026-09-15T10:30:00"` |
+| Día de la semana | `"TUESDAY"` |
+| Enumerados | siempre en texto: `"PRESENT"`, `"SWIMMING"`… Ver §3 |
+
+Las fechas en parámetros de consulta van igual: `?from=2026-09-01&to=2026-09-30`.
+
+**Errores.** Todos llevan `status`, `message`, `path` y `timestamp`. El `message` está en
+español y se puede enseñar tal cual.
+
+```json
+{ "timestamp": "2026-09-15T10:30:00", "status": 400,
+  "message": "Ya existe un grupo con ese nombre en esa temporada", "path": "/api/groups" }
+```
+
+Un error de validación de campos lleva además `errors`, con el mensaje de cada campo:
+
+```json
+{ "status": 400, "message": "Errores de validación en los campos enviados",
+  "errors": { "seasonId": "<mensaje de validación del campo>" }, "path": "…", "timestamp": "…" }
+```
+
+Las claves de `errors` son los nombres de los campos del cuerpo. Los mensajes de los campos
+que no tienen uno propio los genera el validador en el idioma del servidor: úsalos para
+marcar el campo, no como texto definitivo.
+
+**Qué significa cada código:**
+
+| Código | Significa | Qué hacer en la interfaz |
+|---|---|---|
+| 400 | Datos no válidos o regla de negocio | Enseñar `message` |
+| 401 | Sin token, o token caducado o inválido | Refrescar o volver al login |
+| 403 | **Tu rol** no puede usar esa ruta | No enseñar la acción a ese rol |
+| 404 | **No existe, o no es tuyo** | Tratar como "no encontrado" |
+
+**403 y 404 no son intercambiables.** Un 403 depende solo del rol, así que la interfaz puede
+evitarlo escondiendo botones. Un 404 aparece también cuando el recurso existe pero
+pertenece a otro club, a un grupo que el entrenador no lleva o a un atleta sin vínculo: el
+sistema no confirma que exista. **No hay forma de distinguir los dos casos, y es a
+propósito.**
+
+**Paginación:** solo el listado de atletas y el de resultados. Parámetros
+`?page=0&size=20&sort=lastName`; la respuesta es la página estándar de Spring
+(`content`, `totalElements`, `totalPages`, `number`, `size`…).
+
+---
+
+## 2. Sesión
+
+### `POST /api/auth/login` — público
+
+```json
+{ "username": "adminjaes", "password": "…" }
+```
+
+**200:**
+
+```json
+{ "accessToken": "eyJ…", "refreshToken": "eyJ…", "tokenType": "Bearer" }
+```
+
+**401:** `"Usuario o contraseña incorrectos"`.
+
+El token lleva `sub` (el username), `club_id` y `roles`, por ejemplo
+`["ROLE_TECHNICAL_STAFF"]`. **Los roles del token son lo que la interfaz puede usar para
+decidir qué enseñar.** La autorización real la hace siempre el servidor.
+
+### `POST /api/auth/refresh` — público
+
+```json
+{ "refreshToken": "eyJ…" }
+```
+
+Devuelve lo mismo que el login.
+
+> ⚠️ **Cambia esta semana.** Hoy acepta cualquier token válido, también un access token.
+> Pasará a aceptar solo refresh tokens y a rechazar el resto con 401. Si el frontend manda
+> siempre el `refreshToken` del login, no hay que tocar nada.
+
+### `GET /api/users/me` — cualquier autenticado
+
+El usuario actual: `id`, `username`, `email`, `roles`, `profilePhoto`, `blocked`, `createdAt`.
+
+---
+
+## 3. Catálogo de enumerados
+
+| Enumerado | Valores |
+|---|---|
+| Roles | `ROLE_ADMIN`, `ROLE_TECHNICAL_STAFF`, `ROLE_EDITOR`, `ROLE_USER` |
+| `Gender` | `MALE`, `FEMALE` |
+| `GroupCategory` | `PREBENJAMIN`, `BENJAMIN`, `ALEVIN`, `INFANTIL`, `JUNIOR`, `ABSOLUTO`, `MASTER` |
+| `GroupLevel` | `INICIACION`, `PERFECCIONAMIENTO`, `COMPETICION` |
+| `LeaveReason` (baja de un grupo) | `END_OF_SEASON`, `GROUP_CHANGE`, `LEFT_CLUB`, `OTHER` |
+| `TrainingModality` | `SWIMMING` (agua), `DRYLAND` (seco) |
+| `SessionStatus` | `SCHEDULED`, `DONE`, `CANCELLED` |
+| `CancellationReason` | `HOLIDAY`, `POOL_CLOSURE`, `WEATHER`, `COACH_UNAVAILABLE`, `COMPETITION`, `OTHER` |
+| `AttendanceStatus` | `PRESENT`, `ABSENT`, `EXCUSED`, `LATE` |
+| `ConsentType` | `DATA_PROCESSING`, `IMAGE`, `COMMUNICATIONS`, `HEALTH_DATA` |
+| `ConsentEvidenceType` | `PAPER_FORM`, `ONLINE_FORM`, `EMAIL` |
+| `GuardianRelationship` | `MOTHER`, `FATHER`, `LEGAL_GUARDIAN`, `OTHER` |
+| `MedicalCertificateStatus` | `VALID`, `EXPIRING_SOON`, `EXPIRED`, `MISSING` |
+| `DocumentDeliveryType` | `LICENSE_APPLICATION`, `IDENTITY_DOCUMENT`, `TRAVEL_PERMIT` |
+| `DocumentDeliveryStatus` | `VALID`, `EXPIRING_SOON`, `EXPIRED`, `MISSING`, `NOT_REQUIRED` |
+| `UserAthleteType` | `TUTOR`, `ATHLETE` |
+
+**No hay campos de texto libre** en asistencia, bajas, cancelaciones ni entregas. Es a
+propósito: no añadas un campo de notas en la interfaz, porque no hay dónde guardarlo.
+
+---
+
+## 4. Quién ve qué
+
+| Área | Administrador | Entrenador | Socio o tutor |
+|---|---|---|---|
+| Temporadas | Todo | Consultar | — |
+| Grupos, horarios y composición | Todo | **Consultar solo los suyos** | — |
+| Sesiones y cierres | Todo | Consultar, cancelar y reactivar **en sus grupos**; consultar cierres | — |
+| Pasar lista | Todo | **Solo en sus grupos** | — |
+| Informes | Todo | **Solo sus grupos y sus atletas** | — |
+| Fichas de atleta | Todo | **Atletas que hoy están en sus grupos**; dar de alta | — |
+| Consentimientos | Todo | Estado, **de sus atletas** | — |
+| Certificados médicos | Todo | Estado, **de sus atletas** | — |
+| Entregas de papeles | Todo | Estado y permiso de viaje, **de sus atletas** | — |
+| Claves de invitación | Todo | **Para sus atletas** | Canjear |
+
+**"Sus grupos"** son aquellos en los que el usuario figura como entrenador principal o como
+ayudante. **"Sus atletas"** son los que **hoy** están en alguno de esos grupos: si un nadador
+dejó el grupo ayer, su ficha ya no está disponible para ese entrenador, pero sigue en las
+listas de las sesiones pasadas.
+
+Todo lo que queda fuera del alcance de un entrenador responde con **404**, y los listados le
+llegan ya filtrados. **La interfaz no tiene que filtrar nada por su cuenta.**
+
+---
+
+## 5. Temporadas
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/seasons` | Admin, entrenador | Lista de temporadas |
+| `GET /api/seasons/active` | Admin, entrenador | La activa. **404** `"No hay ninguna temporada activa"` si no hay |
+| `GET /api/seasons/{id}` | Admin, entrenador | Una |
+| `POST /api/seasons` | Admin | **201**. Nace **inactiva** |
+| `PUT /api/seasons/{id}` | Admin | 200 |
+| `POST /api/seasons/{id}/activation` | Admin | 200. Desactiva la anterior en la misma operación |
+
+**Petición** (alta y edición):
+
+```json
+{ "name": "2026/2027", "startDate": "2026-09-01", "endDate": "2027-08-31" }
+```
+
+**Respuesta:**
+
+```json
+{ "id": "…", "name": "2026/2027", "startDate": "2026-09-01", "endDate": "2027-08-31", "active": true }
+```
+
+**Reglas:**
+
+- Dos temporadas del mismo club no pueden solaparse, ni siquiera en un día: **400**.
+- El nombre es único dentro del club: **400** `"Ya existe una temporada con ese nombre"`.
+- No se pueden borrar.
+- Activar no es un campo del `PUT`: es su propia ruta.
+
+**Para el selector de temporada de la cabecera:** llamar a `/active` al entrar y guardar la
+elegida. Casi todas las pantallas de grupos necesitan un `seasonId`.
+
+---
+
+## 6. Grupos
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/groups?seasonId=` | Admin; entrenador **solo los suyos** | Lista. Sin `seasonId`, todas las temporadas |
+| `GET /api/groups/{id}` | Admin; entrenador si es suyo | Uno |
+| `POST /api/groups` | Admin | 201 |
+| `PUT /api/groups/{id}` | Admin | 200 |
+| `DELETE /api/groups/{id}` | Admin | 204. Borrado lógico |
+| `POST /api/groups/duplication` | Admin | 201. Copia los grupos de una temporada a otra |
+
+**Petición:**
+
+```json
+{
+  "seasonId": "…", "name": "Alevín A", "category": "ALEVIN", "level": "COMPETICION",
+  "maxSlots": 12,
+  "coachId": "…",
+  "assistantCoachIds": ["…", "…"]
+}
+```
+
+- `maxSlots`, `coachId` y `assistantCoachIds` son opcionales.
+- **`assistantCoachIds` sustituye** a los ayudantes que hubiera: si no se envía, el grupo se
+  queda sin ayudantes. En el formulario de edición hay que mandar siempre la lista completa.
+
+**Respuesta:**
+
+```json
+{
+  "id": "…", "seasonId": "…", "seasonName": "2026/2027",
+  "name": "Alevín A", "category": "ALEVIN", "level": "COMPETICION",
+  "maxSlots": 12, "memberCount": 11,
+  "coachId": "…", "coachUsername": "entrenador1",
+  "assistantCoaches": [ { "id": "…", "username": "ayudante1" } ]
+}
+```
+
+`coachId` y `coachUsername` son `null` si no hay entrenador principal. `assistantCoaches`
+nunca es `null`: si no hay ayudantes, llega vacío.
+
+**Reglas:**
+
+- El nombre es único dentro de la temporada: **400**.
+- **El entrenador principal y los ayudantes tienen que tener rol técnico o de
+  administrador**: si no, **400** `"Solo se puede asignar como entrenador a personal técnico del club"`.
+- El principal no puede figurar también como ayudante: **400**.
+- **`maxSlots` no bloquea altas.** Con `memberCount` la interfaz puede avisar de que el grupo
+  está lleno, pero el alta pasa igual.
+
+**Duplicar una temporada:**
+
+```json
+{ "fromSeasonId": "…", "toSeasonId": "…" }
+```
+
+Copia nombre, categoría, nivel, plazas, entrenador principal y ayudantes. **No copia los
+atletas.** Si la temporada destino ya tiene grupos, devuelve **400**: es la protección contra
+el doble clic.
+
+---
+
+## 7. Composición del grupo
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/groups/{groupId}/athletes?date=` | Admin; entrenador si es suyo | Miembros. Sin `date`, los de hoy |
+| `POST /api/groups/{groupId}/athletes` | Admin | 201, lista de altas |
+| `DELETE /api/groups/{groupId}/athletes/{athleteId}?reason=&leftOn=` | Admin | 200. Baja lógica |
+| `GET /api/athletes/{athleteId}/group-history?seasonId=` | Admin; entrenador si es su atleta | Historial |
+
+**Alta, individual o en lote:**
+
+```json
+{ "athleteIds": ["…", "…"], "joinedOn": "2026-09-15", "replacesGroupId": "…" }
+```
+
+- **Entera o nada:** si uno de la lista ya está en el grupo, no entra ninguno (**400**).
+- `joinedOn` tiene que caer dentro de la temporada del grupo.
+- Un atleta **puede estar en varios grupos a la vez**, por ejemplo agua y seco.
+- **`replacesGroupId` es la forma de mover a alguien de grupo**: le da de baja en ese otro
+  grupo el mismo día, con motivo `GROUP_CHANGE`. Sin él, el alta no toca los demás grupos.
+
+**Baja:** `reason` es obligatorio (`LeaveReason`). `leftOn` es opcional y por defecto es
+hoy. **`leftOn` es el último día que el atleta pertenece al grupo, incluido.**
+
+**Respuesta** (en todas las rutas de esta sección):
+
+```json
+{
+  "id": "…", "athleteId": "…", "athleteName": "Ana Pérez",
+  "groupId": "…", "groupName": "Alevín A",
+  "joinedOn": "2026-09-15", "leftOn": null, "leaveReason": null, "open": true
+}
+```
+
+---
+
+## 8. Horarios
+
+Todas las rutas cuelgan del grupo.
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/groups/{groupId}/schedules?date=` | Admin; entrenador si es suyo | Sin `date`, todos los vigentes; con `date`, los que lo estaban ese día |
+| `POST /api/groups/{groupId}/schedules` | Admin | 201 |
+| `PUT /api/groups/{groupId}/schedules/{scheduleId}` | Admin | 200. **Rehace las sesiones futuras** |
+| `DELETE /api/groups/{groupId}/schedules/{scheduleId}` | Admin | 204. **Elimina las sesiones futuras** |
+
+**Petición:**
+
+```json
+{
+  "dayOfWeek": "TUESDAY", "startTime": "18:00:00", "endTime": "19:00:00",
+  "modality": "SWIMMING", "validFrom": "2026-09-15", "validUntil": null
+}
+```
+
+**Respuesta:** lo mismo, más `id`, `groupId`, `groupName` e `inForce` (si está vigente hoy).
+
+**Reglas:**
+
+- Dos horarios del mismo grupo no pueden pisarse el mismo día: **400** con "solapa". **Sí se
+  pueden encadenar**, por ejemplo 17:00–18:00 y 18:00–19:00.
+- La vigencia tiene que caer dentro de la temporada.
+- **Avisar en la interfaz antes de editar o borrar un horario:** afecta a todas las sesiones
+  futuras que salían de él, incluidas las canceladas. Las ya celebradas no se tocan.
+
+---
+
+## 9. Sesiones
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/groups/{groupId}/sessions?from=&to=` | Admin; entrenador si es suyo | Calendario. **Las dos fechas son obligatorias** |
+| `POST /api/groups/{groupId}/sessions/generation?from=&to=` | Admin | Genera sesiones desde los horarios |
+| `POST /api/groups/{groupId}/sessions` | Admin | 201. Sesión suelta, fuera de horario |
+| `GET /api/sessions/{id}` | Admin; entrenador si es de su grupo | Una |
+| `POST /api/sessions/{id}/cancellation?reason=` | Admin; entrenador en su grupo | 200 |
+| `POST /api/sessions/{id}/reactivation` | Admin; entrenador en su grupo | 200 |
+
+**Respuesta de sesión:**
+
+```json
+{
+  "id": "…", "groupId": "…", "groupName": "Alevín A",
+  "date": "2026-09-15", "startTime": "18:00:00", "endTime": "19:00:00",
+  "modality": "SWIMMING", "status": "SCHEDULED", "cancellationReason": null, "oneOff": false
+}
+```
+
+`oneOff` es `true` en las sesiones sueltas.
+
+**Generación.** Se puede lanzar tantas veces como haga falta, porque no duplica nada:
+
+```json
+{ "from": "2026-09-15", "to": "2026-10-26", "created": 12, "alreadyExisted": 0, "bornCancelled": 1 }
+```
+
+- `bornCancelled` cuenta las sesiones que caían en un cierre (§11) y se crearon ya canceladas.
+- **Tope de 400 días** por petición.
+- **No hace falta generar a mano en el día a día:** cada madrugada se mantienen generadas las
+  próximas 6 semanas.
+
+**Sesión suelta:**
+
+```json
+{ "date": "2026-10-03", "startTime": "10:00:00", "endTime": "13:00:00", "modality": "SWIMMING" }
+```
+
+**Cancelar:** `reason` es un `CancellationReason`, obligatorio y sin texto libre. La sesión
+no se borra: queda `CANCELLED`. **Reactivar** la devuelve a `SCHEDULED`, y un cierre ya no
+vuelve a cancelarla. Cancelar una sesión ya cancelada, o reactivar una que no lo está, es
+**400**.
+
+---
+
+## 10. Pasar lista
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/sessions/{id}/roster` | Admin; entrenador principal o ayudante del grupo | Lista de la sesión |
+| `PUT /api/sessions/{id}/attendance` | Igual | La lista ya actualizada |
+
+**La lista son los atletas que pertenecían al grupo el día de la sesión**, no los de hoy. Para
+una sesión pasada salen quienes estaban ese día, aunque ya no estén en el grupo.
+
+**Respuesta de las dos rutas:**
+
+```json
+{
+  "sessionId": "…", "date": "2026-09-15", "startTime": "18:00:00", "endTime": "19:00:00",
+  "modality": "SWIMMING", "status": "SCHEDULED", "groupId": "…", "groupName": "Alevín A",
+  "athletes": [
+    { "athleteId": "…", "athleteName": "Ana Pérez", "status": "PRESENT", "registeredBy": "entrenador1" },
+    { "athleteId": "…", "athleteName": "Bruno Gil", "status": null, "registeredBy": null }
+  ]
+}
+```
+
+`status` es `null` mientras no se haya marcado. **La lista solo lleva nombre**, ni DNI ni fecha
+de nacimiento, y es a propósito.
+
+**Guardar:**
+
+```json
+{ "entries": [ { "athleteId": "…", "status": "PRESENT" }, { "athleteId": "…", "status": "LATE" } ] }
+```
+
+- **No hace falta mandar a todos:** lo que no venga se queda como estaba. Se puede guardar a
+  medida que se marca.
+- **Es idempotente:** mandar lo mismo dos veces deja lo mismo, así que se puede reintentar sin
+  miedo si se corta la conexión.
+- **Entero o nada:** si un atleta de la lista no pertenecía al grupo ese día, no se guarda
+  ninguno (**400**).
+- **No se pasa lista de una sesión cancelada** (**400**).
+- Al guardar, la sesión pasa a `DONE`, **salvo que sea futura**: se puede pasar lista por
+  adelantado, pero no cuenta como celebrada hasta su día.
+- **Si dos entrenadores guardan a la vez, gana el último**, y ninguno de los dos recibe error.
+- `PRESENT` y `LATE` cuentan como asistencia en los informes. `EXCUSED` no guarda el motivo.
+
+---
+
+## 11. Calendario de cierres
+
+Festivos y cierres de piscina.
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/closures?from=&to=` | Admin, entrenador | Lista. Fechas obligatorias |
+| `POST /api/closures` | Admin | 201 |
+| `DELETE /api/closures/{id}` | Admin | 204 |
+
+**Petición:**
+
+```json
+{ "startDate": "2026-12-07", "endDate": "2026-12-08", "reason": "HOLIDAY", "modality": null }
+```
+
+- `modality` a `null` afecta a todo. Con `SWIMMING`, solo cierra lo del agua, y el seco sigue.
+- **Crear un cierre cancela las sesiones ya generadas desde hoy**, y la respuesta dice cuántas
+  en `cancelledSessions`. **Enseña ese número:** un error en las fechas tumba muchas sesiones
+  de golpe.
+- **Borrar un cierre no reactiva nada**; se reactivan una a una.
+- Tope de 400 días.
+
+---
+
+## 12. Informes de asistencia
+
+Todas las fechas son obligatorias salvo en `pending`.
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/reports/attendance/athlete/{athleteId}?from=&to=` | Admin; entrenador si es su atleta | Asistencia de un atleta, sumando todos sus grupos |
+| `GET /api/reports/attendance/group/{groupId}?from=&to=` | Admin; entrenador si es su grupo | Asistencia del grupo |
+| `GET /api/reports/attendance/group/{groupId}/export?from=&to=` | Igual | **Archivo CSV** |
+| `GET /api/reports/attendance/group/{groupId}/gaps?from=&to=&threshold=` | Igual | Rachas de ausencias. `threshold` por defecto 3 |
+| `GET /api/reports/attendance/pending?from=&to=` | Admin; entrenador **sus grupos** | Lo pendiente de registrar. Sin fechas, los últimos 30 días |
+
+**Por atleta:**
+
+```json
+{
+  "athleteId": "…", "athleteName": "Ana Pérez",
+  "sessions": 20, "present": 16, "late": 1, "absent": 2, "excused": 1, "unrecorded": 0,
+  "attendanceRate": 0.85,
+  "incidents": [ { "sessionId": "…", "date": "2026-09-22", "athleteId": "…", "athleteName": "Ana Pérez" } ]
+}
+```
+
+**Por grupo:**
+
+```json
+{
+  "groupId": "…", "groupName": "Alevín A", "from": "…", "to": "…",
+  "sessions": 20, "attendanceRate": 0.825,
+  "athletes": [ /* un objeto como el de arriba por atleta */ ],
+  "sessionsWithoutRoster": [ { "sessionId": "…", "date": "…", "athleteId": null, "athleteName": null } ]
+}
+```
+
+**Cómo leer los números:**
+
+- `sessions` son las sesiones **celebradas** en las que el atleta pertenecía al grupo. Las
+  canceladas y las futuras no cuentan.
+- **`attendanceRate` es una fracción de 0 a 1**, con cuatro decimales: `0.85` es un 85 %.
+  Para pintarlo como porcentaje, multiplica por 100; el CSV ya viene multiplicado. **Puede
+  llegar `null`** cuando no hay sesiones con las que calcularlo.
+- `unrecorded` son sesiones celebradas en las que ese atleta quedó sin marcar. **Cuentan como
+  falta**, y cada una sale en `incidents` para poder ir a corregirla.
+- `sessionsWithoutRoster` son sesiones pasadas **a las que nadie pasó lista**. **No cuentan
+  como falta de nadie**; hay que enseñarlas aparte.
+- La media del grupo pondera por sesiones posibles: no es la media de los porcentajes.
+
+**CSV:** llega con `Content-Disposition: attachment` y nombre de archivo. Está preparado para
+abrirse en Excel en español: separador `;`, coma decimal y codificación UTF-8 con BOM.
+Descárgalo como archivo, no lo muestres como texto.
+
+**Rachas:**
+
+```json
+[ { "athleteId": "…", "athleteName": "Bruno Gil", "consecutiveAbsences": 4, "lastAttendedOn": "2026-09-01" } ]
+```
+
+**Pendientes** (para el aviso de la cabecera):
+
+```json
+{
+  "from": "…", "to": "…", "total": 3,
+  "sessionsWithoutRoster": [ { "sessionId": "…", "date": "…", "groupId": "…", "groupName": "…", "unrecorded": null } ],
+  "incompleteRosters":     [ { "sessionId": "…", "date": "…", "groupId": "…", "groupName": "…", "unrecorded": 2 } ]
+}
+```
+
+`total` es el número a enseñar en el aviso.
+
+---
+
+## 13. Atletas
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/athletes?q=&gender=&page=&size=&sort=` | Admin; entrenador **sus atletas** | Página |
+| `GET /api/athletes/{id}` | Admin; entrenador si es su atleta | Ficha |
+| `POST /api/athletes` | Admin, entrenador | 201 |
+| `PUT /api/athletes/{id}` | Admin; entrenador si es su atleta | 200 |
+| `DELETE /api/athletes/{id}` | Admin | 204. Borrado lógico |
+
+`q` busca por nombre, apellidos o documento.
+
+**Petición:**
+
+```json
+{
+  "firstName": "Ana", "lastName": "Pérez", "birthDate": "2015-04-17", "gender": "FEMALE",
+  "dni": "X1234567L",
+  "guardianConsent": { /* obligatorio si es menor de 14; ver abajo */ }
+}
+```
+
+**Respuesta:** `id`, `firstName`, `lastName`, `birthDate`, `dni`, `gender`, `createdAt`.
+
+### ⚠️ Cambios del bloque 3b
+
+- **`dni` es opcional** y admite DNI, NIE o pasaporte: letras y números, entre 5 y 20. Se
+  guarda en mayúsculas y sin espacios. **En la respuesta puede llegar `null`**, así que la ficha
+  y los listados tienen que soportarlo.
+- **Duplicados sin documento:** si ya existe en el club alguien con el mismo nombre, apellidos
+  y fecha de nacimiento, el alta devuelve **400** con el mensaje
+  `"Ya existe un atleta con el mismo nombre, apellidos y fecha de nacimiento. Si es otra persona, indica su documento de identidad"`.
+  Conviene enseñarlo tal cual: dice al usuario cómo resolverlo.
+- El mismo documento en dos fichas sigue siendo **400** `"Ya existe un atleta con ese DNI"`.
+
+### Alta de un menor de 14 años
+
+**`guardianConsent` es obligatorio.** Sin él, el alta devuelve **400** y la ficha no se crea.
+
+```json
+"guardianConsent": {
+  "guardian": { "firstName": "Marta", "lastName": "Pérez", "dni": "12345678Z",
+                "email": "marta@…", "phone": "600…" },
+  "relationship": "MOTHER",
+  "evidenceType": "PAPER_FORM",
+  "decisionDate": "2026-09-15",
+  "evidenceRef": "Ficha inscripción 2026-041",
+  "dataProcessing": true,
+  "image": false
+}
+```
+
+- **`dataProcessing` tiene que ser `true`**; si no, **400**.
+- `image` puede ser `false`: una negativa es una respuesta válida y queda registrada.
+- **El tutor se reutiliza por DNI dentro del club**: el segundo hermano no crea un tutor nuevo.
+- **En el `PUT` no se acepta `guardianConsent`** (**400**). Los consentimientos se gestionan en §14.
+- **No uses `evidenceType: ONLINE_FORM` desde el panel del club**: registraría la IP de quien
+  teclea, no la de quien consiente.
+
+> ⚠️ **Limitación conocida: el DNI del tutor sigue exigiendo formato de DNI español**
+> (8 dígitos y letra). Un tutor con NIE o pasaporte **no se puede registrar**, y por tanto
+> tampoco dar de alta a su hijo menor de 14. Está pendiente de decidir si se corrige como
+> se hizo con el atleta.
+
+---
+
+## 14. Consentimientos
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/consents/athlete/{athleteId}/status` | Admin; entrenador si es su atleta | Qué ampara hoy cada finalidad |
+| `GET /api/consents/athlete/{athleteId}` | Admin | Historial completo |
+| `POST /api/consents/athlete/{athleteId}` | Admin | 201. Registra una decisión |
+| `POST /api/consents/{consentId}/revocation` | Admin | 200. Revoca |
+
+**Estado.** Las cuatro finalidades llegan siempre, y las que no se han contestado vienen en `false`:
+
+```json
+{ "DATA_PROCESSING": true, "IMAGE": false, "COMMUNICATIONS": false, "HEALTH_DATA": false }
+```
+
+**Es lo que tiene que mirar la interfaz antes de permitir publicar una foto (`IMAGE`).**
+
+**Registrar:**
+
+```json
+{
+  "guardianId": "…", "type": "IMAGE", "granted": true,
+  "decisionDate": "2026-09-15", "evidenceType": "PAPER_FORM", "evidenceRef": "…"
+}
+```
+
+**Historial:**
+
+```json
+[ { "id": "…", "type": "IMAGE", "granted": true, "decisionDate": "…", "evidenceType": "PAPER_FORM",
+    "evidenceRef": "…", "revokedAt": null, "active": true, "guardianId": "…", "guardianName": "Marta Pérez" } ]
+```
+
+**Reglas:**
+
+- **Nada se edita ni se borra.** Cambiar de opinión es revocar el vigente y registrar uno nuevo.
+- Revocar no hace desaparecer la fila: queda con `revokedAt` y `active: false`.
+- **Una negativa (`granted: false`) se registra igual** que una concesión.
+- El tutor tiene que estar vinculado al atleta; si no, **400**.
+- Revocar una negativa, o un consentimiento ya revocado, es **400**.
+
+---
+
+## 15. Certificados médicos
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/medical-certificates/athlete/{athleteId}/status` | Admin; entrenador si es su atleta | `{ "status": "VALID" }` |
+| `GET /api/medical-certificates/athlete/{athleteId}` | Admin | Historial |
+| `POST /api/medical-certificates/athlete/{athleteId}` | Admin | 201 |
+| `GET /api/medical-certificates/expiring?days=30` | Admin | Los que caducan pronto |
+
+### ⚠️ Cambio del bloque 3b: un certificado por temporada
+
+**Petición:**
+
+```json
+{ "issuedOn": "2026-09-10", "seasonId": "…" }
+```
+
+- **Ya no se envía `expiresOn`.** La caducidad es el último día de la temporada y la pone el
+  servidor.
+- **La temporada va explícita.** No la preselecciones sin enseñarla: en agosto es fácil
+  registrar el certificado en el curso equivocado.
+- `issuedOn` no puede ser futura ni posterior al final de la temporada: **400**.
+
+**Respuesta:**
+
+```json
+{
+  "id": "…", "athleteId": "…", "seasonId": "…", "seasonName": "2026/2027",
+  "issuedOn": "2026-09-10", "expiresOn": "2027-08-31",
+  "status": "VALID", "validatedBy": "adminjaes", "validatedAt": "…"
+}
+```
+
+**Estado de un atleta,** medido contra la temporada activa:
+
+| Estado | Significa | En la interfaz |
+|---|---|---|
+| `VALID` | Tiene el de la temporada activa | En regla |
+| `EXPIRING_SOON` | Lo tiene, pero la temporada acaba en 30 días o menos | Aviso; sigue cubierto |
+| `EXPIRED` | El último que trajo es de otro curso | "Pedir renovación" |
+| `MISSING` | Nunca ha traído ninguno | "Pedir certificado" |
+
+**No hay diagnóstico, observaciones ni campo de apto:** no los pidas en el formulario. No se
+puede corregir un certificado mal tecleado, porque no hay `PUT` ni `DELETE`.
+
+`/expiring` se retirará cuando exista el informe de documentación pendiente (bloque 3c).
+
+---
+
+## 16. Entregas de papeles
+
+Sustituye a la subida de documentos (§18). **El papel se queda en el club**; aquí solo se
+apunta que se entregó.
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/document-deliveries/athlete/{athleteId}/status` | Admin; entrenador si es su atleta | Licencia y documento de identidad |
+| `GET /api/document-deliveries/athlete/{athleteId}/travel-permit?from=&to=` | Igual | Si puede viajar esas fechas |
+| `GET /api/document-deliveries/athlete/{athleteId}` | Admin | Historial |
+| `POST /api/document-deliveries/athlete/{athleteId}` | Admin | 201 |
+
+**Petición.** Cada tipo lleva **solo** sus campos; mandar de más es **400**:
+
+```json
+{ "type": "LICENSE_APPLICATION", "deliveredOn": "2026-09-15", "seasonId": "…" }
+{ "type": "IDENTITY_DOCUMENT",   "deliveredOn": "2026-09-15", "validUntil": "2031-05-01" }
+{ "type": "TRAVEL_PERMIT",       "deliveredOn": "2026-09-15", "validFrom": "2026-10-10", "validUntil": "2026-10-13" }
+```
+
+| Tipo | Campos | Nota |
+|---|---|---|
+| Solicitud de licencia | `seasonId` | Una por temporada |
+| Documento de identidad | `validUntil` = caducidad del documento | |
+| Permiso de viaje | `validFrom` = salida, `validUntil` = vuelta | **Solo para menores** el día de salida; con un adulto, 400 |
+
+- `deliveredOn` es obligatorio y no puede ser futuro.
+- **No hay número de documento, destino ni notas:** no los pidas en el formulario.
+- El certificado médico no va aquí (§15), y el derecho de imagen tampoco: es un
+  consentimiento `IMAGE` en papel (§14).
+
+**Estado:**
+
+```json
+{ "LICENSE_APPLICATION": "VALID", "IDENTITY_DOCUMENT": "NOT_REQUIRED" }
+```
+
+- La licencia se mide contra la temporada activa: `EXPIRED` si solo trajo la de otro curso,
+  `MISSING` si ninguna.
+- El documento de identidad manda el que más tarde caduca. **`NOT_REQUIRED`** si la ficha del
+  atleta no tiene documento.
+
+**Permiso de viaje** (para la pantalla de convocatoria de una competición):
+
+```json
+{ "from": "2026-10-10", "to": "2026-10-13", "required": true, "covered": false }
+```
+
+**Puede viajar si `required` es `false` o `covered` es `true`.** Van separados para que la
+interfaz pueda decir por qué no puede.
+
+**Historial:** cada entrega con `id`, `athleteId`, `type`, `seasonId`, `seasonName`,
+`validFrom`, `validUntil`, `deliveredOn`, `status` (calculado hoy), `registeredBy` y
+`registeredAt`. No se puede corregir ni borrar una entrega.
+
+---
+
+## 17. Vínculos y claves de invitación
+
+Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atleta.
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `POST /api/athlete-links/{athleteId}/key` | Admin; entrenador para sus atletas | 201, la clave |
+| `GET /api/athlete-links/by-athlete/{athleteId}` | Admin; entrenador para sus atletas | Quién tiene acceso |
+| `POST /api/athlete-links/redeem` | Cualquier autenticado | 201, el vínculo creado |
+| `GET /api/athlete-links/my-athletes` | Cualquier autenticado | Mis vínculos |
+| `GET /api/athlete-links/my-tutees` | Cualquier autenticado | Mis vínculos de tutor |
+
+**Generar:** `{ "type": "TUTOR" }` →
+
+```json
+{ "key": "…", "athleteId": "…", "athleteFullName": "Ana Pérez", "type": "TUTOR", "expiresAt": "…" }
+```
+
+**Canjear:** `{ "key": "…" }`.
+
+- La clave caduca a las **72 horas** y es de un solo uso.
+- Una clave que no existe es **400** `"Key no válida"`.
+
+> ⚠️ **Fallo conocido: tres errores del canje salen hoy como 500, no como 400.** Son la clave ya
+> usada, la clave caducada y el usuario ya vinculado a ese atleta. El mensaje llega, pero con
+> el nombre de la excepción delante: `"IllegalStateException: La key ha expirado"`. Mientras no
+> se corrija, trata un 500 en esta ruta como error del usuario y enseña el mensaje sin ese
+> prefijo.
+- **La clave da acceso a los datos de un menor:** enséñala una vez para copiarla, no la
+  guardes ni la pongas en una URL.
+
+**Vínculo:** `id`, `userId`, `username`, `athleteId`, `athleteFullName`, `type`, `createdAt`.
+
+> **Usa `/api/athlete-links/my-tutees`, no `/api/athletes/my-tutees`.** La segunda existe, pero
+> cae bajo una regla que exige rol de administrador o entrenador, así que un tutor recibe 403.
+
+---
+
+## 18. Qué rompe en pantallas que ya existen
+
+| Pantalla | Qué cambia | Qué hacer |
+|---|---|---|
+| **Mis documentos** y subida de documentos en la ficha | `/api/athlete-documents/**` responde **404 a todo el mundo**: la subida está apagada | Quitar o esconder la pantalla y pasar a entregas de papeles (§16) |
+| Gestión de atletas | `dni` opcional y puede llegar `null`; nuevo 400 por duplicado | §13 |
+| Alta de certificado, si existe | Pide `seasonId`, ya no `expiresOn` | §15 |
+| Todo lo que use un entrenador | Fuera de sus grupos, **404**; listados filtrados | Tratar 404 como "no disponible", no como fallo |
+| Foto de perfil | Solo la propia, o cualquiera siendo administrador; si no, 404 | |
+| Grupos | La respuesta añade `assistantCoaches`; la petición admite `assistantCoachIds` | §6 |
+
+---
+
+## 19. Pendiente que puede tocar estos contratos
+
+- **Refresco de tokens** (esta semana): `/api/auth/refresh` solo aceptará refresh tokens (§2).
+- **Límite de intentos en el login** (esta semana): demasiados intentos fallidos devolverán un
+  error en lugar de 401. El código exacto se documentará al hacerlo.
+- **Informe de documentación pendiente** (bloque 3c, esta semana): quién no tiene certificado,
+  licencia o documento de identidad para la temporada activa. Sustituirá a
+  `/api/medical-certificates/expiring`.
+- **DNI del tutor** con NIE o pasaporte: sin decidir (§13).
+- **Errores del canje de claves** que hoy salen como 500 (§17): pendiente de corregir.
