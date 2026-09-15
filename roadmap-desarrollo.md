@@ -336,6 +336,42 @@ o\ es respuesta válida y no bloquea. El tutor se reutiliza por DNI dentro del c
 - [ ] Solo `ADMIN_CLUB` abre el documento; `ENTRENADOR` ve solo el estado — `1h · Media · Crítica`
 - [ ] Borrado automático al ser sustituido por el del año siguiente — `1h · Media · Alta`
 
+### S.1.c Registro de entregas de papeles — bloque 3a
+
+**Sale de una propuesta del primer club:** no subir los documentos, sino anotar que se entregaron, con su estado y su caducidad. No sustituye a la subida para siempre: la apaga para el despliegue inicial.
+
+- [x] Entidad `DocumentDelivery`: solicitud de licencia (por temporada), documento de identidad (hasta su caducidad) y permiso de viaje (fechas del viaje) — `2h · Media · Crítica`
+- [x] Estado calculado, nunca almacenado — `1h · Media · Alta`
+- [x] Cobertura del permiso de viaje para unas fechas concretas — `1h · Media · Alta`
+- [x] Apagar la subida de archivos de atleta por configuración — `1h · Baja · Crítica`
+- [x] Policy de RLS propia, `migrations/S.1-document-deliveries-rls.sql` — `30min · Baja · Crítica`
+
+> **Faltan dos tipos a propósito.** El certificado médico no está: es dato de salud y tiene su tabla, sus permisos y su policy, y un tipo médico aquí sería una puerta lateral para meterlo sin esa protección. El derecho de imagen tampoco: es un consentimiento `IMAGE` con evidencia en papel, y registrarlo también como documento dejaría dos registros de la misma firma.
+
+> **Cada tipo lleva sus campos y ningún otro**, y lo que sobra se rechaza con 400 en vez de ignorarse: aceptar una licencia con fechas y no hacer nada con ellas dejaría creer que cuentan.
+
+> **Sin número de documento, sin destino del viaje y sin notas.** El número ya está en la ficha; el destino no hace falta para saber si un permiso cubre unas fechas.
+
+> **La licencia se mide contra la temporada activa, nunca contra la última registrada**: anotar en agosto la del curso que viene no puede dar por buena la de este. Si solo trajo la de un curso anterior sale `EXPIRED`, y si nunca trajo ninguna, `MISSING`: a unos hay que pedirles que renueven y a otros que la traigan.
+
+> **Del documento de identidad manda el que más lejos caduca**, no el último anotado. Y si la ficha no tiene número, sale `NOT_REQUIRED`: hoy no ocurre porque el DNI es obligatorio, pero cuando deje de serlo en el 3b ya contesta lo correcto.
+
+> **El permiso de viaje mide la edad el día de salida** y solo se admite para menores: el de un adulto no sirve para nada, y guardarlo sería guardar sus viajes. No tiene estado general —nadie lo necesita hasta que hay un viaje—; se pregunta por unas fechas, y la respuesta separa `required` de `covered` para no esconder por qué.
+
+> **La subida se apaga, no se borra.** `app.documents.upload.enabled`, variable `DOCUMENTS_UPLOAD_ENABLED`, falsa por defecto. Apagada, las cinco rutas de `/api/athlete-documents` contestan 404 a todo el mundo, administrador incluido, antes de mirar permisos o ids. Encenderla exige resolver antes el cifrado en reposo, el directorio separado y el registro de accesos. `ObjectAccessTest` la enciende para seguir protegiendo lo que pasaría ese día.
+
+> **Permisos, los del certificado:** el entrenador ve el estado y si el nadador puede viajar, solo de los atletas de sus grupos; registrar y el historial con fechas son del club.
+
+> **Verificado que los tests fallan cuando deben**, con tres mutaciones: sin el guardián, el entrenador ve a un atleta ajeno; sin la comprobación de la subida, el listado contesta; y sin `FORCE ROW LEVEL SECURITY` en la tabla nueva, se pone rojo el guardia de `TenantIsolationTest`.
+
+> **26 tests**: 22 de endpoint y 4 de reglas sin base de datos, que cubren los extremos —el día que caduca todavía vale; la víspera de cumplir 18 todavía es menor—. La suite pasa de 284 a 310.
+
+> **La migración de RLS va una vez por entorno**, después de arrancar la aplicación: `psql -h localhost -U cn_app -d cn_test -f migrations/S.1-document-deliveries-rls.sql`.
+
+> **Cambio de contrato:** rutas nuevas en `/api/document-deliveries`, y **las de `/api/athlete-documents` pasan a 404 con la configuración por defecto**. Si el frontend las usa, deja de funcionar hasta que se cambie al registro de entregas.
+
+> **Queda abierto:** qué se hace con los `athlete_documents` que ya existan; y, como en el certificado, que una entrega mal tecleada no se puede corregir, porque no hay `PUT` ni `DELETE`.
+
 ---
 
 ## Fase 1 — Temporadas y grupos
