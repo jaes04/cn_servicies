@@ -84,6 +84,21 @@ public class UserAthleteService {
                 .toList();
     }
 
+    /**
+     * Si esa cuenta esta vinculada a ese atleta, del tipo que sea.
+     *
+     * <p>Existe para que {@code AccessGuard} pueda preguntarlo sin tocar el
+     * repositorio de este modulo. Devuelve {@code false} —y no revienta— cuando
+     * el usuario no existe: quien pregunta esta decidiendo un permiso, y ahi "no
+     * hay tal usuario" y "no tiene vinculo" llevan al mismo sitio.
+     */
+    @Transactional(readOnly = true)
+    public boolean isLinkedTo(String username, UUID athleteId) {
+        return userRepository.findByUsername(username)
+                .map(user -> userAthleteRepository.existsByUserIdAndAthleteId(user.getId(), athleteId))
+                .orElse(false);
+    }
+
     @Transactional(readOnly = true)
     public List<UserAthleteResponse> findTuteesByUser(String username) {
         User user = userRepository.findByUsername(username)

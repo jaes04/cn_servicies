@@ -7,9 +7,6 @@ import es.jaes.cn_servicies.user.User;
 import es.jaes.cn_servicies.user.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,16 +29,13 @@ public class AthleteDocumentService {
 
     public AthleteDocumentResponse upload(UUID athleteId, String title, AthleteDocumentType type,
                                           MultipartFile file, String username) {
+        // Quien puede subir a este atleta lo decide AccessGuard desde el
+        // controlador (tarea S.3.3). Antes se comprobaba aqui dentro, con el
+        // SecurityContext leido a mano: la misma regla vivia en dos sitios —esta
+        // y la de la descarga, que no existia— y solo una de ellas se aplicaba.
         Athlete athlete = athleteService.findOrThrow(athleteId);
         User uploadedBy = userRepository.findByUsername(username)
                 .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado"));
-
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        boolean isPrivileged = auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_TECHNICAL_STAFF"));
-        if (!isPrivileged && !userAthleteRepository.existsByUserIdAndAthleteId(uploadedBy.getId(), athleteId)) {
-            throw new AccessDeniedException("No tienes permiso para subir documentos a este atleta");
-        }
 
         String filename;
         try {
@@ -85,6 +79,21 @@ public class AthleteDocumentService {
                 .orElseThrow(() -> new EntityNotFoundException("Documento no encontrado"));
         documentStorageService.delete(document.getFilename());
         documentRepository.delete(document);
+    }
+
+    /**
+     * El atleta del que cuelga el documento, para que {@code AccessGuard} decida
+     * sin entrar en este repositorio desde fuera del modulo.
+     *
+     * <p>La relacion es perezosa y aqui solo se pide el id, que Hibernate saca
+     * de la clave foranea sin cargar el atleta. Que sea de otro club lo tapa la
+     * comprobacion que hace el guardian despues, no esta linea.
+     */
+    @Transactional(readOnly = true)
+    public UUID athleteIdOf(UUID documentId) {
+        return documentRepository.findById(documentId)
+                .orElseThrow(() -> new EntityNotFoundException("Documento no encontrado"))
+                .getAthlete().getId();
     }
 
     @Transactional(readOnly = true)

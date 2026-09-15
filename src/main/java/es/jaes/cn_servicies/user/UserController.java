@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.user;
 
+import es.jaes.cn_servicies.access.AccessGuard;
 import es.jaes.cn_servicies.club.Club;
 import es.jaes.cn_servicies.club.ClubService;
 import es.jaes.cn_servicies.comment.CommentResponse;
@@ -27,6 +28,7 @@ public class UserController {
     private final UserService userService;
     private final CommentService commentService;
     private final ClubService clubService;
+    private final AccessGuard accessGuard;
 
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me(java.security.Principal principal) {
@@ -60,10 +62,18 @@ public class UserController {
         return ResponseEntity.ok(userService.changeRole(id, request));
     }
 
+    /**
+     * La foto de una cuenta la cambia su dueno, o el administrador del club.
+     *
+     * <p>Esta ruta esta en {@code authenticated()} porque cada uno cambia la
+     * suya; sin la comprobacion de abajo, eso significaba que cualquiera con un
+     * id sobrescribia la foto de cualquier otro.
+     */
     @PostMapping("/{id}/profile-photo")
     public ResponseEntity<UserResponse> uploadProfilePhoto(
             @PathVariable UUID id,
             @RequestParam("file") MultipartFile file) {
+        accessGuard.requireUserAccess(id);
         return ResponseEntity.ok(userService.uploadProfilePhoto(id, file));
     }
 
