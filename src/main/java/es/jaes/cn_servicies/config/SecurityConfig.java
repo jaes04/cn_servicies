@@ -5,6 +5,7 @@ import es.jaes.cn_servicies.auth.JwtAuthFilter;
 import es.jaes.cn_servicies.auth.UserDetailsServiceImpl;
 import es.jaes.cn_servicies.tenant.TenantFilter;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -194,9 +195,23 @@ public class SecurityConfig {
                 .build();
     }
 
+    /**
+     * BCrypt con coste 12, no con el 10 por defecto.
+     *
+     * <p>Cada punto dobla el trabajo de comprobar una contrasena, y eso es lo
+     * que encarece probarlas a millones si un dia se filtra la tabla de
+     * usuarios. Cuesta unos 250 ms por login, que en una pantalla de acceso no
+     * se nota.
+     *
+     * <p><b>Las contrasenas ya guardadas siguen valiendo</b>: el coste va dentro
+     * del propio hash, asi que un hash de coste 10 se verifica igual. Lo que no
+     * hace esto es re-cifrarlas — se quedan a 10 hasta que cada uno cambie la
+     * suya. Ver la tarea de rehash en el roadmap.
+     */
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    public PasswordEncoder passwordEncoder(
+            @Value("${app.security.bcrypt-strength:12}") int fuerza) {
+        return new BCryptPasswordEncoder(fuerza);
     }
 
     @Bean

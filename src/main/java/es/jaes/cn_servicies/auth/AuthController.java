@@ -1,5 +1,6 @@
 package es.jaes.cn_servicies.auth;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -13,9 +14,20 @@ public class AuthController {
 
     private final AuthService authService;
 
+    /**
+     * La IP sale de {@code getRemoteAddr()}, que es la del que abre la conexion.
+     *
+     * <p>Detras de un proxy —Cloudflare Tunnel, en produccion— esa es la del
+     * proxy y todo el mundo comparte limite. Se arregla con
+     * {@code server.forward-headers-strategy=framework}, que hace que Spring lea
+     * {@code X-Forwarded-For}. <b>No se activa por defecto a proposito</b>: sin
+     * un proxy delante que la reescriba, esa cabecera la pone quien quiere y
+     * cualquiera se inventaria una IP por intento.
+     */
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request,
+                                               HttpServletRequest http) {
+        return ResponseEntity.ok(authService.login(request, http.getRemoteAddr()));
     }
 
     @PostMapping("/refresh")

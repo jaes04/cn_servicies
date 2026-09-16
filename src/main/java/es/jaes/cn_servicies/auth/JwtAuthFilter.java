@@ -39,7 +39,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
-            if (jwtTokenProvider.isValid(token)) {
+            // Solo el de acceso autentica. El de refresco dura una semana y su
+            // unico trabajo es pedir uno nuevo en /api/auth/refresh.
+            if (jwtTokenProvider.isValid(token, TokenType.ACCESS)) {
                 try {
                     String username = jwtTokenProvider.extractUsername(token);
                     UUID tokenClubId = jwtTokenProvider.extractClubId(token);

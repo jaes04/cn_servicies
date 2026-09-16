@@ -8,7 +8,9 @@ import es.jaes.cn_servicies.user.UserResponse;
 import es.jaes.cn_servicies.user.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -21,14 +23,35 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserService userService;
     private final ClubService clubService;
+    private final LoginAttemptService loginAttemptService;
 
-    public LoginResponse login(LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getUsername(),
-                        request.getPassword()
-                )
-        );
+    /**
+     * @param ip de donde llega el intento, para el limite por conexion. La
+     *           averigua el controlador: el servicio no conoce la peticion HTTP.
+     */
+    public LoginResponse login(LoginRequest request, String ip) {
+        // Antes de autenticar, no despues: un bloqueado no llega a gastar un
+        // BCrypt, que es lo caro y lo que busca quien manda peticiones a mansalva.
+        loginAttemptService.comprobar(request.getUsername(), ip);
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.getUsername(),
+                            request.getPassword()
+                    )
+            );
+        } catch (DisabledException e) {
+            // Una cuenta bloqueada por el club no es un intento de adivinar la
+            // contrasena: no cuenta para el limite, o el bloqueado recibiria un
+            // "espera 5 minutos" en lugar de enterarse de lo que pasa.
+            throw e;
+        } catch (AuthenticationException e) {
+            loginAttemptService.anotarFallo(request.getUsername(), ip);
+            throw e;
+        }
+
+        loginAttemptService.anotarAcierto(request.getUsername(), ip);
 
         UserDetails user = userDetailsService.loadUserByUsername(request.getUsername());
         String accessToken = jwtTokenProvider.generateAccessToken(user);
@@ -40,8 +63,8 @@ public class AuthService {
     public LoginResponse refresh(RefreshRequest request) {
         String token = request.getRefreshToken();
 
-        if (!jwtTokenProvider.isValid(token)) {
-            throw new IllegalArgumentException("Refresh token inválido o expirado");
+        if (!jwtTokenProvider.isValid(token, TokenType.REFRESH)) {
+            throw new InvalidTokenException(porQueNoValeParaRefrescar(token));
         }
 
         String username = jwtTokenProvider.extractUsername(token);
@@ -74,6 +97,21 @@ public class AuthService {
 
         UserDetails user = userDetailsService.loadUserByUsername(request.getUsername());
         return new LoginResponse(jwtTokenProvider.generateAccessToken(user), jwtTokenProvider.generateRefreshToken(user));
+    }
+
+    /**
+     * Por que ese token no sirve para refrescar.
+     *
+     * <p>Decir que el token enviado es el de acceso no filtra nada —quien
+     * pregunta ya lo tiene en la mano— y ahorra la tarde de depuracion que se
+     * lleva un "token invalido" cuando el token es perfectamente valido y solo
+     * esta en la ruta equivocada.
+     */
+    private String porQueNoValeParaRefrescar(String token) {
+        if (jwtTokenProvider.isValid(token, TokenType.ACCESS)) {
+            return "Esta ruta solo acepta el refresh token, y has enviado el de acceso";
+        }
+        return "El refresh token no es válido o ha caducado. Vuelve a iniciar sesión";
     }
 
     /**

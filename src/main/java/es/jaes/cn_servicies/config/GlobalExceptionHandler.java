@@ -1,12 +1,16 @@
 package es.jaes.cn_servicies.config;
 
+import es.jaes.cn_servicies.auth.InvalidTokenException;
+import es.jaes.cn_servicies.auth.TooManyLoginAttemptsException;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -35,6 +39,60 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleBadCredentials(HttpServletRequest request) {
         return buildResponse(HttpStatus.UNAUTHORIZED,
                 "Usuario o contraseña incorrectos", request.getRequestURI());
+    }
+
+    /**
+     * La cuenta existe pero el club la ha bloqueado. Sale como 403 y no como
+     * 401 porque la contrasena podria ser correcta: el problema no se arregla
+     * volviendo a teclearla.
+     *
+     * <p>Sin este manejador acababa en el generico y salia un <b>500</b>:
+     * {@code DisabledException} la lanzan las comprobaciones previas de Spring
+     * Security y no es {@code BadCredentialsException}.
+     *
+     * <p><b>El mensaje admite que la cuenta existe</b>, a diferencia del de
+     * credenciales incorrectas. Es deliberado: solo revela los usernames que el
+     * club ha bloqueado a proposito, y el precio de ocultarlo es un bloqueado
+     * que cambia su contrasena tres veces antes de llamar al club.
+     */
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<Map<String, Object>> handleDisabled(HttpServletRequest request) {
+        return buildResponse(HttpStatus.FORBIDDEN,
+                "Esta cuenta está bloqueada. Ponte en contacto con el club", request.getRequestURI());
+    }
+
+    /**
+     * El token del cuerpo no sirve: invalido, caducado o del tipo que no es.
+     * 401 y no 400, porque lo que toca es volver a identificarse.
+     */
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidToken(
+            InvalidTokenException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.UNAUTHORIZED, ex.getMessage(), request.getRequestURI());
+    }
+
+    /**
+     * Demasiados intentos fallidos de login.
+     *
+     * <p>Lleva {@code retryAfterSeconds} en el cuerpo y la cabecera estandar
+     * {@code Retry-After}, para que la pantalla pueda enseniar una cuenta atras
+     * en vez de dejar al usuario probando contrasenas que ni se comprueban.
+     */
+    @ExceptionHandler(TooManyLoginAttemptsException.class)
+    public ResponseEntity<Map<String, Object>> handleTooManyAttempts(
+            TooManyLoginAttemptsException ex, HttpServletRequest request) {
+        long segundos = Math.max(1, ex.getRetryAfter().toSeconds());
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.TOO_MANY_REQUESTS.value());
+        body.put("message", ex.getMessage());
+        body.put("retryAfterSeconds", segundos);
+        body.put("path", request.getRequestURI());
+
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(segundos))
+                .body(body);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

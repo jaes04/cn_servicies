@@ -15,6 +15,9 @@ import java.util.UUID;
 @Component
 public class JwtTokenProvider {
 
+    /** Para que sirve el token. Ver {@link TokenType}. */
+    static final String CLAIM_TIPO = "typ";
+
     @Value("${app.jwt.secret}")
     private String secret;
 
@@ -29,14 +32,14 @@ public class JwtTokenProvider {
     }
 
     public String generateAccessToken(UserDetails user) {
-        return buildToken(user, expirationMs);
+        return buildToken(user, TokenType.ACCESS, expirationMs);
     }
 
     public String generateRefreshToken(UserDetails user) {
-        return buildToken(user, refreshExpirationMs);
+        return buildToken(user, TokenType.REFRESH, refreshExpirationMs);
     }
 
-    private String buildToken(UserDetails user, long expiration) {
+    private String buildToken(UserDetails user, TokenType type, long expiration) {
         if (!(user instanceof AuthenticatedUser authenticated)) {
             // Preferible reventar aqui que emitir un token sin club: seria
             // invalido en cuanto llegara al filtro, y el fallo apareceria lejos
@@ -48,6 +51,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(user.getUsername())
                 .claim("club_id", authenticated.getClubId().toString())
+                .claim(CLAIM_TIPO, type.name())
                 .claim("roles", user.getAuthorities().stream()
                         .map(GrantedAuthority::getAuthority)
                         .toList())
@@ -89,15 +93,38 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Un token sin {@code club_id} valido se considera invalido, aunque la
-     * firma cuadre: son los emitidos antes de la tarea 0.3, y aceptarlos
-     * dejaria peticiones sin club al que atribuirlas.
+     * Para que se emitio el token.
+     *
+     * @throws JwtException si no trae el claim o trae uno desconocido
      */
-    public boolean isValid(String token) {
+    public TokenType extractTokenType(String token) {
+        String tipo = parse(token).get(CLAIM_TIPO, String.class);
+        if (tipo == null || tipo.isBlank()) {
+            throw new MalformedJwtException("El token no dice de que tipo es");
+        }
+        try {
+            return TokenType.valueOf(tipo);
+        } catch (IllegalArgumentException e) {
+            throw new MalformedJwtException("Tipo de token desconocido: " + tipo);
+        }
+    }
+
+    /**
+     * Si el token vale para lo que se esta pidiendo.
+     *
+     * <p>No basta con que la firma cuadre. Se exige ademas un {@code club_id}
+     * valido —sin el, la peticion no tendria club al que atribuirse— y que el
+     * tipo sea el esperado, para que el token de refresco no autentique
+     * peticiones y el de acceso no se renueve a si mismo.
+     *
+     * <p>Un token sin el claim {@code typ} se rechaza siempre: son los emitidos
+     * antes de que existiera, y no hay manera de saber para que se hicieron.
+     */
+    public boolean isValid(String token, TokenType esperado) {
         try {
             extractUsername(token);
             extractClubId(token);
-            return true;
+            return extractTokenType(token) == esperado;
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
