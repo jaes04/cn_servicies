@@ -1,5 +1,15 @@
 # CN Servicies — API Documentation
 
+> ## ⚠️ OBSOLETO — no lo uses
+>
+> Este documento es de **mayo de 2026** y ya no describe la API. Desde entonces cambiaron los
+> permisos de varias rutas, el login, el mínimo de contraseña (de 8 a 12), la separación entre
+> clubes, y la subida de documentos está apagada. En varias cosas dice lo contrario de lo que
+> hace hoy.
+>
+> **La referencia es [`docs/contratos-api.md`](docs/contratos-api.md)**, que cubre las 104
+> rutas y está sacada del código.
+
 **Base URL:** `http://localhost:8080`  
 **Autenticación:** JWT Bearer Token  
 **Algoritmo:** HS384

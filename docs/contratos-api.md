@@ -1,12 +1,11 @@
 # Contratos de la API para el frontend
 
-Rutas, cuerpos, respuestas y reglas que necesitan las pantallas nuevas: temporadas, grupos,
-horarios, sesiones, pasar lista, cierres, informes, consentimientos, certificados, entregas
-de papeles y vínculos. Incluye también lo que cambia en pantallas que ya existen.
+**Todas las rutas de la API: las 104.** Cuerpos, respuestas, permisos y las reglas que no se
+ven en la forma de la petición. Incluye también lo que cambia en pantallas que ya existen (§18).
 
-Sacado del código real (controladores, DTOs y `SecurityConfig`) a fecha de
-**16 de septiembre de 2026**, rama `develop`. `API_DOCS.md`, en la raíz, es de mayo y no
-recoge nada de esto.
+Sacado del código real (controladores, DTOs, servicios y `SecurityConfig`) a fecha de
+**16 de septiembre de 2026**, rama `develop`. **`API_DOCS.md`, en la raíz, es de mayo y está
+obsoleto: no lo uses.** En varias cosas dice lo contrario de lo que hace hoy la API.
 
 > **El login ya trae los cambios avisados** (§2): el refresco solo acepta refresh tokens y
 > hay límite de intentos. **Los tokens emitidos antes dejan de valer**: en el primer despliegue
@@ -81,9 +80,12 @@ pertenece a otro club, a un grupo que el entrenador no lleva o a un atleta sin v
 sistema no confirma que exista. **No hay forma de distinguir los dos casos, y es a
 propósito.**
 
-**Paginación:** solo el listado de atletas y el de resultados. Parámetros
+**Paginación:** atletas, resultados, noticias y usuarios. Parámetros
 `?page=0&size=20&sort=lastName`; la respuesta es la página estándar de Spring
-(`content`, `totalElements`, `totalPages`, `number`, `size`…).
+(`content`, `totalElements`, `totalPages`, `number`, `size`…). La página empieza en **0**.
+
+**El orden por defecto es ascendente**: las noticias salen de la más antigua a la más nueva. Para
+lo contrario, pídelo: `sort=publishedAt,desc`.
 
 ---
 
@@ -226,6 +228,10 @@ Ya existía, pero **ahora corta la sesión en el acto**: el token de una cuenta 
 de autenticar (**401** en cualquier ruta) y tampoco puede renovarse (**403** en `/refresh`).
 Antes seguía trabajando hasta que su token caducaba, hasta un día después.
 
+**Desbloquear:** `PATCH /api/users/{id}/unblock`, admin. Los dos devuelven la cuenta, sin cuerpo
+en la petición. Desbloquear no le devuelve la sesión que tenía: vuelve a entrar con su
+contraseña.
+
 ---
 
 ## 3. Catálogo de enumerados
@@ -248,6 +254,8 @@ Antes seguía trabajando hasta que su token caducaba, hasta un día después.
 | `DocumentDeliveryType` | `LICENSE_APPLICATION`, `IDENTITY_DOCUMENT`, `TRAVEL_PERMIT` |
 | `DocumentDeliveryStatus` | `VALID`, `EXPIRING_SOON`, `EXPIRED`, `MISSING`, `NOT_REQUIRED` |
 | `UserAthleteType` | `TUTOR`, `ATHLETE` |
+| `Stroke` (estilo) | `FREESTYLE`, `BACKSTROKE`, `BREASTSTROKE`, `BUTTERFLY`, `MEDLEY` |
+| `PostStatus` | `DRAFT`, `PUBLISHED`, `DELETED` |
 
 **No hay campos de texto libre** en asistencia, bajas, cancelaciones ni entregas. Es a
 propósito: no añadas un campo de notas en la interfaz, porque no hay dónde guardarlo.
@@ -670,6 +678,7 @@ principio de temporada, y sustituye a `/api/medical-certificates/expiring`.
 | `POST /api/athletes` | Admin, entrenador | 201 |
 | `PUT /api/athletes/{id}` | Admin; entrenador si es su atleta | 200 |
 | `DELETE /api/athletes/{id}` | Admin | 204. Borrado lógico |
+| `GET /api/athletes/my-tutees` | Admin, entrenador | Las fichas de sus tutelados. **Un tutor recibe 403**: para él, §17 |
 
 `q` busca por nombre, apellidos o documento.
 
@@ -927,6 +936,209 @@ Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atle
 
 ---
 
+## 17.b Resultados de competición
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/competition-results?q=&stroke=&distanceMeters=&poolLength=&partial=&gender=` | Admin; entrenador **sus atletas** | Página |
+| `GET /api/competition-results/{id}` | Admin; entrenador si es su atleta | El resultado |
+| `GET /api/competition-results/athlete/{athleteId}` | Admin; entrenador si es su atleta | Lista, sin paginar |
+| `POST /api/competition-results` | Admin; entrenador para sus atletas | 201 |
+| `PUT /api/competition-results/{id}` | Admin; entrenador si es su atleta **y** el del cuerpo también | 200 |
+| `DELETE /api/competition-results/{id}` | Admin | 204. Borrado lógico: desaparece de todo |
+| `GET /api/competition-results/me?stroke=&distanceMeters=&poolLength=&partial=&gender=` | Cualquier autenticado | Página: los de **sus** atletas vinculados |
+
+`q` busca en nombre y apellidos del atleta. `/me` devuelve los resultados de los atletas con los
+que la cuenta tiene vínculo, como tutor o como deportista (§17); sin vínculos, página vacía.
+
+**Petición (`POST` y `PUT`, igual):**
+
+```json
+{ "athleteId": "…", "competitionDate": "2026-03-10", "distanceMeters": 100,
+  "stroke": "FREESTYLE", "poolLength": 25, "resultTimeMillis": 58320,
+  "partial": false, "finalResultId": null }
+```
+
+- **`resultTimeMillis` va en milisegundos**: 58320 son 58,32 s. Conviértelo en la interfaz.
+- `poolLength`: **25 o 50**. Otra cosa, 400.
+- **Resultado final** (`partial: false`): `distanceMeters` solo **50, 100, 200, 400, 800 o 1500**.
+- **Parcial** (`partial: true`): múltiplo de 50 entre 50 y 1450, y **`finalResultId`
+  obligatorio**, apuntando a un resultado que no sea a su vez un parcial. **No se comprueba que
+  el final sea del mismo atleta**: ofrece en el selector solo los finales de ese nadador.
+- En `PUT`, el entrenador no puede mover un resultado suyo a un atleta que no lleva: 404.
+
+**Respuesta:** `id`, `athleteId`, `athleteFullName`, `competitionDate`, `distanceMeters`,
+`stroke`, `poolLength`, `resultTimeMillis`, `partial`, `finalResultId`, `createdAt`.
+
+---
+
+## 17.c Noticias, comentarios e imágenes
+
+### Noticias
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/posts/published?q=&author=` | **Público**, sin token | Página de publicadas |
+| `GET /api/posts/published/{id}` | **Público** | La noticia; 404 si no está publicada |
+| `GET /api/posts?q=&author=&status=` | Admin, editor | Página: publicadas **y borradores** |
+| `GET /api/posts/{id}` | Admin, editor | La noticia, esté como esté |
+| `POST /api/posts` | **Solo editor** | 201. Siempre nace como borrador |
+| `PUT /api/posts/{id}` | Admin, editor | 200 |
+| `DELETE /api/posts/{id}` | Admin, editor | 204 |
+
+**Ojo: crear es solo de `ROLE_EDITOR`, no de administrador.** Un administrador sin rol de
+editor recibe 403 al crear, aunque sí puede editar y borrar. Si el club quiere que el
+administrador escriba noticias, dale también el rol de editor.
+
+**Estados:** `DRAFT` (borrador), `PUBLISHED`, `DELETED`. **Una noticia borrada no sale por
+ninguna ruta**, ni por id ni filtrando `status=DELETED`: no hay papelera ni forma de
+recuperarla desde la API.
+
+**`q`** busca en título y contenido; **`author`** es el username exacto.
+
+**Crear — multipart, no JSON.** Dos partes: `data`, con el JSON, e `images`, opcional, con
+hasta **10** imágenes. Así en el navegador:
+
+```js
+const fd = new FormData();
+fd.append('data', new Blob([JSON.stringify({ title, content })], { type: 'application/json' }));
+imagenes.forEach(archivo => fd.append('images', archivo));
+await fetch(`${API}/api/posts`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+```
+
+- **La parte `data` tiene que ir como `application/json`**, con el `Blob` de arriba. Como texto
+  plano, el servidor la rechaza.
+- **No pongas tú el `Content-Type` de la petición:** lo pone el navegador con el separador.
+- `title` y `content` obligatorios. **`status` se ignora al crear**: nace en borrador.
+- Imágenes: JPEG, PNG, WEBP o GIF, **5 MB cada una y 55 MB en total**. Otro tipo, 400.
+
+**Editar — JSON:** `{ "title": "…", "content": "…", "status": "PUBLISHED" }`.
+
+- **`title` y `content` son obligatorios siempre**, también para solo publicar: manda los
+  actuales.
+- `status` es opcional. Pasar a `PUBLISHED` pone `publishedAt` **la primera vez**; volver a
+  borrador y republicar no la cambia.
+- **Las imágenes no se pueden cambiar después de crear la noticia.**
+
+**Borrar** la pasa a `DELETED`: deja de existir para toda la API.
+
+**Respuesta:** `id`, `title`, `content`, `slug`, `status`, `authorUsername`, `imageUrls`,
+`publishedAt`, `createdAt`, `updatedAt`. El `slug` se genera del título y **no identifica
+nada**: se puede repetir. Las rutas van siempre por `id`.
+
+> ⚠️ **`content` se guarda tal cual, sin sanear.** Si lo pintas como HTML
+> (`dangerouslySetInnerHTML`), sanéalo antes en el frontend: si no, una cuenta de editor puede
+> meter un script que se ejecute a cada visitante de la web pública.
+
+### Comentarios
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/posts/{postId}/comments` | Cualquier autenticado | Lista, del más antiguo al más nuevo |
+| `POST /api/posts/{postId}/comments` | Cualquier autenticado | 201 |
+| `DELETE /api/posts/{postId}/comments/{id}` | **Solo su autor** | 204. Cualquier otro, 403, **también un administrador** |
+| `PATCH /api/posts/{postId}/comments/{id}/block` | Admin, editor | 200, el comentario |
+| `PATCH /api/posts/{postId}/comments/{id}/unblock` | Admin, editor | 200, el comentario |
+| `GET /api/users/{id}/comments` | Cualquier autenticado | Lista de los comentarios de esa cuenta |
+
+**Petición:** `{ "content": "…" }`, obligatorio.
+
+- **La lista de una noticia no trae los bloqueados ni los borrados.** Para moderar, el
+  administrador o el editor **bloquea**: no puede borrar un comentario ajeno.
+- **`/api/users/{id}/comments` sí incluye los bloqueados** (no los borrados). Si lo enseñas en
+  un perfil público, filtra por `blocked`.
+- No se comprueba que la noticia esté publicada para comentar: no enseñes el formulario en
+  borradores.
+
+**Respuesta:** `id`, `content`, `authorUsername`, `postId`, `postTitle`, `blocked`, `createdAt`.
+
+### Imágenes
+
+`GET /api/images/{filename}` — **público**. 404 si no existe.
+
+**Las URLs que devuelve la API son relativas** —`imageUrls` en noticias y `profilePhoto` en
+usuarios, del tipo `/api/images/xxxx.png`—: **antepón la base de la API** (`VITE_API_URL`). Con
+el frontend en otro dominio, una URL relativa apunta al del frontend y la imagen no carga.
+
+---
+
+## 17.d Gestión de usuarios
+
+Lo de la sesión, la contraseña y el bloqueo está en §2. Aquí, el resto.
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/users?q=&role=&blocked=` | Admin | Página |
+| `POST /api/users` | Admin | 201, la cuenta |
+| `PATCH /api/users/{id}` | Admin | 200. Sustituye **todos** los roles |
+| `PUT /api/users/{id}/roles` | Admin | 200. Deja **un solo** rol |
+| `DELETE /api/users/{id}` | Admin | 204. Borrado lógico |
+| `POST /api/users/{id}/profile-photo` | La propia cuenta, o admin | 200, la cuenta |
+| `POST /api/auth/signup` | **Público** | 201, tokens de la cuenta creada |
+| `POST /api/auth/signup/with-role` | Admin | 201, tokens **de la cuenta creada** |
+
+**Listado:** `q` busca en username y correo; `role` es el nombre completo (`ROLE_ADMIN`…);
+`blocked`, `true` o `false`.
+
+**Crear (`POST /api/users`):**
+
+```json
+{ "username": "entrenadora1", "email": "ana@club.es", "password": "…", "roles": ["ROLE_TECHNICAL_STAFF"] }
+```
+
+- Sin `roles`, la cuenta nace con `ROLE_USER`.
+- La contraseña pasa la política de §2.b.
+- **400** `"El username ya está en uso"` (único en el club) o `"El email ya está en uso"`. **El
+  correo es único en todo el sistema, no por club**: la misma persona no puede tener cuenta en
+  dos clubes con el mismo correo.
+
+**Roles, dos rutas que no hacen lo mismo:**
+
+- `PATCH /api/users/{id}` con `{ "roles": ["ROLE_ADMIN", "ROLE_EDITOR"] }` **sustituye todos**.
+  Con la lista vacía o sin `roles`, no cambia nada.
+- `PUT /api/users/{id}/roles` con `{ "role": "ROLE_EDITOR" }` deja **solo ese**.
+
+**Borrar** la cuenta es lógico, pero en la práctica desaparece: deja de salir en el listado, **no
+puede entrar** y su sesión abierta deja de valer.
+
+**Foto de perfil:** multipart con **un campo `file`**. JPEG, PNG, WEBP o GIF. Otra cuenta que
+no sea la tuya, siendo no administrador: 404. Sustituye la anterior.
+
+> ⚠️ **Con más de 5 MB la petición no recibe respuesta:** el servidor corta la subida y el
+> cliente ve un error de conexión, sin código ni mensaje. **Comprueba el tamaño en el frontend
+> antes de subir**, en fotos de perfil y en imágenes de noticias.
+
+**Respuesta de una cuenta:** `id`, `username`, `email`, `blocked`, `roles`, `createdAt`,
+`profilePhoto` (URL relativa, ver §17.c).
+
+**Alta pública** (`POST /api/auth/signup`): `{ "username", "email", "password" }`. Crea una
+cuenta `ROLE_USER` **en el club por defecto** y devuelve sus tokens, como un login. Con un solo
+club es correcto; en qué club cae cuando haya varios sigue sin decidir.
+
+**Alta con rol** (`POST /api/auth/signup/with-role`): `{ "username", "email", "password",
+"roles": [...] }`. **Devuelve los tokens de la cuenta nueva, no los tuyos: no los guardes**, o
+la sesión del administrador pasa a ser la de la cuenta que acaba de crear. **Usa
+`POST /api/users`**, que hace lo mismo y devuelve la cuenta.
+
+---
+
+## 17.e Documentos subidos (apagados)
+
+| Método y ruta |
+|---|
+| `POST /api/athlete-documents/athlete/{athleteId}` |
+| `GET /api/athlete-documents/athlete/{athleteId}` |
+| `GET /api/athlete-documents/my` |
+| `GET /api/athlete-documents/{documentId}/file` |
+| `DELETE /api/athlete-documents/{documentId}` |
+
+**Las cinco responden 404 a todo el mundo** mientras `app.documents.upload.enabled` esté a
+`false`, que es como viene. No hagas pantallas contra ellas: el club registra que le entregaron
+los papeles con las entregas de §16, y los papeles no se suben. Antes de encenderla harían
+falta cifrado, un directorio aparte y registro de accesos.
+
+---
+
 ## 18. Qué rompe en pantallas que ya existen
 
 | Pantalla | Qué cambia | Qué hacer |
@@ -946,8 +1158,10 @@ Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atle
 | Cualquier pantalla | Si el club bloquea una cuenta, sus peticiones pasan a 401 en el acto | Tratar el 401 como sesión terminada y volver al login |
 | Certificados y entregas | Rutas nuevas para corregir (`PUT`) y borrar (`DELETE`) por id | §15 y §16 |
 | Entornos nuevos | Ya no traen las cuentas `admin`, `editor`, `tecnico` y `usuario` ni datos de ejemplo | Entrar con el administrador de `ADMIN_USERNAME` |
-| **Noticias: listado y lectura por id** | `GET /api/posts` y `GET /api/posts/{id}` pasan a ser **solo de administrador o editor**: devuelven también borradores y borradas. Antes los leía cualquier cuenta | Para cualquier otra cuenta, y en la web pública, usar `/api/posts/published` y `/api/posts/published/{id}` |
+| **Noticias: listado y lectura por id** | `GET /api/posts` y `GET /api/posts/{id}` pasan a ser **solo de administrador o editor**: devuelven también los borradores. Antes los leía cualquier cuenta | Para cualquier otra cuenta, y en la web pública, usar `/api/posts/published` y `/api/posts/published/{id}` |
 | Cualquier llamada con la ruta mal escrita | 403 en vez de 404 | Revisar la ruta (§1) |
+| Alta con rol | El mínimo de contraseña de esa ruta seguía en 8 y el error llegaba en `errors.password`; ahora 12 y en `message`, como las demás | §2.b |
+| **Lo que salga de `API_DOCS.md`** | Es de mayo: permisos, mínimos de contraseña y documentos subidos ya no son así | Usar este documento |
 
 ---
 

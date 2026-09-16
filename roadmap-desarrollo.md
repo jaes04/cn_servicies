@@ -1050,7 +1050,7 @@ tutor; la b) acota al entrenador.
 
 > **`SecurityConfig` termina en `anyRequest().denyAll()`.** Con `authenticated()`, cada ruta nueva nacía abierta a cualquier cuenta —un tutor, un atleta—, y pasó de verdad dos veces antes de cambiarlo: el `PUT` y el `DELETE` de certificados médicos, y la lectura de noticias sin publicar.
 
-> **De 104 rutas, tres dependían de esa regla final**, y eran las únicas que `denyAll()` habría cerrado sin querer. `GET /api/athlete-links/my-tutees` recibe su regla (`authenticated()`: son los datos de cada uno). **`GET /api/posts` y `GET /api/posts/{id}` devuelven también borradores y noticias borradas, y los leía cualquier cuenta**; pasan a administrador o editor, como la escritura. Lo público sigue por `/published`. Cambio de contrato para el frontend.
+> **De 104 rutas, tres dependían de esa regla final**, y eran las únicas que `denyAll()` habría cerrado sin querer. `GET /api/athlete-links/my-tutees` recibe su regla (`authenticated()`: son los datos de cada uno). **`GET /api/posts` y `GET /api/posts/{id}` devuelven también los borradores, y los leía cualquier cuenta**; pasan a administrador o editor, como la escritura. Lo público sigue por `/published`. Cambio de contrato para el frontend.
 
 > **El riesgo cambia de lado, y por eso hay un test que recorre todas las rutas.** Con `denyAll()` una ruta sin regla ya no queda abierta: queda cerrada para todos, administrador incluido. `DenyByDefaultTest` enumera las rutas registradas y las llama con un usuario que tiene los cuatro roles; cualquier 403 es una ruta sin regla. Quien añada un controlador y se olvide de `SecurityConfig` se entera en los tests, no el día que el club no puede usarlo. En las de escritura manda un JSON roto: el filtro de seguridad decide antes de leer el cuerpo, y si deja pasar, Spring lo rechaza con 400 antes del controlador, así que **el test no crea ni cambia nada**. Comprueba además que ha encontrado al menos 100 rutas, para no pasar en verde sin mirar ninguna.
 
@@ -1069,6 +1069,26 @@ tutor; la b) acota al entrenador.
 > **Verificado con once mutaciones, trece rojos.** Una superviviente sin fallo del test: quitar la regla GET de temporadas no deja la ruta sin regla —la cubre la general de administrador—, así que no es lo que vigila el test. Repetida con dos rutas que sí se quedan sin ninguna regla, las dos en rojo.
 
 > **Tests:** 5 de denegar por defecto y 7 de cabeceras. La suite pasa de 441 a 453.
+
+**Contratos completos — bloque 8**
+
+- [x] `docs/contratos-api.md` cubre las 104 rutas, medido contra los controladores — `2h · Baja · Alta`
+- [x] `API_DOCS.md` marcado como obsoleto — `5min · Baja · Media`
+- [ ] **Borrado cruzado de resultados de competición** — `2h · Media · Crítica` — ver abajo
+
+> **Antes cubría 72 de 104.** Las 32 que faltaban eran los módulos anteriores a este verano —noticias, comentarios, usuarios, resultados, documentos subidos, altas— y solo estaban en `API_DOCS.md`, de mayo, que en varias cosas decía lo contrario de lo que hace hoy la API. Se comprobó la cobertura con un script que cruza cada ruta de los controladores con el documento.
+
+> **Corrección de lo escrito en el bloque 7:** se dijo que `GET /api/posts` devolvía "borradores y noticias borradas". Las borradas no salen por ninguna ruta, porque `Post` lleva `@SQLRestriction("status != 'DELETED'")`. Restringir la ruta a administrador o editor sigue estando justificado —los borradores sí los leía cualquier cuenta—, pero el motivo era inexacto. Corregido en `SecurityConfig`, aquí y en los contratos; los mensajes de commit ya publicados no se pueden cambiar.
+
+> **`SignupWithRoleRequest` conservaba `@Size(min = 8)`**, que se escapó al llevar la política de contraseñas al servicio: esa ruta daba el error en `errors.password` y con el mínimo viejo, contradiciendo lo documentado. Quitado.
+
+> **Hallazgos al documentar, sin arreglar:**
+> - **`DELETE /api/competition-results/{id}` no pasa por el guardián y la tabla no tiene RLS**: por el código, un administrador de otro club podría borrar un resultado ajeno conociendo su id. Sin efecto con un solo club; hay tarea aparte para confirmarlo con test y cerrarlo, y revisar si comentarios tiene lo mismo.
+> - **Una subida de más de 5 MB no recibe respuesta**: el servidor corta la conexión y el cliente ve un error de red, sin código. Comprobado con una foto de 6 MB. Documentado para que el frontend valide el tamaño antes.
+> - **El contenido de las noticias se guarda sin sanear.** Si el frontend lo pinta como HTML, una cuenta de editor puede meter script para la web pública. Documentado.
+> - **Crear noticias es solo de `ROLE_EDITOR`**: un administrador sin ese rol recibe 403 al crear, aunque edita y borra. Documentado; no se sabe si es a propósito.
+> - **`POST /api/auth/signup/with-role` devuelve los tokens de la cuenta creada**, no los de quien la crea. Documentado, con `POST /api/users` como alternativa.
+> - **Hay 7 imágenes de `uploads/` en el repositorio público**, del commit inicial (30 de abril), subidas antes de que la carpeta entrara en `.gitignore`. PNG de dimensiones de captura o banner, anteriores a cualquier dato de un club. Sin revisar su contenido.
 
 ### S.4 Seguridad de la infraestructura
 
