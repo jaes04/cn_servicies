@@ -59,9 +59,21 @@ marcar el campo, no como texto definitivo.
 |---|---|---|
 | 400 | Datos no válidos o regla de negocio | Enseñar `message` |
 | 401 | Sin token, o token caducado o inválido | Refrescar o volver al login |
-| 403 | **Tu rol** no puede usar esa ruta, **o la cuenta está bloqueada** | No enseñar la acción a ese rol; en el login, enseñar `message` |
+| 403 | **Tu rol** no puede usar esa ruta, **la cuenta está bloqueada, o la ruta no existe** | No enseñar la acción a ese rol; en el login, enseñar `message` |
 | 404 | **No existe, o no es tuyo** | Tratar como "no encontrado" |
 | 429 | Demasiados intentos fallidos de login | Enseñar `message` y esperar `retryAfterSeconds` |
+
+> **Una ruta mal escrita da 403, no 404** (y 401 si no llevas token). Desde que el servidor
+> deniega por defecto, lo que no tiene regla no lo puede nadie, y una ruta que no existe no tiene
+> regla. **Si te sale un 403 en algo que crees que existe, revisa la ruta antes que los permisos.**
+> Solo dentro de una rama con regla general —por ejemplo `/api/medical-certificates/...` siendo
+> administrador— una ruta inexistente sigue dando 404.
+
+**Cabeceras de seguridad.** Todas las respuestas llevan `Content-Security-Policy: default-src
+'none'`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy:
+no-referrer` y, por HTTPS, HSTS. **No afectan a las llamadas desde el frontend**: la CSP solo
+manda sobre el documento que la recibe. La CSP de la propia aplicación React es otra y va en
+Cloudflare Pages, en tu repositorio (archivo `_headers`).
 
 **403 y 404 no son intercambiables.** Un 403 depende solo del rol, así que la interfaz puede
 evitarlo escondiendo botones. Un 404 aparece también cuando el recurso existe pero
@@ -934,6 +946,8 @@ Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atle
 | Cualquier pantalla | Si el club bloquea una cuenta, sus peticiones pasan a 401 en el acto | Tratar el 401 como sesión terminada y volver al login |
 | Certificados y entregas | Rutas nuevas para corregir (`PUT`) y borrar (`DELETE`) por id | §15 y §16 |
 | Entornos nuevos | Ya no traen las cuentas `admin`, `editor`, `tecnico` y `usuario` ni datos de ejemplo | Entrar con el administrador de `ADMIN_USERNAME` |
+| **Noticias: listado y lectura por id** | `GET /api/posts` y `GET /api/posts/{id}` pasan a ser **solo de administrador o editor**: devuelven también borradores y borradas. Antes los leía cualquier cuenta | Para cualquier otra cuenta, y en la web pública, usar `/api/posts/published` y `/api/posts/published/{id}` |
+| Cualquier llamada con la ruta mal escrita | 403 en vez de 404 | Revisar la ruta (§1) |
 
 ---
 

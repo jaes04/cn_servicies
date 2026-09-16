@@ -993,7 +993,7 @@ tutor; la b) acota al entrenador.
 - [x] `coach_id` pasa a dar permisos: grupos, sesiones, roster, asistencia, informes y CSV — `4h · Alta · Crítica`
 - [x] Entrenadores ayudantes: varios por grupo, con los mismos permisos que el principal — *(no estaba en el roadmap)*
 - [x] Fichas, resultados, estados de consentimiento y certificado, documentos y claves de invitación: solo atletas que hoy están en sus grupos
-- [ ] Denegar por defecto en cada endpoint — `1h · Media · Crítica` — **sigue pendiente**: `SecurityConfig` termina en `anyRequest().authenticated()` y no en `denyAll()`, así que una ruta nueva nace abierta a cualquier autenticado
+- [x] Denegar por defecto en cada endpoint — `1h · Media · Crítica` — `anyRequest().denyAll()`, ver S.3.4
 - [ ] ~~Roles definidos: `SUPERADMIN`, `ADMIN_CLUB`, `ENTRENADOR`, `TUTOR`~~ — **descartado**
 
 > El `club_id` no te protege del IDOR interno. Un entrenador del club A pidiendo la ficha de un atleta de otro grupo del club A pasa el filtro de tenant sin problema. Con datos de menores, es el fallo que peor sienta en una auditoría.
@@ -1044,7 +1044,31 @@ tutor; la b) acota al entrenador.
 - [ ] Nunca exponer entidades JPA en la API, siempre DTO — `3h · Media · Alta`
 - [ ] Revisar todas las queries nativas — `1h · Alta · Crítica`
 - [ ] Límite de tamaño en subidas y validación de tipo real, no de extensión — `1h · Media · Alta`
-- [ ] Cabeceras: CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, HSTS — `2h · Media · Alta`
+- [x] Cabeceras: CSP, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, HSTS — `2h · Media · Alta`
+
+**Denegar por defecto y cabeceras — bloque 7**
+
+> **`SecurityConfig` termina en `anyRequest().denyAll()`.** Con `authenticated()`, cada ruta nueva nacía abierta a cualquier cuenta —un tutor, un atleta—, y pasó de verdad dos veces antes de cambiarlo: el `PUT` y el `DELETE` de certificados médicos, y la lectura de noticias sin publicar.
+
+> **De 104 rutas, tres dependían de esa regla final**, y eran las únicas que `denyAll()` habría cerrado sin querer. `GET /api/athlete-links/my-tutees` recibe su regla (`authenticated()`: son los datos de cada uno). **`GET /api/posts` y `GET /api/posts/{id}` devuelven también borradores y noticias borradas, y los leía cualquier cuenta**; pasan a administrador o editor, como la escritura. Lo público sigue por `/published`. Cambio de contrato para el frontend.
+
+> **El riesgo cambia de lado, y por eso hay un test que recorre todas las rutas.** Con `denyAll()` una ruta sin regla ya no queda abierta: queda cerrada para todos, administrador incluido. `DenyByDefaultTest` enumera las rutas registradas y las llama con un usuario que tiene los cuatro roles; cualquier 403 es una ruta sin regla. Quien añada un controlador y se olvide de `SecurityConfig` se entera en los tests, no el día que el club no puede usarlo. En las de escritura manda un JSON roto: el filtro de seguridad decide antes de leer el cuerpo, y si deja pasar, Spring lo rechaza con 400 antes del controlador, así que **el test no crea ni cambia nada**. Comprueba además que ha encontrado al menos 100 rutas, para no pasar en verde sin mirar ninguna.
+
+> **Efecto visible: una ruta mal escrita da 403, no 404** (y 401 sin token). Anotado en los contratos, porque es lo primero que confunde depurando el frontend.
+
+> **Corrección de lo que se dijo antes:** se afirmó que la API no mandaba ninguna cabecera de seguridad, deduciéndolo de que `SecurityConfig` no configuraba ninguna. Era falso. **Medido antes de cambiar nada:** Spring Security ya ponía `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` y HSTS por HTTPS. **Faltaban dos: CSP y `Referrer-Policy`.** El test se escribió primero y falló justo por esas dos.
+
+> **CSP de API: `default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`.** Una API JSON no carga nada. No protege a la aplicación React —esa CSP va en Cloudflare Pages, en el repositorio del frontend— y no afecta a un `<img>` que apunte a `/api/images`: la CSP solo manda sobre el documento que la recibe. Lo que cierra es lo que se abra directamente desde la API. Las dos que ya ponía Spring van ahora explícitas, para que nadie las quite sin verlo.
+
+> **HSTS solo por HTTPS**, de un año y con subdominios, sin `preload`. Se prueba como llega en producción: con `forward-headers-strategy=framework` y `X-Forwarded-Proto: https`. Por HTTP no se emite, que es lo correcto: el navegador la ignoraría.
+
+> **Las respuestas de error escritas a mano en `SecurityConfig` también llevan las cabeceras.** Hay test propio, porque se escriben fuera de los controladores.
+
+> **Visto de paso, sin tocar: la subida de imágenes valida el tipo con lo que declara el cliente** (`getContentType()`) y guarda la extensión del nombre original. Un archivo cualquiera declarado como `image/png` entra. Hoy lo contienen `nosniff` y que `/api/images` sirva todo lo que no sea png o webp como `image/jpeg`, pero es exactamente la tarea de arriba —"validación de tipo real, no de extensión"—, que sigue pendiente.
+
+> **Verificado con once mutaciones, trece rojos.** Una superviviente sin fallo del test: quitar la regla GET de temporadas no deja la ruta sin regla —la cubre la general de administrador—, así que no es lo que vigila el test. Repetida con dos rutas que sí se quedan sin ninguna regla, las dos en rojo.
+
+> **Tests:** 5 de denegar por defecto y 7 de cabeceras. La suite pasa de 441 a 453.
 
 ### S.4 Seguridad de la infraestructura
 
