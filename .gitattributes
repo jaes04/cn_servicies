@@ -1,2 +1,6 @@
 /mvnw text eol=lf
 *.cmd text eol=crlf
+
+# Los scripts del kit se ejecutan en el servidor, que es Linux. Con finales de
+# linea de Windows, bash falla con "bad interpreter: /usr/bin/env bash^M".
+*.sh text eol=lf
