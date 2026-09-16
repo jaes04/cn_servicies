@@ -62,6 +62,50 @@ public class DocumentDeliveryService {
     }
 
     /**
+     * Corrige una entrega mal anotada: el tipo, las fechas o la temporada.
+     *
+     * <p>Pasa por el mismo {@link #validar} que el alta, entero y con el tipo
+     * nuevo. Se puede cambiar el tipo —elegir "documento de identidad" cuando
+     * era la licencia es justo el error que hay que poder arreglar—, pero con el
+     * tipo nuevo tienen que venir sus campos y ningun otro.
+     *
+     * <p><b>Quien corrige pasa a ser quien lo anoto</b>, con la hora de la
+     * correccion. Lo anterior no queda en ningun sitio hasta la auditoria (S.6).
+     *
+     * <p>No cambia de atleta, por lo mismo que el certificado: una entrega en el
+     * atleta equivocado se borra y se anota bien.
+     */
+    public DocumentDelivery update(UUID id, DocumentDeliveryRequest request, String registrar) {
+        DocumentDelivery delivery = findOrThrow(id);
+        Season season = validar(delivery.getAthlete(), request);
+
+        delivery.setType(request.getType());
+        delivery.setSeason(season);
+        delivery.setValidFrom(request.getValidFrom());
+        delivery.setValidUntil(request.getValidUntil());
+        delivery.setDeliveredOn(request.getDeliveredOn());
+        delivery.setRegisteredBy(userService.findEntityByUsername(registrar));
+        delivery.setRegisteredAt(LocalDateTime.now());
+
+        return deliveryRepository.save(delivery);
+    }
+
+    /**
+     * Borra una entrega anotada por error. Borrado de verdad: una entrega que no
+     * ocurrio no constata nada, y un permiso de viaje guarda fechas de viaje de
+     * un menor que no deberian existir.
+     */
+    public void delete(UUID id) {
+        deliveryRepository.delete(findOrThrow(id));
+    }
+
+    /** Una de otro club no aparece —lo tapa Row Level Security— y sale como no encontrada. */
+    private DocumentDelivery findOrThrow(UUID id) {
+        return deliveryRepository.findById(id)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Entrega no encontrada"));
+    }
+
+    /**
      * Cada tipo lleva sus campos y ningun otro. Se rechaza en vez de ignorar lo
      * que sobra: aceptar una licencia con fechas y no hacer nada con ellas dejaria
      * creer que esas fechas cuentan.

@@ -66,4 +66,31 @@ public class MedicalCertificateController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(certificateService.toResponse(certificate));
     }
+
+    /**
+     * Corrige la fecha de emision o la temporada de un certificado mal anotado.
+     * Solo administradores, como el alta.
+     *
+     * <p><b>{@code {id}} solo acepta un UUID</b>, y no es un adorno. Sin el patron,
+     * esta ruta y la de borrar se comerian cualquier segmento suelto, y un GET a
+     * una ruta que no existe —la retirada {@code /expiring}, sin ir mas lejos—
+     * contestaria 405 "metodo no permitido" en vez de 404: el frontend lo leeria
+     * como que la ruta existe. Lo pillo el test de {@code /expiring}.
+     */
+    @PutMapping("/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}")
+    public ResponseEntity<MedicalCertificateResponse> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody MedicalCertificateRequest request,
+            Principal principal) {
+
+        MedicalCertificate certificate = certificateService.update(id, request, principal.getName());
+        return ResponseEntity.ok(certificateService.toResponse(certificate));
+    }
+
+    /** Borra un certificado anotado por error. Solo administradores. */
+    @DeleteMapping("/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}")
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        certificateService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
 }

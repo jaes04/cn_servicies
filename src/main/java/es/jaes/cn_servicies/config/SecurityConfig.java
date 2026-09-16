@@ -149,6 +149,11 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/medical-certificates/athlete/*/status").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/medical-certificates/athlete/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/medical-certificates/athlete/**").hasRole("ADMIN")
+                        // Corregir y borrar por id, y lo que se anada despues. Sin
+                        // esta regla, PUT y DELETE caerian en el anyRequest() del
+                        // final, que solo pide estar autenticado: cualquier socio
+                        // podria borrar el certificado de cualquier nadador.
+                        .requestMatchers("/api/medical-certificates/**").hasRole("ADMIN")
                         // Papeles entregados (bloque 3a). Mismo reparto que el
                         // certificado: el entrenador ve el estado y si el
                         // nadador puede viajar —de los atletas de sus grupos,

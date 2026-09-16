@@ -49,13 +49,7 @@ public class MedicalCertificateService {
      */
     public MedicalCertificate register(Athlete athlete, MedicalCertificateRequest request,
                                        String validator) {
-        // Por el servicio: una temporada de otro club sale como no encontrada.
-        Season season = seasonService.findOrThrow(request.getSeasonId());
-
-        if (request.getIssuedOn().isAfter(season.getEndDate())) {
-            throw new IllegalArgumentException(
-                    "La fecha de emisión es posterior al final de la temporada");
-        }
+        Season season = temporadaValida(request);
 
         Club club = clubService.getById(TenantContext.require());
         User user = userService.findEntityByUsername(validator);
@@ -70,6 +64,64 @@ public class MedicalCertificateService {
         certificate.setValidatedAt(LocalDateTime.now());
 
         return certificateRepository.save(certificate);
+    }
+
+    /**
+     * Corrige un certificado mal anotado: la fecha de emision o la temporada.
+     *
+     * <p>Pasa exactamente la misma comprobacion que el alta. Una correccion que
+     * se saltara las reglas seria la puerta trasera para meter lo que el alta
+     * rechaza.
+     *
+     * <p><b>Quien corrige pasa a ser quien lo valido</b>, con la hora de la
+     * correccion: corregir el papel es volver a mirarlo. Lo anterior no queda
+     * en ningun sitio hasta que exista el registro de auditoria (S.6).
+     *
+     * <p>No cambia de atleta. Un certificado anotado en el atleta equivocado se
+     * borra y se anota bien: moverlo de uno a otro es la forma de que un error
+     * de un nadador acabe en la ficha de otro sin que nadie lo vea.
+     */
+    public MedicalCertificate update(UUID id, MedicalCertificateRequest request, String validator) {
+        MedicalCertificate certificate = findOrThrow(id);
+        Season season = temporadaValida(request);
+
+        certificate.setSeason(season);
+        certificate.setIssuedOn(request.getIssuedOn());
+        certificate.setExpiresOn(season.getEndDate());
+        certificate.setValidatedBy(userService.findEntityByUsername(validator));
+        certificate.setValidatedAt(LocalDateTime.now());
+
+        return certificateRepository.save(certificate);
+    }
+
+    /**
+     * Borra un certificado anotado por error.
+     *
+     * <p>Borrado de verdad, no logico. El certificado es la constancia de que el
+     * club vio un papel; uno anotado por equivocacion no constata nada, y
+     * dejarlo marcado como borrado seria guardar un dato de salud que no deberia
+     * existir. Como en la correccion, no queda rastro hasta la S.6.
+     */
+    public void delete(UUID id) {
+        certificateRepository.delete(findOrThrow(id));
+    }
+
+    /** Uno de otro club no aparece —lo tapa Row Level Security— y sale como no encontrado. */
+    private MedicalCertificate findOrThrow(UUID id) {
+        return certificateRepository.findById(id)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Certificado no encontrado"));
+    }
+
+    /** La regla del alta y de la correccion, escrita una sola vez. */
+    private Season temporadaValida(MedicalCertificateRequest request) {
+        // Por el servicio: una temporada de otro club sale como no encontrada.
+        Season season = seasonService.findOrThrow(request.getSeasonId());
+
+        if (request.getIssuedOn().isAfter(season.getEndDate())) {
+            throw new IllegalArgumentException(
+                    "La fecha de emisión es posterior al final de la temporada");
+        }
+        return season;
     }
 
     @Transactional(readOnly = true)

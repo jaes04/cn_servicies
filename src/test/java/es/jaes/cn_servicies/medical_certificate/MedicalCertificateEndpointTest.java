@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -116,13 +117,41 @@ class MedicalCertificateEndpointTest {
     }
 
     private UUID crearAtleta() {
+        return crearAtleta("33333331A");
+    }
+
+    private UUID crearAtleta(String dni) {
         UUID id = UUID.randomUUID();
         jdbc.update("INSERT INTO athletes"
                         + " (id, club_id, first_name, last_name, birth_date, dni, gender_id, created_at, updated_at)"
-                        + " SELECT ?, ?, 'Atleta', 'CertEp', DATE '2013-03-03', '33333331A', g.id, now(), now()"
+                        + " SELECT ?, ?, 'Atleta', 'CertEp', DATE '2013-03-03', ?, g.id, now(), now()"
                         + " FROM genders g WHERE g.name = 'FEMALE'",
-                id, CLUB);
+                id, CLUB, dni);
         return id;
+    }
+
+    /** Un certificado de la temporada activa para ese atleta, anotado hoy. */
+    private UUID certificadoPara(UUID atletaId) {
+        modoPublico();
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO medical_certificates"
+                        + " (id, club_id, athlete_id, season_id, issued_on, expires_on,"
+                        + "  validated_by_id, validated_at, created_at)"
+                        + " SELECT ?, ?, ?, s.id, CURRENT_DATE, s.end_date, u.id, now(), now()"
+                        + " FROM users u JOIN seasons s ON s.club_id = u.club_id AND s.active"
+                        + " WHERE u.club_id = ? AND u.username = ?",
+                id, CLUB, atletaId, CLUB, ADMIN);
+        return id;
+    }
+
+    private UUID temporadaActiva() {
+        modoPublico();
+        return jdbc.queryForObject("SELECT id FROM seasons WHERE club_id = ? AND active", UUID.class, CLUB);
+    }
+
+    private int certificadosCon(UUID id) {
+        modoPublico();
+        return jdbc.queryForObject("SELECT count(*) FROM medical_certificates WHERE id = ?", Integer.class, id);
     }
 
     private void crearCertificado() {
@@ -179,6 +208,111 @@ class MedicalCertificateEndpointTest {
     }
 
     // ----------------------------------------------------------------
+    //  Corregir y borrar
+    // ----------------------------------------------------------------
+    //
+    //  Cada test crea su propio atleta y su certificado: los de arriba cuentan
+    //  con que el del fixture siga ahi, y el orden de los tests no esta fijado.
+
+    @Test
+    @DisplayName("el administrador corrige la fecha de emisión de un certificado")
+    void elAdminCorrige() {
+        UUID certificado = certificadoPara(crearAtleta("33333332B"));
+        LocalDate otraFecha = LocalDate.now().minusDays(10);
+
+        ResponseEntity<String> respuesta = put("/api/medical-certificates/" + certificado,
+                cuerpo(otraFecha, temporadaActiva()), ADMIN);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(respuesta.getBody()).contains("\"issuedOn\":\"" + otraFecha + "\"");
+    }
+
+    /**
+     * La fecha futura ya la corta una anotacion del cuerpo, asi que un test con
+     * fecha futura no demostraria que la correccion aplica la regla del servicio.
+     * Esta la pilla solo el servicio: fecha pasada, pero posterior al final de
+     * una temporada que ya acabo.
+     */
+    @Test
+    @DisplayName("la corrección pasa la misma regla que el alta: emitido después de acabar la temporada es 400")
+    void laCorreccionPasaLaMismaRegla() {
+        UUID certificado = certificadoPara(crearAtleta("33333333C"));
+        UUID pasada = UUID.randomUUID();
+        modoPublico();
+        jdbc.update("INSERT INTO seasons"
+                        + " (id, club_id, name, start_date, end_date, active, created_at, updated_at)"
+                        + " VALUES (?, ?, 'Temporada pasada cert', CURRENT_DATE - 500, CURRENT_DATE - 200,"
+                        + "  false, now(), now())",
+                pasada, CLUB);
+
+        ResponseEntity<String> respuesta = put("/api/medical-certificates/" + certificado,
+                cuerpo(LocalDate.now().minusDays(10), pasada), ADMIN);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(respuesta.getBody()).contains("posterior al final de la temporada");
+    }
+
+    @Test
+    @DisplayName("el administrador borra un certificado y el nadador se queda sin cubrir")
+    void elAdminBorra() {
+        UUID atletaId = crearAtleta("33333334D");
+        UUID certificado = certificadoPara(atletaId);
+        assertThat(get("/api/medical-certificates/athlete/" + atletaId + "/status", ADMIN).getBody())
+                .contains("VALID");
+
+        assertThat(borrar("/api/medical-certificates/" + certificado, ADMIN).getStatusCode())
+                .isEqualTo(HttpStatus.NO_CONTENT);
+
+        assertThat(get("/api/medical-certificates/athlete/" + atletaId + "/status", ADMIN).getBody())
+                .contains("MISSING");
+    }
+
+    /**
+     * El que sostiene la regla nueva de {@code SecurityConfig}. Sin ella, PUT y
+     * DELETE caerian en el {@code anyRequest().authenticated()} del final y
+     * cualquier cuenta podria borrar el certificado de cualquier nadador.
+     */
+    @Test
+    @DisplayName("el entrenador no corrige ni borra certificados, y el certificado sigue ahí")
+    void elEntrenadorNoCorrigeNiBorra() {
+        UUID certificado = certificadoPara(crearAtleta("33333335E"));
+
+        assertThat(put("/api/medical-certificates/" + certificado,
+                cuerpo(LocalDate.now(), temporadaActiva()), ENTRENADOR).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(borrar("/api/medical-certificates/" + certificado, ENTRENADOR).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(certificadosCon(certificado)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("un certificado que no existe es un 404")
+    void unoQueNoExiste() {
+        String ruta = "/api/medical-certificates/" + UUID.randomUUID();
+
+        assertThat(put(ruta, cuerpo(LocalDate.now(), temporadaActiva()), ADMIN).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(borrar(ruta, ADMIN).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    // ----------------------------------------------------------------
+
+    private String cuerpo(LocalDate emitido, UUID temporadaId) {
+        return "{\"issuedOn\":\"" + emitido + "\",\"seasonId\":\"" + temporadaId + "\"}";
+    }
+
+    private ResponseEntity<String> put(String ruta, String cuerpo, String username) {
+        HttpHeaders cabeceras = new HttpHeaders();
+        cabeceras.setBearerAuth(iniciarSesion(username));
+        cabeceras.setContentType(MediaType.APPLICATION_JSON);
+        return rest.exchange(ruta, HttpMethod.PUT, new HttpEntity<>(cuerpo, cabeceras), String.class);
+    }
+
+    private ResponseEntity<String> borrar(String ruta, String username) {
+        HttpHeaders cabeceras = new HttpHeaders();
+        cabeceras.setBearerAuth(iniciarSesion(username));
+        return rest.exchange(ruta, HttpMethod.DELETE, new HttpEntity<>(cabeceras), String.class);
+    }
 
     private ResponseEntity<String> get(String ruta, String username) {
         HttpHeaders cabeceras = new HttpHeaders();

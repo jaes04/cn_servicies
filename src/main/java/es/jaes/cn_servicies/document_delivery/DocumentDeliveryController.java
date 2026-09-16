@@ -75,4 +75,29 @@ public class DocumentDeliveryController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(deliveryService.toResponse(delivery));
     }
+
+    /**
+     * Corrige una entrega mal anotada. Solo administradores: la regla general de
+     * {@code /api/document-deliveries/**} en {@code SecurityConfig} ya lo cubre.
+     *
+     * <p>{@code {id}} solo acepta un UUID, por lo mismo que en los certificados:
+     * sin el patron, un GET a cualquier ruta inexistente de esta rama
+     * contestaria 405 en vez de 404.
+     */
+    @PutMapping("/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}")
+    public ResponseEntity<DocumentDeliveryResponse> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody DocumentDeliveryRequest request,
+            Principal principal) {
+
+        DocumentDelivery delivery = deliveryService.update(id, request, principal.getName());
+        return ResponseEntity.ok(deliveryService.toResponse(delivery));
+    }
+
+    /** Borra una entrega anotada por error. Solo administradores. */
+    @DeleteMapping("/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}")
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        deliveryService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
 }

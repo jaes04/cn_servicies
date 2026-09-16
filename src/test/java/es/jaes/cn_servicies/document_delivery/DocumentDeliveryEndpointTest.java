@@ -380,8 +380,132 @@ class DocumentDeliveryEndpointTest {
     }
 
     // ----------------------------------------------------------------
+    //  6. Corregir y borrar
+    // ----------------------------------------------------------------
+    //
+    //  Hasta aqui solo se podia crear y consultar. Una fecha mal tecleada no
+    //  tenia arreglo mas que tocando la base a mano, y la beta existe
+    //  justamente para que el club meta estos papeles.
+
+    @Test
+    @DisplayName("corregir las fechas de un permiso cambia lo que cubre")
+    void corregirUnPermiso() {
+        String id = idDe(registrar(ana, permiso(SALIDA, VUELTA)));
+        LocalDate otraSalida = SALIDA.plusDays(10);
+        LocalDate otraVuelta = VUELTA.plusDays(10);
+        assertThat(viaje(ana, otraSalida, otraVuelta, ADMIN)).contains("\"covered\":false");
+
+        ResponseEntity<String> respuesta = put("/api/document-deliveries/" + id, permiso(otraSalida, otraVuelta), ADMIN);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(viaje(ana, otraSalida, otraVuelta, ADMIN)).contains("\"covered\":true");
+        assertThat(viaje(ana, SALIDA, VUELTA, ADMIN))
+                .as("las fechas viejas ya no cuentan: se ha corregido, no anadido")
+                .contains("\"covered\":false");
+    }
+
+    @Test
+    @DisplayName("la corrección pasa las mismas reglas que el alta: una licencia con fechas es 400")
+    void laCorreccionPasaLasMismasReglas() {
+        String id = idDe(registrar(ana, licencia(temporada)));
+
+        ResponseEntity<String> respuesta = put("/api/document-deliveries/" + id,
+                "{\"type\":\"LICENSE_APPLICATION\",\"deliveredOn\":\"" + HOY + "\","
+                        + "\"seasonId\":\"" + temporada + "\",\"validUntil\":\"" + FIN + "\"}", ADMIN);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    @DisplayName("se puede cambiar el tipo: anotar la licencia como documento de identidad tiene arreglo")
+    void sePuedeCambiarElTipo() {
+        String id = idDe(registrar(ana, identidad(HOY.plusYears(5))));
+        assertThat(estado(ana, ADMIN)).contains("\"LICENSE_APPLICATION\":\"MISSING\"");
+
+        assertThat(put("/api/document-deliveries/" + id, licencia(temporada), ADMIN).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+
+        assertThat(estado(ana, ADMIN))
+                .contains("\"LICENSE_APPLICATION\":\"VALID\"")
+                .contains("\"IDENTITY_DOCUMENT\":\"MISSING\"");
+    }
+
+    @Test
+    @DisplayName("borrar una entrega deja al atleta sin ese papel")
+    void borrarDejaSinElPapel() {
+        String id = idDe(registrar(ana, licencia(temporada)));
+        assertThat(estado(ana, ADMIN)).contains("\"LICENSE_APPLICATION\":\"VALID\"");
+
+        assertThat(borrar("/api/document-deliveries/" + id, ADMIN).getStatusCode())
+                .isEqualTo(HttpStatus.NO_CONTENT);
+
+        assertThat(estado(ana, ADMIN)).contains("\"LICENSE_APPLICATION\":\"MISSING\"");
+    }
+
+    @Test
+    @DisplayName("el entrenador no corrige ni borra, ni siquiera de los atletas de su grupo")
+    void elEntrenadorNoCorrigeNiBorra() {
+        String id = idDe(registrar(ana, licencia(temporada)));
+
+        assertThat(put("/api/document-deliveries/" + id, licencia(temporada), ENTRENADOR).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(borrar("/api/document-deliveries/" + id, ENTRENADOR).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(estado(ana, ADMIN))
+                .as("la entrega sigue ahi")
+                .contains("\"LICENSE_APPLICATION\":\"VALID\"");
+    }
+
+    @Test
+    @DisplayName("una entrega de otro club es un 404 al corregirla y al borrarla, y sigue existiendo")
+    void unaEntregaDeOtroClub() {
+        modoPublico();
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO document_deliveries"
+                        + " (id, club_id, athlete_id, type, delivered_on, valid_until,"
+                        + "  registered_by_id, registered_at, created_at)"
+                        + " SELECT ?, ?, ?, 'IDENTITY_DOCUMENT', ?, ?, u.id, now(), now()"
+                        + " FROM users u WHERE u.club_id = ? AND u.username = ?",
+                id, CLUB_AJENO, ajeno, HOY, HOY.plusYears(5), CLUB, ADMIN);
+
+        assertThat(put("/api/document-deliveries/" + id, identidad(HOY.plusYears(1)), ADMIN).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(borrar("/api/document-deliveries/" + id, ADMIN).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+
+        modoPublico();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM document_deliveries WHERE id = ?", Integer.class, id))
+                .as("la entrega del otro club no se ha borrado")
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("una entrega que no existe es un 404")
+    void unaQueNoExiste() {
+        String ruta = "/api/document-deliveries/" + UUID.randomUUID();
+
+        assertThat(put(ruta, licencia(temporada), ADMIN).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(borrar(ruta, ADMIN).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    // ----------------------------------------------------------------
     //  Andamiaje
     // ----------------------------------------------------------------
+
+    private String idDe(ResponseEntity<String> alta) {
+        assertThat(alta.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return alta.getBody().replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+    }
+
+    private ResponseEntity<String> put(String ruta, String cuerpo, String usuario) {
+        HttpHeaders cabeceras = autorizacion(usuario);
+        cabeceras.setContentType(MediaType.APPLICATION_JSON);
+        return rest.exchange(ruta, HttpMethod.PUT, new HttpEntity<>(cuerpo, cabeceras), String.class);
+    }
+
+    private ResponseEntity<String> borrar(String ruta, String usuario) {
+        return rest.exchange(ruta, HttpMethod.DELETE, new HttpEntity<>(autorizacion(usuario)), String.class);
+    }
 
     private String licencia(UUID temporadaId) {
         return "{\"type\":\"LICENSE_APPLICATION\",\"deliveredOn\":\"" + HOY + "\","
