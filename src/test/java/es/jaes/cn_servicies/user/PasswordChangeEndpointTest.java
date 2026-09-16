@@ -131,7 +131,70 @@ class PasswordChangeEndpointTest {
         ResponseEntity<String> respuesta = fijarClave(usuario, "corta", tokenDelAdmin);
 
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(respuesta.getBody()).contains("8 caracteres");
+        assertThat(respuesta.getBody()).contains("12 caracteres");
+    }
+
+    /**
+     * La politica se aplica en el servicio y no en los DTO, asi que tiene que
+     * salir igual por las dos rutas. Si un dia vuelve a una anotacion, esto se
+     * pone rojo por la ruta que se quede sin ella.
+     */
+    @Test
+    @DisplayName("la política también vale en la ruta del administrador: una contraseña conocida es 400")
+    void elAdminTampocoPuedeFijarUnaConocida() {
+        UUID usuario = crearUsuario("conocida", VIEJA, "ROLE_USER");
+
+        ResponseEntity<String> respuesta = fijarClave(usuario, "administrador123", tokenDelAdmin);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(respuesta.getBody()).contains("listas públicas");
+    }
+
+    @Test
+    @DisplayName("cambiando la mía tampoco puedo ponerme mi propio usuario dentro")
+    void niSiquieraLaPropiaLlevaElUsuario() {
+        crearUsuario("marisol_it", VIEJA, "ROLE_USER");
+        String token = accessTokenDe("marisol_it", VIEJA);
+
+        ResponseEntity<String> respuesta = cambiarMiClave(VIEJA, "marisol_it-2026", token);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(respuesta.getBody()).contains("usuario");
+    }
+
+    /**
+     * El camino mas importante de los tres, y el que no estaba probado: por
+     * {@code UserService.create} pasan tambien el alta del club con su
+     * administrador y el arranque con {@code ADMIN_PASSWORD}. La cuenta de
+     * administrador es la mas peligrosa del sistema.
+     *
+     * <p>Lo destapo una mutacion: quitando la comprobacion del alta, ningun
+     * test se ponia rojo.
+     */
+    @Test
+    @DisplayName("dar de alta un usuario con una contraseña conocida es 400")
+    void elAltaTambienAplicaLaPolitica() {
+        String cuerpo = "{\"username\":\"nuevo_it\",\"email\":\"nuevo_it@it.local\","
+                + "\"password\":\"administrador123\"}";
+
+        ResponseEntity<String> respuesta = rest.exchange("/api/users", HttpMethod.POST,
+                new HttpEntity<>(cuerpo, cabeceras(tokenDelAdmin)), String.class);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(respuesta.getBody()).contains("listas públicas");
+    }
+
+    @Test
+    @DisplayName("y con una demasiado corta, también")
+    void elAltaExigeLaLongitud() {
+        String cuerpo = "{\"username\":\"nuevo_it2\",\"email\":\"nuevo_it2@it.local\","
+                + "\"password\":\"corta\"}";
+
+        ResponseEntity<String> respuesta = rest.exchange("/api/users", HttpMethod.POST,
+                new HttpEntity<>(cuerpo, cabeceras(tokenDelAdmin)), String.class);
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(respuesta.getBody()).contains("12 caracteres");
     }
 
     // ----------------------------------------------------------------

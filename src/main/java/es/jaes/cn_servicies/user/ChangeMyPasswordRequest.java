@@ -1,7 +1,6 @@
 package es.jaes.cn_servicies.user;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -18,10 +17,8 @@ public class ChangeMyPasswordRequest {
     @NotBlank(message = "Hay que enviar la contraseña actual")
     private String currentPassword;
 
-    // El minimo es el mismo que en el alta de usuario. La politica de
-    // contrasenas de la S.3.1 —minimo mas largo y contraste con listas
-    // filtradas— sigue pendiente y subira los dos a la vez.
+    // La politica entera —longitud, listas y contexto— la comprueba
+    // PasswordPolicy en el servicio, para que sea la misma en todas las vias.
     @NotBlank
-    @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
     private String newPassword;
 }

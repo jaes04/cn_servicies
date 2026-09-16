@@ -23,6 +23,7 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final ImageStorageService imageStorageService;
+    private final PasswordPolicy passwordPolicy;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -45,6 +46,12 @@ public class UserService {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("El email ya está en uso");
         }
+
+        // Aqui y no en el DTO: por este metodo pasan tambien el alta del club
+        // con su administrador y el arranque con ADMIN_PASSWORD, que no validan
+        // ningun DTO. La cuenta de administrador es la mas peligrosa del
+        // sistema y era justo la que se saltaba la comprobacion.
+        passwordPolicy.comprobar(request.getPassword(), request.getUsername(), request.getEmail(), club);
 
         User user = new User();
         user.setClub(club);
@@ -166,6 +173,7 @@ public class UserService {
     public void setPassword(UUID id, String nueva) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Usuario no encontrado"));
+        passwordPolicy.comprobar(nueva, user.getUsername(), user.getEmail(), user.getClub());
         user.setPasswordHash(passwordEncoder.encode(nueva));
         userRepository.save(user);
     }
@@ -191,6 +199,7 @@ public class UserService {
         if (passwordEncoder.matches(nueva, user.getPasswordHash())) {
             throw new IllegalArgumentException("La contraseña nueva tiene que ser distinta de la actual");
         }
+        passwordPolicy.comprobar(nueva, user.getUsername(), user.getEmail(), user.getClub());
 
         user.setPasswordHash(passwordEncoder.encode(nueva));
         userRepository.save(user);
