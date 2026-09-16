@@ -19,6 +19,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import java.time.LocalDateTime;
@@ -190,6 +191,24 @@ public class SecurityConfig {
                         // regla aqui. DenyByDefaultTest recorre todas las rutas y
                         // falla en cuanto una se queda sin ella.
                         .anyRequest().denyAll()
+                )
+                .headers(h -> h
+                        // Una API que devuelve JSON no tiene que cargar nada ni
+                        // dejarse incrustar. No protege a la aplicacion del
+                        // frontend —esa CSP va en Cloudflare Pages, en su repositorio—,
+                        // pero cierra lo que se abra directamente en el navegador desde
+                        // la API: una respuesta de error, o un archivo de /api/images
+                        // que no sea lo que dice ser. No afecta a un <img> del frontend:
+                        // la CSP solo manda sobre el documento que la recibe.
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"))
+                        .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                        // Estas dos ya las ponia Spring por defecto. Van explicitas
+                        // para que nadie las quite sin verlo.
+                        .frameOptions(f -> f.deny())
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31_536_000))
                 )
                 .exceptionHandling(ex -> ex
                         .accessDeniedHandler((request, response, e) -> {
