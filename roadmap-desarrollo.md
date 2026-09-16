@@ -864,15 +864,51 @@ Nada de esto es código, pero sin ello no puedes vender.
 
 #### S.3.1 Autenticación — 13 h
 
-- [ ] BCrypt con factor de coste ≥ 12 — `30min · Baja · Crítica`
+- [x] BCrypt con factor de coste ≥ 12 — `30min · Baja · Crítica`
 - [ ] Política de contraseñas: mínimo 12 caracteres, sin composición forzada — `1h · Baja · Alta`
 - [ ] Contrastar contra listas de contraseñas filtradas — `2h · Media · Media`
-- [ ] Rate limiting en `/login` por IP y por usuario — `2h · Media · Crítica`
-- [ ] Bloqueo temporal progresivo tras intentos fallidos — `2h · Media · Alta`
+- [x] Rate limiting en `/login` por IP y por usuario — `2h · Media · Crítica`
+- [x] Bloqueo temporal progresivo tras intentos fallidos — `2h · Media · Alta`
 - [ ] **MFA obligatorio para roles de administración** (TOTP) — `4h · Alta · Crítica`
+- [ ] **Cambiar la contraseña**: no existe ninguna ruta, ni propia ni de administrador — `2h · Baja · Crítica` *(encontrado en el bloque 4)*
 - [ ] Recuperación de contraseña con token de un solo uso y caducidad corta — `3h · Media · Crítica`
-- [ ] Respuestas de login que no revelen si el usuario existe — `1h · Media · Alta`
+- [x] Respuestas de login que no revelen si el usuario existe — `1h · Media · Alta`
 - [ ] **Rotar toda credencial compartida en conversación o presente en el histórico de git** — `1h · Baja · Crítica`
+
+**S.3.1.a — la puerta de entrada — bloque 4**
+
+- [x] Cada token dice para qué sirve, y se comprueba en cada uso — `2h · Media · Crítica`
+- [x] Límite de intentos con bloqueo progresivo, por cuenta y por IP — `3h · Media · Crítica`
+- [x] BCrypt a coste 12 — `30min · Baja · Crítica`
+- [x] Una cuenta bloqueada por el club deja de dar 500 — `30min · Baja · Alta` *(encontrado al escribir los tests)*
+
+> **El agujero de los tokens, y era real:** los dos tokens solo se distinguían por la caducidad, así que el de refresco —que dura una semana— autenticaba peticiones como si fuera el de acceso, y el de acceso servía para pedir uno nuevo indefinidamente. Lo segundo convierte la caducidad corta del acceso en decorativa: quien roba uno se renueva solo y para siempre. Ahora cada token lleva el claim `typ` y se comprueba en los dos sitios.
+
+> **Los tokens de antes dejan de valer**, porque no llevan `typ` y no hay forma de saber para qué se emitieron. Al desplegar, todo el mundo vuelve a entrar. En una beta con datos de mentira no cuesta nada; con el servicio en marcha habría que emitir el claim primero y exigirlo una semana después.
+
+> **Dos contadores y cualquiera bloquea.** El de la cuenta es el estricto —5 fallos— y es el que protege de verdad. El de la IP es holgado —30— y es la red de seguridad contra quien prueba una contraseña en muchas cuentas distintas, que al primero se le escapa porque nunca repite objetivo.
+
+> **Un acierto borra las dos cuentas.** Sin eso, el club entero detrás del wifi de la piscina comparte IP y los despistes de unos dejarían a los demás fuera.
+
+> **El bloqueo se dobla**: 5, 10, 20, 40 y hasta 60 minutos. Y esperar a que caduque la ventana no lo rebaja, o bastaría con esperar un rato para que la espera volviera a ser la corta una y otra vez.
+
+> **Se comprueba antes de mirar la contraseña, no después.** Un BCrypt de coste 12 son 250 ms de CPU, que es justo lo que busca quien manda peticiones a mansalva: si el bloqueado llegara a gastarlo, el límite serviría de poco.
+
+> **El contador vive en memoria y se pierde al reiniciar**, y cada instancia lleva el suyo. Es suficiente para una instancia y evita una dependencia nueva; con dos detrás de un balanceador, el límite efectivo se multiplica y habrá que sacarlo a un almacén compartido.
+
+> **El usuario se guarda resumido con SHA-256, nunca en claro.** En un intento fallido el username no es de fiar: la gente teclea la contraseña en el campo de usuario más de lo que parece. Es la misma razón por la que la S.6.b dice que no se guarde en la auditoría.
+
+> **`server.forward-headers-strategy` sigue apagado a propósito.** Detrás del túnel de Cloudflare hay que ponerlo en `framework` o todas las peticiones llegan con la IP del proxy, comparten el límite por IP y los fallos de un desconocido dejan al club entero sin entrar. Encenderlo con la API expuesta directamente es peor: ahí la cabecera `X-Forwarded-For` la pone quien quiere. Está en `.env.example`, comentado, y **es tarea del despliegue del viernes**.
+
+> **Una cuenta bloqueada por el club daba un 500.** `DisabledException` la lanzan las comprobaciones previas de Spring Security y el manejador no la trataba. Pasa a 403 con su motivo, y no cuenta para el límite de intentos: si contara, el bloqueado recibiría un "espera 5 minutos" en vez de enterarse de lo que pasa. **El mensaje admite que la cuenta existe**, a diferencia del de credenciales: solo revela los usernames que el club ha bloqueado a propósito, y ocultarlo costaría que el bloqueado cambie su contraseña tres veces antes de llamar.
+
+> **Que el login no revela si el usuario existe ya era cierto** —`DaoAuthenticationProvider` convierte "no existe" en `BadCredentialsException`—, pero no había test. Ahora lo hay, y compara los dos mensajes en lugar de confiar en el comportamiento por defecto de la librería.
+
+> **Verificado con diez mutaciones y dieciocho rojos:** sin comprobar el límite; sin anotar los fallos; sin borrar el contador al acertar; sin mirar el tipo del token; BCrypt al coste por defecto; sin manejador de cuenta bloqueada; el bloqueo sin progresión; la ventana sin caducar; la respuesta 429 sin `Retry-After`; y el usuario sin normalizar.
+
+> **Tests:** 17 del contador de intentos, con un reloj de mentira para no dormir en los tests, y 14 de los endpoints. La suite pasa de 366 a 397.
+
+> **Cambio de contrato:** el login puede devolver **429** y **403**; `/api/auth/refresh` solo acepta el refresh token y falla con 401 en vez de 400; el refresh token deja de autenticar peticiones; y los tokens anteriores caducan de golpe. Recogido en `docs/contratos-api.md` §2 y §18.
 
 #### S.3.2 JWT — 7 h
 
