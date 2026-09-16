@@ -873,7 +873,7 @@ Nada de esto es código, pero sin ello no puedes vender.
 - [x] **Cambiar la contraseña**: no existía ninguna ruta, ni propia ni de administrador — `2h · Baja · Crítica` *(encontrado en el bloque 4)*
 - [ ] Recuperación de contraseña con token de un solo uso y caducidad corta — `3h · Media · Crítica`
 - [x] Respuestas de login que no revelen si el usuario existe — `1h · Media · Alta`
-- [ ] **Rotar toda credencial compartida en conversación o presente en el histórico de git** — `1h · Baja · Crítica` — **HAY DOS, Y SIGUEN EN USO.** Ver abajo
+- [x] **Rotar toda credencial compartida en conversación o presente en el histórico de git** — `1h · Baja · Crítica` — hecho el 16/09/2026, ver abajo
 
 **S.3.1.a — la puerta de entrada — bloque 4**
 
@@ -939,7 +939,7 @@ Nada de esto es código, pero sin ello no puedes vender.
 - [x] Mínimo de 12, máximo de 72, sin composición forzada — `1h · Baja · Alta`
 - [x] Lista de contraseñas conocidas, incluida y ampliable por configuración — `2h · Media · Media`
 - [x] Que no lleve dentro el usuario, el correo ni el nombre del club — `1h · Baja · Alta`
-- [ ] **Rotar las dos credenciales encontradas en el histórico público** — `30min · Baja · Crítica` — **decisión del dueño, ver abajo**
+- [x] **Rotar las dos credenciales encontradas en el histórico** — `30min · Baja · Crítica`
 
 > **La política vive en `PasswordPolicy`, llamada desde `UserService`, y no en anotaciones de los DTO.** Por ese servicio pasan las seis vías por las que se fija una contraseña: alta pública, alta desde la administración, alta del club con su administrador, arranque con `ADMIN_PASSWORD`, cambio propio y cambio del administrador. Las tres últimas no validan ningún DTO, así que como anotación se habrían quedado fuera —incluida la cuenta de administrador, que es la más peligrosa del sistema—.
 
@@ -959,7 +959,14 @@ Nada de esto es código, pero sin ello no puedes vender.
 
 > **Tests:** 16 de la política y 4 de endpoint. La suite pasa de 409 a 427.
 
-> **Credenciales en el histórico público, encontradas al hacer esta tarea.** El repositorio `jaes04/cn_servicies` es **público**, y el commit `7c9f083` (7 de agosto de 2026) metió en `.env.example` un `JWT_SECRET` y un `ADMIN_PASSWORD` con valores reales. **Los dos siguen siendo los que usa el `.env` de hoy.** Reescribir el histórico no arregla nada: estuvieron publicados, hay que darlos por comprometidos y cambiarlos. Con el `JWT_SECRET` cualquiera se firma un token de administrador de cualquier club. Pendiente de decisión del dueño: rotar los dos, y decidir si el repositorio debe seguir siendo público.
+> **Credenciales en el histórico, encontradas al hacer esta tarea.** El repositorio `jaes04/cn_servicies` es **público**, y las dos credenciales que usaba el `.env` estaban en el histórico de git. No al mismo nivel, y la diferencia importa:
+>
+> - **`JWT_SECRET`: publicado.** Entró en el commit inicial `fb41d7e`, que está en `origin/master` y `origin/develop`. Encima era el valor que circula en los tutoriales de Spring Boot con JWT, así que ya estaba en cualquier lista. Con él, cualquiera se firma un token de administrador de **cualquier club**: no es un fallo de autorización, es saltarse la autenticación entera.
+> - **`ADMIN_PASSWORD`: no llegó a publicarse.** Solo estaba en `7c9f083` y `b2bcd0b`, dos de los 87 commits locales sin subir. Se habría publicado en el primer `git push`.
+>
+> **Reescribir el histórico no arreglaba el primero**: estuvo público, hay que darlo por comprometido. Lo único que sirve es rotar, y es lo que se hizo el **16 de septiembre de 2026**: secreto nuevo de 32 bytes en el `.env`, y la contraseña del administrador cambiada **en el `.env` y en la base**, que son dos pasos y no uno —el arranque no toca una cuenta que ya existe—. Verificado por la puerta: entra con la nueva y la filtrada da 401. De paso, ese hash pasa de coste 10 a 12.
+>
+> **La lección para el despliegue:** `.env.example` con valores reales en vez de `change_me`. Es exactamente lo que busca `gitleaks` en la tarea S.4.4, que sigue pendiente y ahora tiene un motivo concreto.
 
 #### S.3.2 JWT — 7 h
 
