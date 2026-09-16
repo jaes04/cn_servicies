@@ -1,57 +1,61 @@
 #!/usr/bin/env bash
 #
-# Paso 1 de un entorno nuevo: deja la base lista para que arranque la aplicacion.
-#
-# Crea el rol `cn_app`, le pone la contrasena del .env y le da permiso para
-# crear tablas. Se ejecuta UNA VEZ por entorno, como superusuario, con la base
-# ya creada y vacia.
+# Crea el rol de la aplicacion y le fija la contrasena del .env.
 #
 #     bash scripts/preparar-base.sh
 #
-# Despues de esto arranca la aplicacion, que crea el esquema, y solo entonces
-# corre scripts/migrar.sh. El orden no es negociable y esta explicado en
-# migrations/0.0-bootstrap-rol.sql.
+# CON DOCKER NO HACE FALTA LA PRIMERA VEZ: lo hace solo el contenedor de
+# PostgreSQL al inicializar un volumen vacio (docker/initdb). Este script sirve
+# para dos cosas:
 #
-# Es idempotente: pasarlo dos veces no rompe nada y sirve para volver a fijar la
-# contrasena del rol si se cambia en el .env.
+#   - Una base instalada en la maquina, como la de desarrollo, donde no hay
+#     initdb que lo haga. Va ANTES del primer arranque de la aplicacion.
+#   - Cambiar la contrasena de cn_app despues. El initdb solo corre una vez:
+#     si cambias PGPASSWORD en el .env, la base no se entera hasta que pases
+#     esto.
+#
+# Es idempotente.
 
 source "$(dirname "${BASH_SOURCE[0]}")/comun.sh"
 
 cargar_env
-PSQL="$(localizar_psql)"
 
 : "${PGDATABASE:?falta PGDATABASE en el .env}"
 : "${PGUSER:?falta PGUSER en el .env}"
 : "${PGPASSWORD:?falta PGPASSWORD en el .env}"
 : "${MIGRATION_USER:?falta MIGRATION_USER en el .env}"
-: "${PGHOST:=localhost}"
+: "${MIGRATION_PASSWORD:?falta MIGRATION_PASSWORD en el .env}"
 
-echo "Base '$PGDATABASE' en $PGHOST, como '$MIGRATION_USER'."
+[ "$PGUSER" = "cn_app" ] || morir "PGUSER es '$PGUSER'. Todas las migraciones dan por hecho que el rol se llama cn_app."
 
-# La contrasena del superusuario, no la de la aplicacion.
-export PGPASSWORD_APP="$PGPASSWORD"
-export PGPASSWORD="${MIGRATION_PASSWORD:?falta MIGRATION_PASSWORD en el .env}"
+CLAVE_APP="$PGPASSWORD"
+
+como_superusuario() { PGPASSWORD="$MIGRATION_PASSWORD" pg "$@"; }
+
+echo "Base de datos en modo: $(modo_bd). Base '$PGDATABASE', como '$MIGRATION_USER'."
 
 echo "==> Creando el rol y sus permisos"
-"$PSQL" -v ON_ERROR_STOP=1 -h "$PGHOST" -U "$MIGRATION_USER" -d "$PGDATABASE" \
-        -f "$RAIZ/migrations/0.0-bootstrap-rol.sql"
+como_superusuario psql -q -v ON_ERROR_STOP=1 -U "$MIGRATION_USER" -d "$PGDATABASE" \
+    < "$RAIZ/migrations/0.0-bootstrap-rol.sql" > /dev/null \
+    || morir "no puedo entrar como $MIGRATION_USER. Revisa MIGRATION_PASSWORD: tiene que ser la contrasena real del superusuario."
 
-# La contrasena va por la entrada estandar y no como argumento: lo que se pasa
-# en la linea de comandos lo ve cualquiera con un `ps` en esa maquina.
+# La contrasena va dentro del SQL por la entrada estandar, no como argumento:
+# lo que se pasa en la linea de comandos lo ve cualquiera con un `ps`. Y se
+# cita con :'clave' de psql, que escapa las comillas por su cuenta.
 echo "==> Fijando la contrasena de $PGUSER"
-escapada=${PGPASSWORD_APP//\'/\'\'}
-printf "ALTER ROLE %s PASSWORD '%s';\n" "$PGUSER" "$escapada" \
-    | "$PSQL" -q -v ON_ERROR_STOP=1 -h "$PGHOST" -U "$MIGRATION_USER" -d "$PGDATABASE"
+escapada=${CLAVE_APP//\\/\\\\}
+escapada=${escapada//\'/\\\'}
+printf "\\set clave '%s'\nALTER ROLE cn_app PASSWORD :'clave';\n" "$escapada" \
+    | como_superusuario psql -q -v ON_ERROR_STOP=1 -U "$MIGRATION_USER" -d "$PGDATABASE" > /dev/null
 
+# Por el camino que exige contrasena: ver host_con_clave en comun.sh. Dentro
+# del contenedor, por localhost entraria cualquier contrasena.
 echo "==> Comprobando que la aplicacion puede entrar con ella"
-export PGPASSWORD="$PGPASSWORD_APP"
-if "$PSQL" -q -t -A -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -c "SELECT 1" > /dev/null 2>&1; then
+if PGPASSWORD="$CLAVE_APP" pg psql -q -t -A -h "$(host_con_clave)" -U "$PGUSER" -d "$PGDATABASE" -c "SELECT 1" > /dev/null 2>&1; then
     verde "$PGUSER entra en $PGDATABASE."
 else
     morir "$PGUSER no puede entrar. Revisa PGPASSWORD y el pg_hba.conf del servidor."
 fi
 
 echo
-verde "Base preparada. Ahora:"
-echo "  1. Arranca la aplicacion y espera a que cree el esquema."
-echo "  2. Cuando responda, pasa: bash scripts/migrar.sh"
+verde "Rol preparado."

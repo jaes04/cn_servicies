@@ -94,6 +94,12 @@ else
     bien "ADMIN_PASSWORD llega al minimo de 12"
 fi
 
+if [ "${PGUSER:-}" != "cn_app" ]; then
+    fallo "PGUSER es '${PGUSER:-}'. Las migraciones y el initdb dan por hecho que el rol se llama cn_app."
+else
+    bien "PGUSER es cn_app"
+fi
+
 if [ "${PGUSER:-}" = "${MIGRATION_USER:-}" ]; then
     fallo "PGUSER y MIGRATION_USER son el mismo rol."
     echo  "          La aplicacion se conectaria como superusuario y RLS deja de aislar nada."

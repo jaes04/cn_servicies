@@ -1157,7 +1157,9 @@ Plazo legal de respuesta: un mes.
 - [x] Migraciones en un solo comando, con el rol que toca cada una — `2h · Media · Crítica`
 - [x] Comprobación del entorno antes de desplegar — `2h · Media · Alta`
 - [x] Copia de seguridad, verificada contra la base — `2h · Media · Crítica`
-- [ ] **Restauración probada de punta a punta** — `30min · Baja · Crítica` — bloqueada, ver abajo
+- [x] **Restauración probada de punta a punta** — `30min · Baja · Crítica` — en Docker, 16/09/2026
+- [x] Adaptar el kit a Docker: las herramientas corren dentro del contenedor — `2h · Media · Crítica`
+- [ ] **`data.sql` siembra cuentas y datos de ejemplo en cualquier base nueva** — `1h · Baja · Crítica` — ver abajo
 - [ ] Copia programada y aviso si falla — `2h · Media · Alta`
 
 > **Faltaba el primer paso de todos y nadie lo había echado en falta**, porque en desarrollo la base lleva meses creada. Un entorno nuevo necesita que el rol `cn_app` exista **y pueda crear tablas** antes del primer arranque: la aplicación se conecta con él, y desde PostgreSQL 15 el esquema `public` no deja crear tablas a cualquiera. La 0.6 crea el rol, pero además enciende RLS sobre tablas que en ese momento no existen, así que no vale para esto. De ahí `migrations/0.0-bootstrap-rol.sql`.
@@ -1175,6 +1177,21 @@ Plazo legal de respuesta: un mes.
 > **`docker-compose.override.yml` resultó no ser el problema que parecía:** está en `.gitignore`, así que un `git clone` en el servidor no lo trae y `docker compose up` no publica nada. Queda como aviso porque subir la carpeta con `scp` sí lo llevaría.
 
 > **Los `.sh` fijados a LF en `.gitattributes`.** Con finales de línea de Windows, bash contesta `bad interpreter: /usr/bin/env bash^M` y no da ninguna pista.
+
+> **La primera versión del kit no servía para el servidor**, y lo destapó probarlo en contenedores de verdad. Los scripts daban por hecho un PostgreSQL instalado en la máquina, como en desarrollo; en el servidor va dentro de Docker y el 5432 no se publica. Ahora una función `pg` decide sola si ejecutar las herramientas fuera o dentro del contenedor, y el rol `cn_app` lo crea el propio contenedor de postgres la primera vez (`docker/initdb/`), sin paso manual.
+
+> **Probado entero desde un volumen vacío:** el rol se crea solo, la API arranca, pasan las once migraciones, se entra con el administrador, se copia, se restaura en una base nueva, **la aplicación arranca sobre la base restaurada y el mismo administrador entra y ve sus 8 atletas.** Esa última parte es la que convierte una copia en una copia demostrada.
+
+> **Tres fallos que solo aparecieron al ejecutarlo, y los tres habrían salido el día del despliegue:**
+> - **El cambio a PostgreSQL 18 del commit anterior rompía el arranque.** La 18 guarda los datos en `/var/lib/postgresql/18/docker` y, con el volumen montado en `/var/lib/postgresql/data` como estaba, el contenedor se niega a arrancar. Lo cambié sin probarlo.
+> - **Restaurar necesita al superusuario**: el volcado trae los dueños de las tablas y los `ALTER DEFAULT PRIVILEGES` de la 0.6, que `cn_app` no puede aplicar. Y la copia de `public` trae su propio `CREATE SCHEMA`, que choca con el de la base nueva.
+> - **Dentro del contenedor, `localhost` entra sin contraseña** (`pg_hba`: `127.0.0.1/32 trust`). La comprobación de contraseña del script decía "entra" con una contraseña inventada. Se vio porque se probó a propósito con una mala. Ahora se comprueba por la red de Docker (`-h db`), que es por donde se conecta la API.
+
+> **`FORWARD_HEADERS_STRATEGY` no llegaba al contenedor.** Se añadió en el bloque 4 a `application.properties` y a `.env.example`, pero el compose solo pasa a la API las variables que lista, y esa no estaba. Ponerla en el `.env` del servidor no habría hecho nada, y el límite de intentos habría seguido viendo a todo el mundo con la IP del proxy.
+
+> **`MIGRATION_PASSWORD` resultó un problema solo de desarrollo.** En Docker la base se crea con ella, así que es la contraseña real por construcción.
+
+> **Hallazgo: `data.sql` siembra en cualquier base nueva —la de producción incluida, porque `spring.sql.init.mode=always`— cuatro cuentas (`admin` con `ROLE_ADMIN`, `editor`, `tecnico`, `usuario`), cinco atletas, seis documentos de atleta, resultados y un post.** Las cuatro cuentas comparten un hash de coste 10 publicado en el repositorio. Comprobado que no es ninguna contraseña típica —con control positivo del método—, así que no es un acceso trivial; pero son cuentas que nadie ha creado, que nadie gestiona, con un hash público que se puede atacar sin conexión, y una de ellas es de administrador. Contradice la regla 7 de `CLAUDE.md`: en `data.sql` solo va el catálogo. Ningún test depende de esas filas. **Pendiente de decisión.**
 
 ### Criterio de aceptación de la Fase S
 

@@ -17,8 +17,18 @@ services:
       POSTGRES_DB: ${PGDATABASE}
       POSTGRES_USER: ${MIGRATION_USER}
       POSTGRES_PASSWORD: ${MIGRATION_PASSWORD}
+      # Solo lo lee docker/initdb/01-rol-aplicacion.sh, para crear cn_app con
+      # su contrasena la primera vez que arranca el volumen.
+      APP_DB_PASSWORD: ${PGPASSWORD}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # EN /var/lib/postgresql, NO en /var/lib/postgresql/data. Desde la 18 la
+      # imagen guarda los datos en un subdirectorio por version (18/docker), y
+      # con el montaje antiguo el contenedor se niega a arrancar. Comprobado.
+      - pgdata:/var/lib/postgresql
+      # Lo que hay aqui corre UNA vez, al inicializar un volumen vacio: crea el
+      # rol de la aplicacion antes de que la API intente conectarse.
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+      - ./migrations:/migraciones:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${MIGRATION_USER} -d ${PGDATABASE}"]
       interval: 10s
@@ -43,6 +53,10 @@ services:
       UPLOAD_DIR: /app/uploads
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # Detras del tunel tiene que llegar "framework", o el limite de intentos de
+      # login ve a todo el mundo con la IP del proxy. Sin esta linea, ponerlo en
+      # el .env no hacia nada: el contenedor solo recibe lo que se lista aqui.
+      FORWARD_HEADERS_STRATEGY: ${FORWARD_HEADERS_STRATEGY:-none}
     volumes:
       - uploads:/app/uploads
 
