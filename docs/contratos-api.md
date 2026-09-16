@@ -764,6 +764,8 @@ formato que el del atleta. Se guarda en mayúsculas y sin espacios, así que `x1
 | `GET /api/medical-certificates/athlete/{athleteId}/status` | Admin; entrenador si es su atleta | `{ "status": "VALID" }` |
 | `GET /api/medical-certificates/athlete/{athleteId}` | Admin | Historial |
 | `POST /api/medical-certificates/athlete/{athleteId}` | Admin | 201 |
+| `PUT /api/medical-certificates/{id}` | Admin | 200, el certificado corregido |
+| `DELETE /api/medical-certificates/{id}` | Admin | 204 |
 
 ### ⚠️ Cambio del bloque 3b: un certificado por temporada
 
@@ -798,8 +800,18 @@ formato que el del atleta. Se guarda en mayúsculas y sin espacios, así que `x1
 | `EXPIRED` | El último que trajo es de otro curso | "Pedir renovación" |
 | `MISSING` | Nunca ha traído ninguno | "Pedir certificado" |
 
-**No hay diagnóstico, observaciones ni campo de apto:** no los pidas en el formulario. No se
-puede corregir un certificado mal tecleado, porque no hay `PUT` ni `DELETE`.
+**No hay diagnóstico, observaciones ni campo de apto:** no los pidas en el formulario.
+
+### Corregir y borrar
+
+- **`PUT`** lleva el mismo cuerpo que el alta y pasa **las mismas reglas**: 400 si la fecha es
+  futura o posterior al final de la temporada.
+- **No cambia de atleta.** Un certificado anotado en el nadador equivocado se borra y se vuelve
+  a anotar en el bueno.
+- Al corregir, **quien corrige pasa a ser el validador**, con la hora de la corrección.
+- **`DELETE` borra de verdad.** No queda rastro de lo que había, ni de quién lo cambió: eso
+  llegará con la auditoría. Pide confirmación en la interfaz.
+- Uno que no existe o es de otro club: **404**.
 
 **`/api/medical-certificates/expiring` ya no existe** y responde 404. Lo sustituye el informe
 de documentación pendiente (§12.b).
@@ -817,6 +829,13 @@ apunta que se entregó.
 | `GET /api/document-deliveries/athlete/{athleteId}/travel-permit?from=&to=` | Igual | Si puede viajar esas fechas |
 | `GET /api/document-deliveries/athlete/{athleteId}` | Admin | Historial |
 | `POST /api/document-deliveries/athlete/{athleteId}` | Admin | 201 |
+| `PUT /api/document-deliveries/{id}` | Admin | 200, la entrega corregida |
+| `DELETE /api/document-deliveries/{id}` | Admin | 204 |
+
+**Corregir:** mismo cuerpo que el alta y **mismas reglas**. **Se puede cambiar el tipo** —anotar
+la licencia como documento de identidad tiene arreglo—, pero con el tipo nuevo tienen que venir
+sus campos y ningún otro. No cambia de atleta, y quien corrige pasa a ser quien lo anotó.
+**Borrar** es de verdad y sin rastro: pide confirmación. Una de otro club o inexistente: 404.
 
 **Petición.** Cada tipo lleva **solo** sus campos; mandar de más es **400**:
 
@@ -913,6 +932,8 @@ Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atle
 | Gestión de usuarios | Rutas nuevas para cambiar la contraseña, propia y de administrador | §2 |
 | Alta de usuario y alta pública | El mínimo sube de 8 a 12 y hay más motivos de rechazo; el error llega en `message`, ya no en `errors.password` | §2.b |
 | Cualquier pantalla | Si el club bloquea una cuenta, sus peticiones pasan a 401 en el acto | Tratar el 401 como sesión terminada y volver al login |
+| Certificados y entregas | Rutas nuevas para corregir (`PUT`) y borrar (`DELETE`) por id | §15 y §16 |
+| Entornos nuevos | Ya no traen las cuentas `admin`, `editor`, `tecnico` y `usuario` ni datos de ejemplo | Entrar con el administrador de `ADMIN_USERNAME` |
 
 ---
 

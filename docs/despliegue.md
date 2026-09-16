@@ -76,8 +76,19 @@ tablas que todavía no están. El script lo comprueba antes de empezar.
 
 ## 2. Primera vez, paso a paso (en el servidor)
 
+**Antes, en tu ordenador: sube el código.** Todo el trabajo está en la rama `develop`, y
+mientras no hagas `git push` solo existe en tu máquina.
+
 ```bash
-git clone <repo> && cd cn_servicies
+git push origin develop
+```
+
+**En el servidor, clona `develop`, no la rama por defecto.** Un `git clone` sin más baja
+`master`, que no tiene nada de lo que describe este documento, y el despliegue fallaría de
+formas que no apuntan a la causa.
+
+```bash
+git clone -b develop <repo> && cd cn_servicies
 cp .env.example .env
 ```
 
@@ -107,6 +118,10 @@ bash scripts/migrar.sh                # paso 4
 bash scripts/comprobar-entorno.sh     # paso 5
 ```
 
+**Una base nueva nace vacía de datos:** el club por defecto, los roles, los
+géneros y el administrador de `ADMIN_USERNAME`. Nada más. Si ves otras cuentas,
+algo va mal.
+
 `migrar.sh` termina comprobando que **ninguna tabla con `club_id` se ha quedado
 sin policy**. Si sale en rojo, hay una tabla que devuelve filas de otro club: no
 abras al público.
@@ -120,7 +135,7 @@ vacío y el rol no se ha creado. Pasa `bash scripts/preparar-base.sh`.
 
 ```bash
 bash scripts/copia-seguridad.sh       # antes de tocar nada
-git pull
+git pull origin develop
 docker compose build api
 docker compose up -d api
 bash scripts/migrar.sh                # SIEMPRE, no solo la primera vez
@@ -197,9 +212,6 @@ Los dos detectan solos si la base está en Docker o instalada en la máquina.
 
 ## 7. Lo que sigue sin estar resuelto
 
-- **`data.sql` siembra cuentas y datos de ejemplo en cualquier base nueva**,
-  la de producción incluida: `admin` (administrador), `editor`, `tecnico` y
-  `usuario`, cinco atletas y seis documentos. Ver el roadmap.
 - **En la máquina de desarrollo, `MIGRATION_PASSWORD` no es la contraseña real
   de `postgres`**, así que ahí no se puede restaurar. En Docker no pasa: la base
   se crea con ella.

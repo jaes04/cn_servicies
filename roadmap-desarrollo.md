@@ -1159,7 +1159,8 @@ Plazo legal de respuesta: un mes.
 - [x] Copia de seguridad, verificada contra la base — `2h · Media · Crítica`
 - [x] **Restauración probada de punta a punta** — `30min · Baja · Crítica` — en Docker, 16/09/2026
 - [x] Adaptar el kit a Docker: las herramientas corren dentro del contenedor — `2h · Media · Crítica`
-- [ ] **`data.sql` siembra cuentas y datos de ejemplo en cualquier base nueva** — `1h · Baja · Crítica` — ver abajo
+- [x] **`data.sql` siembra cuentas y datos de ejemplo en cualquier base nueva** — `1h · Baja · Crítica` — quitado, ver abajo
+- [x] Corregir y borrar certificados médicos y entregas de papeles — `2h · Media · Alta` *(encontrado al repasar qué faltaba para la beta)*
 - [ ] Copia programada y aviso si falla — `2h · Media · Alta`
 
 > **Faltaba el primer paso de todos y nadie lo había echado en falta**, porque en desarrollo la base lleva meses creada. Un entorno nuevo necesita que el rol `cn_app` exista **y pueda crear tablas** antes del primer arranque: la aplicación se conecta con él, y desde PostgreSQL 15 el esquema `public` no deja crear tablas a cualquiera. La 0.6 crea el rol, pero además enciende RLS sobre tablas que en ese momento no existen, así que no vale para esto. De ahí `migrations/0.0-bootstrap-rol.sql`.
@@ -1191,7 +1192,33 @@ Plazo legal de respuesta: un mes.
 
 > **`MIGRATION_PASSWORD` resultó un problema solo de desarrollo.** En Docker la base se crea con ella, así que es la contraseña real por construcción.
 
-> **Hallazgo: `data.sql` siembra en cualquier base nueva —la de producción incluida, porque `spring.sql.init.mode=always`— cuatro cuentas (`admin` con `ROLE_ADMIN`, `editor`, `tecnico`, `usuario`), cinco atletas, seis documentos de atleta, resultados y un post.** Las cuatro cuentas comparten un hash de coste 10 publicado en el repositorio. Comprobado que no es ninguna contraseña típica —con control positivo del método—, así que no es un acceso trivial; pero son cuentas que nadie ha creado, que nadie gestiona, con un hash público que se puede atacar sin conexión, y una de ellas es de administrador. Contradice la regla 7 de `CLAUDE.md`: en `data.sql` solo va el catálogo. Ningún test depende de esas filas. **Pendiente de decisión.**
+> **Hallazgo: `data.sql` siembra en cualquier base nueva —la de producción incluida, porque `spring.sql.init.mode=always`— cuatro cuentas (`admin` con `ROLE_ADMIN`, `editor`, `tecnico`, `usuario`), cinco atletas, seis documentos de atleta, resultados y un post.** Las cuatro cuentas comparten un hash de coste 10 publicado en el repositorio. Comprobado que no es ninguna contraseña típica —con control positivo del método—, así que no es un acceso trivial; pero son cuentas que nadie ha creado, que nadie gestiona, con un hash público que se puede atacar sin conexión, y una de ellas es de administrador. Contradice la regla 7 de `CLAUDE.md`: en `data.sql` solo va el catálogo. Ningún test depende de esas filas.
+
+> **Resuelto: `data.sql` solo lleva el club por defecto, los roles y los géneros.** El club se queda porque no es una cuenta ni lleva datos personales, y quitarlo cambiaría cómo arranca la aplicación sin `ADMIN_USERNAME`. **Comprobado en Docker con una base nueva:** nace con el administrador de `ADMIN_USERNAME`, el club, 4 roles y 2 géneros, y cero atletas, documentos, noticias o resultados; `admin` da 401. El propio archivo decía en un comentario que la contraseña de las cuentas era `Admin1234!`: **no lo era**, comprobado con el hash completo. El comentario también se va, porque invitaba a "arreglar" el hash para que coincidiera.
+
+> **`seed.sh` está roto desde antes y sigue igual:** entra con `admin`/`password123`, que no ha coincidido nunca con el hash sembrado, y ahora esa cuenta ya no existe. Fuera del alcance de esta tarea.
+
+**Corregir y borrar certificados y entregas**
+
+> **Hasta ahora solo se podían crear y consultar.** Una fecha mal tecleada durante la beta no tenía más arreglo que tocar la base a mano, y la beta existe precisamente para que el club meta estos papeles. `PUT` y `DELETE` por id, solo administradores.
+
+> **La corrección pasa exactamente las mismas reglas que el alta**, escritas una sola vez. Una corrección que se las saltara sería la puerta trasera para meter lo que el alta rechaza. En el certificado, el test de esto usa una temporada pasada y no una fecha futura: la fecha futura ya la corta una anotación del cuerpo, y un test con ella no demostraría nada sobre el servicio.
+
+> **Se puede cambiar el tipo de una entrega** —anotar la licencia como documento de identidad es justo el error típico—, pero **no el atleta**, ni en entregas ni en certificados. Un papel en el nadador equivocado se borra y se anota en el bueno: moverlo es la forma de que el error de uno acabe en la ficha de otro sin que nadie lo vea.
+
+> **Quien corrige pasa a ser el validador**, con la hora de la corrección, y **borrar es borrar de verdad**. No queda rastro de lo anterior hasta que exista la auditoría (S.6): anotado en los contratos para que la interfaz pida confirmación.
+
+> **`SecurityConfig` necesitaba una regla nueva, y es el fallo que habría pasado sin tests.** `/api/medical-certificates/**` no tenía regla general: `PUT` y `DELETE` habrían caído en el `anyRequest().authenticated()` del final, y **cualquier cuenta —un tutor, un socio— habría podido borrar el certificado de cualquier nadador**. Las entregas ya tenían su regla general de administrador. Es el mismo agujero de la tarea pendiente "denegar por defecto", que sigue abierta.
+
+> **`{id}` solo acepta UUID, y lo destapó un test antiguo.** Sin el patrón, las rutas nuevas se comían cualquier segmento, y `GET /api/medical-certificates/expiring` —retirada en el 3c, con contrato de responder 404— pasó a contestar **405 "método no permitido"**, que el frontend leería como que la ruta existe.
+
+> **Probado también dentro del contenedor:** alta, corrección de la fecha, borrado con el estado pasando a `MISSING`, entrega anotada como DNI y corregida a licencia, y `/expiring` en 404.
+
+> **Verificado con diez mutaciones y once rojos**, cada uno en el test que le toca: sin la regla de `SecurityConfig` de cada rama, sin la validación en cada corrección, sin guardar la fecha o el tipo, borrar sin borrar, y sin el patrón UUID.
+
+> **Tests:** 5 de certificados y 7 de entregas. La suite pasa de 429 a 441.
+
+> **Cambio de contrato:** cuatro rutas nuevas, y los entornos nuevos dejan de traer cuentas y datos de ejemplo. Recogido en `docs/contratos-api.md` §15, §16 y §18.
 
 ### Criterio de aceptación de la Fase S
 
