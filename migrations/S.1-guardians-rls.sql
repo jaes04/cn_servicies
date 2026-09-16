@@ -11,7 +11,7 @@
 --
 --  SE EJECUTA CON EL ROL DE MIGRACIONES (postgres), no con el de la aplicacion:
 --
---      psql -h localhost -U postgres -d cn_test -f migrations/S.1-guardians-rls.sql
+--      psql -h localhost -U cn_app -d cn_test -f migrations/S.1-guardians-rls.sql
 --
 --  Va DESPUES de arrancar la aplicacion al menos una vez, porque quien crea las
 --  tablas sigue siendo Hibernate con ddl-auto. Es idempotente.

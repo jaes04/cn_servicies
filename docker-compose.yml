@@ -1,6 +1,14 @@
 services:
   db:
-    image: postgres:16
+    # Version fija y del mismo major que la de desarrollo (PostgreSQL 18), donde
+    # corren los tests. Con la 16 se desplegaba sobre un motor distinto del
+    # unico contra el que se ha probado nada.
+    #
+    # OJO AL SUBIR DE MAJOR CON DATOS: un volumen creado por la 16 no lo lee la
+    # 18, el contenedor no arranca y hace falta pg_upgrade o un dump y restore.
+    # Hoy no hay datos en ningun volumen; el dia que los haya, esto se cambia
+    # con el procedimiento de docs/despliegue.md delante.
+    image: postgres:18.6-bookworm
     restart: unless-stopped
     environment:
       # El superusuario del contenedor es el rol de migraciones, NO el de la
@@ -39,7 +47,10 @@ services:
       - uploads:/app/uploads
 
   tunnel:
-    image: cloudflare/cloudflared:latest
+    # Fijada: con :latest, un reinicio cualquiera cambia la version del proceso
+    # que sostiene el unico camino hacia la API, y si esa version trae un fallo
+    # el sintoma es "el sitio no responde" sin que nada haya cambiado aqui.
+    image: cloudflare/cloudflared:2026.9.1
     restart: unless-stopped
     depends_on:
       - api
