@@ -1062,14 +1062,14 @@ tutor; la b) acota al entrenador.
 #### S.4.2 Docker — 5 h
 
 - [ ] Contenedores como usuario no root — `2h · Media · Alta`
-- [ ] Imágenes base mínimas con versión fijada, nunca `latest` — `1h · Baja · Alta`
-- [ ] Compose de producción sin puertos expuestos al host — `30min · Baja · Crítica`
+- [x] Imágenes base mínimas con versión fijada, nunca `latest` — `1h · Baja · Alta`
+- [x] Compose de producción sin puertos expuestos al host — `30min · Baja · Crítica`
 - [ ] Escaneo de imágenes con Trivy en el pipeline — `1h · Media · Media`
 - [ ] Sin secretos en el `Dockerfile` ni en variables de build — `30min · Baja · Crítica`
 
 #### S.4.3 PostgreSQL — 3 h
 
-- [ ] Puerto 5432 **nunca** expuesto a internet — `30min · Baja · Crítica`
+- [x] Puerto 5432 **nunca** expuesto a internet — `30min · Baja · Crítica` — el compose no lo publica
 - [ ] Usuario de aplicación con permisos mínimos y sin `BYPASSRLS` — `1h · Media · Crítica`
 - [ ] `ssl = on` en las conexiones — `1h · Media · Alta`
 - [ ] Logs sin datos personales — `30min · Baja · Alta`
@@ -1150,6 +1150,31 @@ Plazo legal de respuesta: un mes.
 - [ ] Pentest antes de superar unos pocos clubes — `externo · Alta · Media`
 - [ ] Revisión de permisos y roles cada seis meses — `recurrente · Baja · Alta`
 - [ ] Revisar la EIPD cuando cambie el tratamiento (por ejemplo al lanzar el móvil) — `3h · Media · Crítica`
+
+### S.4.5 Kit de despliegue — bloque 6
+
+- [x] Arranque de una base nueva, con los pasos en orden — `3h · Media · Crítica`
+- [x] Migraciones en un solo comando, con el rol que toca cada una — `2h · Media · Crítica`
+- [x] Comprobación del entorno antes de desplegar — `2h · Media · Alta`
+- [x] Copia de seguridad, verificada contra la base — `2h · Media · Crítica`
+- [ ] **Restauración probada de punta a punta** — `30min · Baja · Crítica` — bloqueada, ver abajo
+- [ ] Copia programada y aviso si falla — `2h · Media · Alta`
+
+> **Faltaba el primer paso de todos y nadie lo había echado en falta**, porque en desarrollo la base lleva meses creada. Un entorno nuevo necesita que el rol `cn_app` exista **y pueda crear tablas** antes del primer arranque: la aplicación se conecta con él, y desde PostgreSQL 15 el esquema `public` no deja crear tablas a cualquiera. La 0.6 crea el rol, pero además enciende RLS sobre tablas que en ese momento no existen, así que no vale para esto. De ahí `migrations/0.0-bootstrap-rol.sql`.
+
+> **El síntoma que evita** es de los caros: el contenedor en bucle de reinicios con `password authentication failed`, que manda a revisar contraseñas durante una hora cuando el problema es que el rol no existe.
+
+> **`pg_dump` a secas no funciona en este proyecto.** `FORCE ROW LEVEL SECURITY` aplica la policy también al dueño de la tabla, y `pg_dump` apaga RLS por su cuenta para asegurarse de llevárselo todo: el resultado es `ERROR: query would be affected by row-level security policy`. Se copia con `cn_app`, `--enable-row-security` y `app.club_id=public` —sin necesitar al superusuario, que es además lo correcto por privilegio mínimo—.
+
+> **Y lo que de verdad daba miedo: sin `app.club_id`, `pg_dump` termina con éxito y deja una copia válida, comprimida, con todas las tablas y sin una sola fila.** Comprobado a propósito. Una copia vacía que parece buena es peor que no tener copia, así que el script cuenta filas contra la base y se niega a darla por buena si no cuadran.
+
+> **`MIGRATION_PASSWORD` no es la contraseña real de `postgres`, y ahora se sabe que eso pesa más de lo que parecía.** Se tenía anotado como bloqueo para Flyway. Bloquea además **crear una base y restaurar una copia**, que es exactamente lo que hace falta el día que algo se rompa. Por eso la restauración queda escrita pero **sin probar**: es un comando, y está en `docs/despliegue.md` §6.
+
+> **Postgres pasa de la 16 a la 18.6 en el compose**, que es el major contra el que corren los tests. Desplegar sobre un motor distinto del único que se ha probado no tiene ninguna ventaja. Ojo el día que haya un volumen con datos: entre majors no se lee solo.
+
+> **`docker-compose.override.yml` resultó no ser el problema que parecía:** está en `.gitignore`, así que un `git clone` en el servidor no lo trae y `docker compose up` no publica nada. Queda como aviso porque subir la carpeta con `scp` sí lo llevaría.
+
+> **Los `.sh` fijados a LF en `.gitattributes`.** Con finales de línea de Windows, bash contesta `bad interpreter: /usr/bin/env bash^M` y no da ninguna pista.
 
 ### Criterio de aceptación de la Fase S
 
