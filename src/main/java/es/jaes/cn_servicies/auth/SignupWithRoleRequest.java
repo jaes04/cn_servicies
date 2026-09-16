@@ -4,7 +4,6 @@ import es.jaes.cn_servicies.user.RoleName;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.Set;
@@ -19,8 +18,10 @@ public class SignupWithRoleRequest {
     @NotBlank
     private String email;
 
+    // Como en el resto de altas: la politica la comprueba PasswordPolicy en el
+    // servicio. Esta anotacion se quedo atras al moverla, y daba el error en
+    // errors.password —con el minimo viejo de 8— en vez de en message.
     @NotBlank
-    @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
     private String password;
 
     @NotEmpty(message = "Debe indicar al menos un rol")

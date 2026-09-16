@@ -71,7 +71,8 @@ public class SecurityConfig {
                         .requestMatchers(PUT, "/api/posts/**").hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(DELETE, "/api/posts/**").hasAnyRole("ADMIN", "EDITOR")
                         // Listado completo y lectura por id: devuelven tambien los
-                        // borradores y los borrados. Hasta la regla de denegar por
+                        // borradores. Los borrados no salen por ninguna ruta, porque
+                        // Post lleva @SQLRestriction. Hasta la regla de denegar por
                         // defecto no tenian regla propia y caian en el authenticated()
                         // final: cualquier cuenta —un tutor, un atleta— leia noticias
                         // sin publicar. Lo publico va por /published, mas arriba.
