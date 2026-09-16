@@ -69,6 +69,13 @@ public class SecurityConfig {
                         .requestMatchers(POST, "/api/posts/**").hasRole("EDITOR")
                         .requestMatchers(PUT, "/api/posts/**").hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(DELETE, "/api/posts/**").hasAnyRole("ADMIN", "EDITOR")
+                        // Listado completo y lectura por id: devuelven tambien los
+                        // borradores y los borrados. Hasta la regla de denegar por
+                        // defecto no tenian regla propia y caian en el authenticated()
+                        // final: cualquier cuenta —un tutor, un atleta— leia noticias
+                        // sin publicar. Lo publico va por /published, mas arriba.
+                        // Va despues de las de comentarios, o se las comeria.
+                        .requestMatchers(GET, "/api/posts/**").hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(GET, "/api/users/me").authenticated()
                         .requestMatchers(GET, "/api/users/*/comments").authenticated()
                         .requestMatchers(POST, "/api/users/*/profile-photo").authenticated()
@@ -91,6 +98,10 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/athlete-links/by-athlete/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(POST, "/api/athlete-links/redeem").authenticated()
                         .requestMatchers(GET, "/api/athlete-links/my-athletes").authenticated()
+                        // Los tutelados de quien pregunta: datos suyos, basta con
+                        // estar autenticado. Funcionaba sin regla, por el
+                        // authenticated() final; con denyAll necesita la suya.
+                        .requestMatchers(GET, "/api/athlete-links/my-tutees").authenticated()
                         // Consentimientos. El orden importa dos veces aqui: /status
                         // va antes que el historial porque si no se lo come la
                         // regla de ADMIN, y la revocacion antes que nada por
@@ -167,7 +178,18 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/athlete-documents/my").authenticated()
                         .requestMatchers(GET, "/api/athlete-documents/*/file").authenticated()
                         .requestMatchers(DELETE, "/api/athlete-documents/**").hasRole("ADMIN")
-                        .anyRequest().authenticated()
+                        // DENEGAR POR DEFECTO. Lo que no tenga regla arriba no lo
+                        // puede nadie, ni un administrador.
+                        //
+                        // Antes era authenticated(), y eso hacia que cada ruta nueva
+                        // naciera abierta a cualquier cuenta: un tutor o un atleta
+                        // incluidos. Paso de verdad dos veces: PUT y DELETE de
+                        // certificados medicos, y la lectura de noticias sin publicar.
+                        //
+                        // Si una ruta nueva contesta 403 a todo el mundo, le falta su
+                        // regla aqui. DenyByDefaultTest recorre todas las rutas y
+                        // falla en cuanto una se queda sin ella.
+                        .anyRequest().denyAll()
                 )
                 .exceptionHandling(ex -> ex
                         .accessDeniedHandler((request, response, e) -> {
