@@ -5,11 +5,12 @@ horarios, sesiones, pasar lista, cierres, informes, consentimientos, certificado
 de papeles y vínculos. Incluye también lo que cambia en pantallas que ya existen.
 
 Sacado del código real (controladores, DTOs y `SecurityConfig`) a fecha de
-**15 de septiembre de 2026**, rama `develop`. `API_DOCS.md`, en la raíz, es de mayo y no
+**16 de septiembre de 2026**, rama `develop`. `API_DOCS.md`, en la raíz, es de mayo y no
 recoge nada de esto.
 
-> **Esta semana cambian más cosas** y se avisará: el refresco de tokens (§2) y el límite de
-> intentos en el login. Ver §19.
+> **El login ya trae los cambios avisados** (§2): el refresco solo acepta refresh tokens y
+> hay límite de intentos. **Los tokens emitidos antes dejan de valer**: en el primer despliegue
+> todo el mundo vuelve a entrar con su contraseña. Ver §18.
 
 ---
 
@@ -58,8 +59,9 @@ marcar el campo, no como texto definitivo.
 |---|---|---|
 | 400 | Datos no válidos o regla de negocio | Enseñar `message` |
 | 401 | Sin token, o token caducado o inválido | Refrescar o volver al login |
-| 403 | **Tu rol** no puede usar esa ruta | No enseñar la acción a ese rol |
+| 403 | **Tu rol** no puede usar esa ruta, **o la cuenta está bloqueada** | No enseñar la acción a ese rol; en el login, enseñar `message` |
 | 404 | **No existe, o no es tuyo** | Tratar como "no encontrado" |
+| 429 | Demasiados intentos fallidos de login | Enseñar `message` y esperar `retryAfterSeconds` |
 
 **403 y 404 no son intercambiables.** Un 403 depende solo del rol, así que la interfaz puede
 evitarlo escondiendo botones. Un 404 aparece también cuando el recurso existe pero
@@ -87,9 +89,36 @@ propósito.**
 { "accessToken": "eyJ…", "refreshToken": "eyJ…", "tokenType": "Bearer" }
 ```
 
-**401:** `"Usuario o contraseña incorrectos"`.
+**401:** `"Usuario o contraseña incorrectos"`. Es el mismo mensaje exista el usuario o no:
+la pantalla no puede distinguir "ese usuario no existe" de "esa contraseña no es".
 
-El token lleva `sub` (el username), `club_id` y `roles`, por ejemplo
+**403:** la cuenta existe pero el club la ha bloqueado, y ahí la contraseña da igual.
+`"Esta cuenta está bloqueada. Ponte en contacto con el club"`. Enseña el mensaje: no ofrezcas
+recuperar la contraseña, porque no arregla nada. **Antes esto daba un 500.**
+
+**429:** demasiados intentos fallidos. Hay dos límites y cualquiera de los dos salta, con
+mensajes distintos para que se puedan separar en la pantalla:
+
+```json
+{ "status": 429, "retryAfterSeconds": 300,
+  "message": "Demasiados intentos fallidos con esta cuenta. Vuelve a intentarlo en 5 minutos.",
+  "path": "/api/auth/login", "timestamp": "…" }
+```
+
+- **"con esta cuenta"**: 5 fallos seguidos con ese usuario.
+- **"desde esta conexión"**: 30 fallos desde la misma IP, aunque sean de usuarios distintos.
+  Sale cuando alguien prueba una contraseña en muchas cuentas.
+- Llega también la cabecera estándar `Retry-After`, en segundos. Usa
+  `retryAfterSeconds` para la cuenta atrás y **deshabilita el botón mientras corre**: seguir
+  probando no comprueba nada.
+- **Mientras dura, ni la contraseña correcta entra.** Un acierto anterior sí borra el
+  contador, así que un despiste suelto no deja rastro.
+- La espera **se dobla** cada vez que se vuelven a agotar los intentos: 5, 10, 20… hasta 60
+  minutos. Merece la pena decirlo en el texto de ayuda de la pantalla.
+- Una cuenta bloqueada por el club (403) **no gasta intentos**: por mucho que se insista,
+  sigue contestando lo mismo.
+
+El token lleva `sub` (el username), `club_id`, `roles` y `typ`, por ejemplo
 `["ROLE_TECHNICAL_STAFF"]`. **Los roles del token son lo que la interfaz puede usar para
 decidir qué enseñar.** La autorización real la hace siempre el servidor.
 
@@ -101,9 +130,19 @@ decidir qué enseñar.** La autorización real la hace siempre el servidor.
 
 Devuelve lo mismo que el login.
 
-> ⚠️ **Cambia esta semana.** Hoy acepta cualquier token válido, también un access token.
-> Pasará a aceptar solo refresh tokens y a rechazar el resto con 401. Si el frontend manda
-> siempre el `refreshToken` del login, no hay que tocar nada.
+**Solo acepta el refresh token.** Cada token dice para qué sirve en el claim `typ`
+(`ACCESS` o `REFRESH`) y se comprueba en cada uso:
+
+- Mandar aquí el **access token** es **401** `"Esta ruta solo acepta el refresh token, y has
+  enviado el de acceso"`. El mensaje lo dice así de claro a propósito: quien pregunta ya tiene
+  el token en la mano, no se filtra nada, y ahorra una tarde de depuración.
+- Un token inválido o caducado es **401** `"El refresh token no es válido o ha caducado.
+  Vuelve a iniciar sesión"`. Antes esto era un 400.
+- **El refresh token ya no autentica peticiones normales.** Enviarlo en `Authorization` da
+  401 en cualquier ruta. Si el frontend guarda los dos por separado y manda siempre el
+  `accessToken`, no hay nada que tocar.
+- **Los tokens emitidos antes de este cambio no valen para nada**, porque no llevan `typ`.
+  Al desplegar, la sesión guardada en el navegador caduca y toca volver a entrar.
 
 ### `GET /api/users/me` — cualquier autenticado
 
@@ -802,11 +841,18 @@ Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atle
 | Todo lo que use un entrenador | Fuera de sus grupos, **404**; listados filtrados | Tratar 404 como "no disponible", no como fallo |
 | Foto de perfil | Solo la propia, o cualquiera siendo administrador; si no, 404 | |
 | Grupos | La respuesta añade `assistantCoaches`; la petición admite `assistantCoachIds` | §6 |
+| **Cualquier sesión abierta** | Los tokens de antes no llevan `typ` y dejan de valer | Al recibir 401, borrar los tokens guardados y mandar al login |
+| Login | Aparecen **429** (demasiados intentos) y **403** (cuenta bloqueada, antes 500) | §2 |
+| Refresco | El access token en `/refresh` pasa a 401; el refresh token deja de autenticar | §2 |
 
 ---
 
 ## 19. Pendiente que puede tocar estos contratos
 
-- **Refresco de tokens** (esta semana): `/api/auth/refresh` solo aceptará refresh tokens (§2).
-- **Límite de intentos en el login** (esta semana): demasiados intentos fallidos devolverán un
-  error en lugar de 401. El código exacto se documentará al hacerlo.
+- **Cambio de contraseña**: **no existe ninguna ruta para cambiarla**, ni la propia ni la de
+  otro siendo administrador. Solo se fija al crear la cuenta (`POST /api/users`). Una
+  contraseña olvidada obliga hoy a borrar la cuenta y volver a crearla, con lo que se pierden
+  sus vínculos con atletas. No pongas en la interfaz un "cambiar contraseña" ni un "he
+  olvidado mi contraseña" hasta que la ruta exista.
+- **Política de contraseñas** (mínimo de caracteres y contraste con listas filtradas): en
+  cuanto entre, el alta y el cambio de contraseña podrán devolver un 400 nuevo.
