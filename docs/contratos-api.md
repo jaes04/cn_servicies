@@ -148,6 +148,46 @@ Devuelve lo mismo que el login.
 
 El usuario actual: `id`, `username`, `email`, `roles`, `profilePhoto`, `blocked`, `createdAt`.
 
+### `PUT /api/users/me/password` — cualquier autenticado
+
+```json
+{ "currentPassword": "…", "newPassword": "…" }
+```
+
+**204 sin cuerpo.** Errores, todos **400** con su `message`:
+
+| Cuándo | `message` |
+|---|---|
+| La actual no es la que es | `"La contraseña actual no es correcta"` |
+| La nueva es igual que la actual | `"La contraseña nueva tiene que ser distinta de la actual"` |
+| La nueva es corta | `errors.newPassword`: `"La contraseña debe tener al menos 8 caracteres"` |
+
+**Pide la actual aunque la petición vaya autenticada**, y es a propósito: si bastara el
+token, una sesión olvidada en un ordenador compartido serviría para quedarse con la cuenta.
+
+> ⚠️ **Cambiar la contraseña no cierra las sesiones abiertas.** Los tokens emitidos antes
+> siguen valiendo hasta que caducan, porque no hay lista de revocación. Para echar a alguien
+> de verdad hay que **bloquear la cuenta**, que sí tiene efecto inmediato.
+
+### `PUT /api/users/{id}/password` — admin
+
+```json
+{ "password": "…" }
+```
+
+**204 sin cuerpo.** La salida a una contraseña olvidada mientras no haya recuperación por
+correo: no pide la anterior, porque existe justo para cuando nadie la sabe. **404** si esa
+cuenta no existe o es de otro club; **400** si la contraseña es corta.
+
+**La acaba sabiendo el administrador**, así que la pantalla debería decirle al usuario que la
+cambie él con la ruta de arriba.
+
+### Bloquear una cuenta — `PATCH /api/users/{id}/block`, admin
+
+Ya existía, pero **ahora corta la sesión en el acto**: el token de una cuenta bloqueada deja
+de autenticar (**401** en cualquier ruta) y tampoco puede renovarse (**403** en `/refresh`).
+Antes seguía trabajando hasta que su token caducaba, hasta un día después.
+
 ---
 
 ## 3. Catálogo de enumerados
@@ -844,15 +884,17 @@ Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atle
 | **Cualquier sesión abierta** | Los tokens de antes no llevan `typ` y dejan de valer | Al recibir 401, borrar los tokens guardados y mandar al login |
 | Login | Aparecen **429** (demasiados intentos) y **403** (cuenta bloqueada, antes 500) | §2 |
 | Refresco | El access token en `/refresh` pasa a 401; el refresh token deja de autenticar | §2 |
+| Gestión de usuarios | Rutas nuevas para cambiar la contraseña, propia y de administrador | §2 |
+| Cualquier pantalla | Si el club bloquea una cuenta, sus peticiones pasan a 401 en el acto | Tratar el 401 como sesión terminada y volver al login |
 
 ---
 
 ## 19. Pendiente que puede tocar estos contratos
 
-- **Cambio de contraseña**: **no existe ninguna ruta para cambiarla**, ni la propia ni la de
-  otro siendo administrador. Solo se fija al crear la cuenta (`POST /api/users`). Una
-  contraseña olvidada obliga hoy a borrar la cuenta y volver a crearla, con lo que se pierden
-  sus vínculos con atletas. No pongas en la interfaz un "cambiar contraseña" ni un "he
-  olvidado mi contraseña" hasta que la ruta exista.
-- **Política de contraseñas** (mínimo de caracteres y contraste con listas filtradas): en
+- **Recuperación por correo**: no existe. Un "he olvidado mi contraseña" no tiene hoy a dónde
+  llamar; la salida es que el administrador la fije (§2) y avise por su cuenta. Cuando entre,
+  será una ruta pública nueva y no cambiará las que ya hay.
+- **Política de contraseñas** (mínimo más largo que 8 y contraste con listas filtradas): en
   cuanto entre, el alta y el cambio de contraseña podrán devolver un 400 nuevo.
+- **Cerrar sesiones a distancia**: hoy solo se consigue bloqueando la cuenta. Una lista de
+  revocación permitiría cerrar la sesión de un dispositivo perdido sin bloquear al usuario.

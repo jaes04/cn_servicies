@@ -870,7 +870,7 @@ Nada de esto es código, pero sin ello no puedes vender.
 - [x] Rate limiting en `/login` por IP y por usuario — `2h · Media · Crítica`
 - [x] Bloqueo temporal progresivo tras intentos fallidos — `2h · Media · Alta`
 - [ ] **MFA obligatorio para roles de administración** (TOTP) — `4h · Alta · Crítica`
-- [ ] **Cambiar la contraseña**: no existe ninguna ruta, ni propia ni de administrador — `2h · Baja · Crítica` *(encontrado en el bloque 4)*
+- [x] **Cambiar la contraseña**: no existía ninguna ruta, ni propia ni de administrador — `2h · Baja · Crítica` *(encontrado en el bloque 4)*
 - [ ] Recuperación de contraseña con token de un solo uso y caducidad corta — `3h · Media · Crítica`
 - [x] Respuestas de login que no revelen si el usuario existe — `1h · Media · Alta`
 - [ ] **Rotar toda credencial compartida en conversación o presente en el histórico de git** — `1h · Baja · Crítica`
@@ -909,6 +909,30 @@ Nada de esto es código, pero sin ello no puedes vender.
 > **Tests:** 17 del contador de intentos, con un reloj de mentira para no dormir en los tests, y 14 de los endpoints. La suite pasa de 366 a 397.
 
 > **Cambio de contrato:** el login puede devolver **429** y **403**; `/api/auth/refresh` solo acepta el refresh token y falla con 401 en vez de 400; el refresh token deja de autenticar peticiones; y los tokens anteriores caducan de golpe. Recogido en `docs/contratos-api.md` §2 y §18.
+
+**S.3.1.b — cambiar la contraseña — bloque 4**
+
+- [x] `PUT /api/users/me/password`, dando la actual — `1h · Baja · Crítica`
+- [x] `PUT /api/users/{id}/password` para el administrador, sin saber la anterior — `1h · Baja · Crítica`
+- [x] Bloquear una cuenta corta su sesión abierta y su renovación — `1h · Media · Alta` *(encontrado al escribirlo)*
+
+> **No se podía cambiar una contraseña de ninguna forma.** Solo se fijaba al crear la cuenta, así que una contraseña olvidada obligaba a borrar al usuario y volver a crearlo, perdiendo sus vínculos con atletas. Salió al documentar el bloque 4, no de una tarea del roadmap.
+
+> **Las dos rutas van juntas porque una sin la otra no sirve.** Si solo existe la del administrador, la contraseña de cada uno la sabe el administrador para siempre; si solo existe la propia, quien la olvida sigue atascado.
+
+> **La propia pide la contraseña actual** aunque la petición ya venga autenticada. Si bastara el token, quien robe uno se queda con la cuenta, y una sesión olvidada en un ordenador compartido acaba igual. También se rechaza repetir la misma, que casi siempre es el formulario enviado dos veces.
+
+> **Bloquear una cuenta no echaba a nadie.** `JwtAuthFilter` cargaba el usuario y montaba la autenticación sin mirar si estaba habilitado, y `/refresh` le emitía tokens nuevos: un bloqueado seguía trabajando hasta que su token caducaba —un día— y podía renovarlo antes de que eso pasara, indefinidamente. Ahora el token de una cuenta bloqueada da 401 en el acto y la renovación da 403.
+
+> **Eso convierte el bloqueo en lo único que corta una sesión**, y hay que decirlo porque cambiar la contraseña **no** la corta: sin lista de revocación (S.3.2), los tokens emitidos antes siguen valiendo hasta que caducan. Para un dispositivo perdido, hoy la respuesta es bloquear la cuenta y desbloquearla después.
+
+> **Mínimo de 8 caracteres**, el mismo que ya pedía el alta de usuario. Subirlo es la tarea de política de contraseñas, que sigue pendiente y tiene que mover los dos sitios a la vez.
+
+> **Verificado con ocho mutaciones y once rojos.** Una superviviente, y dice algo: quitar el `@PreAuthorize` de la ruta del administrador no pone nada en rojo, porque la regla de URL de `SecurityConfig` ya la tapa. Quitando la regla en su lugar, el test sigue verde gracias a la anotación. Las dos capas aguantan por separado, ninguna de las dos está probada de forma aislada, y queda anotado en el propio test.
+
+> **Tests:** 12 en `user/PasswordChangeEndpointTest`. La suite pasa de 397 a 409.
+
+> **Cambio de contrato:** dos rutas nuevas, y bloquear una cuenta pasa a devolver 401 en cualquier ruta que esa cuenta estuviera usando.
 
 #### S.3.2 JWT — 7 h
 
