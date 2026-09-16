@@ -77,6 +77,34 @@ public class UserController {
         return ResponseEntity.ok(userService.uploadProfilePhoto(id, file));
     }
 
+    /**
+     * Cada uno cambia su contrasena, dando la actual.
+     *
+     * <p>Va antes que {@code /{id}/password} y esta suelta en
+     * {@code SecurityConfig}: la regla general de {@code /api/users/**} es de
+     * administrador, y sin la excepcion nadie podria cambiar la suya.
+     */
+    @PutMapping("/me/password")
+    public ResponseEntity<Void> changeMyPassword(@Valid @RequestBody ChangeMyPasswordRequest request,
+                                                 java.security.Principal principal) {
+        userService.changeOwnPassword(principal.getName(),
+                request.getCurrentPassword(), request.getNewPassword());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * El administrador fija la contrasena de una cuenta, sin saber la anterior.
+     * Es la salida a una contrasena olvidada mientras no haya recuperacion por
+     * correo.
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/{id}/password")
+    public ResponseEntity<Void> setPassword(@PathVariable UUID id,
+                                            @Valid @RequestBody SetPasswordRequest request) {
+        userService.setPassword(id, request.getPassword());
+        return ResponseEntity.noContent().build();
+    }
+
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}/block")
     public ResponseEntity<UserResponse> block(@PathVariable UUID id) {

@@ -58,6 +58,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         return;
                     }
 
+                    // Una cuenta bloqueada deja de autenticar en el acto, aunque
+                    // su token siga siendo valido. Sin esto, bloquear a alguien
+                    // no le echaba: seguia trabajando hasta que su token caducaba,
+                    // y es lo unico que hoy sirve para cortar una sesion —no hay
+                    // lista de revocacion—.
+                    if (!userDetails.isEnabled()) {
+                        log.warn("Token de una cuenta bloqueada en {}", request.getRequestURI());
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
+
                     UsernamePasswordAuthenticationToken auth =
                             new UsernamePasswordAuthenticationToken(
                                     userDetails, null, userDetails.getAuthorities());

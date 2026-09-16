@@ -150,6 +150,52 @@ public class UserService {
         return toResponse(userRepository.save(user));
     }
 
+    /**
+     * El administrador fija la contrasena de una cuenta, sin saber la anterior.
+     *
+     * <p>Es lo que desatasca una contrasena olvidada mientras no haya
+     * recuperacion por correo. Antes de existir esto, la unica salida era borrar
+     * la cuenta y volver a crearla, con lo que se perdian sus vinculos con
+     * atletas.
+     *
+     * <p><b>La contrasena la acaba sabiendo el administrador</b>, asi que el
+     * dueno de la cuenta deberia cambiarla despues con
+     * {@link #changeOwnPassword}. Un usuario de otro club no aparece —lo tapa
+     * Row Level Security— y sale como "no encontrado".
+     */
+    public void setPassword(UUID id, String nueva) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Usuario no encontrado"));
+        user.setPasswordHash(passwordEncoder.encode(nueva));
+        userRepository.save(user);
+    }
+
+    /**
+     * Cada uno cambia la suya, dando la actual.
+     *
+     * <p>Se exige la actual aunque la peticion ya venga autenticada: si bastara
+     * el token, quien robe uno se queda con la cuenta, y una sesion olvidada en
+     * un ordenador compartido acaba igual.
+     *
+     * <p><b>No cierra las sesiones abiertas.</b> Los tokens emitidos antes
+     * siguen valiendo hasta que caducan, porque no hay lista de revocacion
+     * (S.3.2). Para echar a alguien de verdad hoy hay que bloquear la cuenta,
+     * que si tiene efecto inmediato.
+     */
+    public void changeOwnPassword(String username, String actual, String nueva) {
+        User user = findEntityByUsername(username);
+
+        if (!passwordEncoder.matches(actual, user.getPasswordHash())) {
+            throw new IllegalArgumentException("La contraseña actual no es correcta");
+        }
+        if (passwordEncoder.matches(nueva, user.getPasswordHash())) {
+            throw new IllegalArgumentException("La contraseña nueva tiene que ser distinta de la actual");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(nueva));
+        userRepository.save(user);
+    }
+
     public UserResponse blockUser(UUID id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Usuario no encontrado"));

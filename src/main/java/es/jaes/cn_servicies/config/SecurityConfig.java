@@ -72,6 +72,11 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/users/me").authenticated()
                         .requestMatchers(GET, "/api/users/*/comments").authenticated()
                         .requestMatchers(POST, "/api/users/*/profile-photo").authenticated()
+                        // Cada uno cambia su contrasena. Va antes que la regla
+                        // general —que es de administrador— o se la comeria, y
+                        // nadie podria cambiar la suya. Fijar la de otra cuenta
+                        // es /api/users/{id}/password y esa si es de ADMIN.
+                        .requestMatchers(PUT, "/api/users/me/password").authenticated()
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
                         .requestMatchers(GET, "/api/athletes/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(POST, "/api/athletes/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")

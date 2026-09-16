@@ -70,6 +70,13 @@ public class AuthService {
         String username = jwtTokenProvider.extractUsername(token);
         UserDetails user = userDetailsService.loadUserByUsername(username);
 
+        // Bloquear una cuenta tiene que cortarle tambien la renovacion. Si no,
+        // el bloqueado se emite tokens nuevos con el de refresco que ya tenia y
+        // el bloqueo no caduca nunca.
+        if (!user.isEnabled()) {
+            throw new DisabledException("Esta cuenta está bloqueada");
+        }
+
         String newAccessToken = jwtTokenProvider.generateAccessToken(user);
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(user);
 
