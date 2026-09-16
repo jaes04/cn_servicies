@@ -160,7 +160,7 @@ El usuario actual: `id`, `username`, `email`, `roles`, `profilePhoto`, `blocked`
 |---|---|
 | La actual no es la que es | `"La contraseña actual no es correcta"` |
 | La nueva es igual que la actual | `"La contraseña nueva tiene que ser distinta de la actual"` |
-| La nueva es corta | `errors.newPassword`: `"La contraseña debe tener al menos 8 caracteres"` |
+| La nueva no cumple la política | El motivo concreto, ver §2.b |
 
 **Pide la actual aunque la petición vaya autenticada**, y es a propósito: si bastara el
 token, una sesión olvidada en un ordenador compartido serviría para quedarse con la cuenta.
@@ -168,6 +168,32 @@ token, una sesión olvidada en un ordenador compartido serviría para quedarse c
 > ⚠️ **Cambiar la contraseña no cierra las sesiones abiertas.** Los tokens emitidos antes
 > siguen valiendo hasta que caducan, porque no hay lista de revocación. Para echar a alguien
 > de verdad hay que **bloquear la cuenta**, que sí tiene efecto inmediato.
+
+### 2.b Qué contraseñas se aceptan
+
+Vale para **todas** las vías: alta de usuario, alta pública, la propia y la del administrador.
+Siempre llegan como **400** con el motivo en `message`, nunca en `errors`, porque la regla vive
+en un sitio solo.
+
+| Motivo | `message` |
+|---|---|
+| Menos de 12 caracteres | `"La contraseña debe tener al menos 12 caracteres"` |
+| Más de 72 | `"La contraseña no puede pasar de 72 caracteres"` |
+| Está en listas públicas | `"Esa contraseña es de las más usadas y está en listas públicas. Elige otra"` |
+| Lleva dentro el usuario o el correo | `"La contraseña no puede llevar dentro tu usuario ni tu correo"` |
+| Lleva dentro el nombre del club | `"La contraseña no puede llevar dentro el nombre del club"` |
+| Es la misma cosa repetida | `"La contraseña no puede ser la misma cosa repetida. Alárgala con algo distinto"` |
+
+**No se exige mayúscula, ni número, ni símbolo, y no lo hagas en la interfaz.** Esas reglas
+producen `Password1!`, que es corta, está en todas las listas y encima hay que apuntarla. Lo
+que se pide es longitud y que no sea conocida.
+
+Enseña el mínimo de 12 **antes** de que el usuario envíe el formulario, y el resto de motivos
+tal como lleguen: cada uno dice exactamente qué corregir. Las comparaciones se hacen en
+minúsculas, sin acentos y sin signos, así que `Contraseña-123` cuenta como `contrasena123`.
+
+> **El mínimo sube de 8 a 12.** Las cuentas que ya existen no cambian —su contraseña sigue
+> valiendo para entrar— pero en cuanto alguien la cambie tendrá que cumplir lo nuevo.
 
 ### `PUT /api/users/{id}/password` — admin
 
@@ -885,6 +911,7 @@ Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atle
 | Login | Aparecen **429** (demasiados intentos) y **403** (cuenta bloqueada, antes 500) | §2 |
 | Refresco | El access token en `/refresh` pasa a 401; el refresh token deja de autenticar | §2 |
 | Gestión de usuarios | Rutas nuevas para cambiar la contraseña, propia y de administrador | §2 |
+| Alta de usuario y alta pública | El mínimo sube de 8 a 12 y hay más motivos de rechazo; el error llega en `message`, ya no en `errors.password` | §2.b |
 | Cualquier pantalla | Si el club bloquea una cuenta, sus peticiones pasan a 401 en el acto | Tratar el 401 como sesión terminada y volver al login |
 
 ---
@@ -894,7 +921,5 @@ Así se da acceso a un tutor o a un deportista con cuenta a los datos de un atle
 - **Recuperación por correo**: no existe. Un "he olvidado mi contraseña" no tiene hoy a dónde
   llamar; la salida es que el administrador la fije (§2) y avise por su cuenta. Cuando entre,
   será una ruta pública nueva y no cambiará las que ya hay.
-- **Política de contraseñas** (mínimo más largo que 8 y contraste con listas filtradas): en
-  cuanto entre, el alta y el cambio de contraseña podrán devolver un 400 nuevo.
 - **Cerrar sesiones a distancia**: hoy solo se consigue bloqueando la cuenta. Una lista de
   revocación permitiría cerrar la sesión de un dispositivo perdido sin bloquear al usuario.

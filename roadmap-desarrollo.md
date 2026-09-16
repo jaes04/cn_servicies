@@ -865,15 +865,15 @@ Nada de esto es código, pero sin ello no puedes vender.
 #### S.3.1 Autenticación — 13 h
 
 - [x] BCrypt con factor de coste ≥ 12 — `30min · Baja · Crítica`
-- [ ] Política de contraseñas: mínimo 12 caracteres, sin composición forzada — `1h · Baja · Alta`
-- [ ] Contrastar contra listas de contraseñas filtradas — `2h · Media · Media`
+- [x] Política de contraseñas: mínimo 12 caracteres, sin composición forzada — `1h · Baja · Alta`
+- [x] Contrastar contra listas de contraseñas filtradas — `2h · Media · Media`
 - [x] Rate limiting en `/login` por IP y por usuario — `2h · Media · Crítica`
 - [x] Bloqueo temporal progresivo tras intentos fallidos — `2h · Media · Alta`
-- [ ] **MFA obligatorio para roles de administración** (TOTP) — `4h · Alta · Crítica`
+- [ ] ~~**MFA obligatorio para roles de administración** (TOTP)~~ — **descartado para la primera versión** (decisión del club): un club pequeño con entrenadores que entran desde el móvil al borde de la piscina no sostiene un segundo factor, y el coste de soporte de "he perdido el móvil" recae en el administrador. Vuelve a la mesa cuando haya varios clubes o antes de exponer datos de salud
 - [x] **Cambiar la contraseña**: no existía ninguna ruta, ni propia ni de administrador — `2h · Baja · Crítica` *(encontrado en el bloque 4)*
 - [ ] Recuperación de contraseña con token de un solo uso y caducidad corta — `3h · Media · Crítica`
 - [x] Respuestas de login que no revelen si el usuario existe — `1h · Media · Alta`
-- [ ] **Rotar toda credencial compartida en conversación o presente en el histórico de git** — `1h · Baja · Crítica`
+- [ ] **Rotar toda credencial compartida en conversación o presente en el histórico de git** — `1h · Baja · Crítica` — **HAY DOS, Y SIGUEN EN USO.** Ver abajo
 
 **S.3.1.a — la puerta de entrada — bloque 4**
 
@@ -933,6 +933,33 @@ Nada de esto es código, pero sin ello no puedes vender.
 > **Tests:** 12 en `user/PasswordChangeEndpointTest`. La suite pasa de 397 a 409.
 
 > **Cambio de contrato:** dos rutas nuevas, y bloquear una cuenta pasa a devolver 401 en cualquier ruta que esa cuenta estuviera usando.
+
+**S.3.1.c — política de contraseñas — bloque 5**
+
+- [x] Mínimo de 12, máximo de 72, sin composición forzada — `1h · Baja · Alta`
+- [x] Lista de contraseñas conocidas, incluida y ampliable por configuración — `2h · Media · Media`
+- [x] Que no lleve dentro el usuario, el correo ni el nombre del club — `1h · Baja · Alta`
+- [ ] **Rotar las dos credenciales encontradas en el histórico público** — `30min · Baja · Crítica` — **decisión del dueño, ver abajo**
+
+> **La política vive en `PasswordPolicy`, llamada desde `UserService`, y no en anotaciones de los DTO.** Por ese servicio pasan las seis vías por las que se fija una contraseña: alta pública, alta desde la administración, alta del club con su administrador, arranque con `ADMIN_PASSWORD`, cambio propio y cambio del administrador. Las tres últimas no validan ningún DTO, así que como anotación se habrían quedado fuera —incluida la cuenta de administrador, que es la más peligrosa del sistema—.
+
+> **Sin composición forzada, a propósito.** Exigir mayúscula, número y símbolo produce `Password1!`: corta, en todas las listas y apuntada en un papel. Longitud y lista de conocidas rinden mucho más, que es lo que recomienda el NIST desde 2017 y lo que ya decía esta tarea del roadmap.
+
+> **El máximo de 72 no es capricho: BCrypt solo mira los primeros 72 bytes y tira el resto sin avisar.** Sin tope, dos contraseñas larguísimas que empiezan igual serían la misma y nadie lo sabría. Se mide en bytes porque una letra con acento ocupa dos, y hay test de eso.
+
+> **Por qué la lista incluida es corta.** El mínimo de 12 ya tumba `123456`, `password` y `qwerty` antes de llegar a la lista, así que lo que hay que cubrir es lo otro: las conocidas que pasan de 12 caracteres, que son bastantes menos, y las del contexto de un club de natación español, que ninguna lista pública trae. Para una lista grande —SecLists, rockyou— se apunta `app.security.password.blocklist-file` y se suma a la incluida, sin tocar código.
+
+> **Se compara normalizado** —minúsculas, sin acentos y sin signos—, porque esquivar la lista poniendo un guion no mejora ninguna contraseña.
+
+> **Que no lleve dentro el usuario, el correo o el club** es lo que de verdad atrapa las contraseñas malas de este sistema: un club pequeño no sufre ataques de diccionario, sufre `cnsierraoeste2026`. Solo se buscan trozos de cuatro letras o más, o un usuario como `ana` bloquearía media lengua.
+
+> **Cambio de contrato:** el mínimo sube de 8 a 12 y los errores de contraseña pasan de `errors.password` a `message`, porque ahora la regla vive en el servicio y no en la anotación. Las cuentas que ya existen no cambian hasta que alguien toque su contraseña.
+
+> **Verificado con once mutaciones y quince rojos. Una superviviente destapó un agujero real:** quitando la comprobación del alta de usuario, ningún test se ponía rojo. Era el camino más importante de los tres —el que cubre `ADMIN_PASSWORD` del arranque— y no estaba probado. Se añadieron dos tests por la ruta `POST /api/users` y la mutación pasó a rojo.
+
+> **Tests:** 16 de la política y 4 de endpoint. La suite pasa de 409 a 427.
+
+> **Credenciales en el histórico público, encontradas al hacer esta tarea.** El repositorio `jaes04/cn_servicies` es **público**, y el commit `7c9f083` (7 de agosto de 2026) metió en `.env.example` un `JWT_SECRET` y un `ADMIN_PASSWORD` con valores reales. **Los dos siguen siendo los que usa el `.env` de hoy.** Reescribir el histórico no arregla nada: estuvieron publicados, hay que darlos por comprometidos y cambiarlos. Con el `JWT_SECRET` cualquiera se firma un token de administrador de cualquier club. Pendiente de decisión del dueño: rotar los dos, y decidir si el repositorio debe seguir siendo público.
 
 #### S.3.2 JWT — 7 h
 
