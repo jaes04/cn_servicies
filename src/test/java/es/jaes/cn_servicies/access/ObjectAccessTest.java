@@ -434,7 +434,8 @@ class ObjectAccessTest {
     private String iniciarSesion(String usuario) {
         HttpHeaders cabeceras = new HttpHeaders();
         cabeceras.setContentType(MediaType.APPLICATION_JSON);
-        String cuerpo = "{\"username\":\"" + usuario + "\",\"password\":\"" + CLAVE + "\"}";
+        String slug = ADMIN_AJENO.equals(usuario) ? SLUG_AJENO : SLUG;
+        String cuerpo = "{\"clubSlug\":\"" + slug + "\",\"username\":\"" + usuario + "\",\"password\":\"" + CLAVE + "\"}";
 
         ResponseEntity<String> respuesta = rest.exchange("/api/auth/login", HttpMethod.POST,
                 new HttpEntity<>(cuerpo, cabeceras), String.class);

@@ -3,6 +3,7 @@ package es.jaes.cn_servicies.club;
 import es.jaes.cn_servicies.user.RoleName;
 import es.jaes.cn_servicies.user.UserRequest;
 import es.jaes.cn_servicies.user.UserService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -78,19 +79,22 @@ public class ClubService {
     }
 
     /**
-     * Club al que se asigna todo lo que se crea mientras no exista contexto de
-     * tenant.
+     * Club dado de alta, por su slug, para lo que llega sin token: el blog
+     * publico, el login y el alta publica. Cada frontend lleva configurado el
+     * slug de su club y lo manda en la peticion.
      *
-     * <p><b>Temporal.</b> Desaparece en la tarea 0.4: a partir de ahi el club
-     * sale del {@code TenantContext}, que a su vez lo toma del claim del JWT.
-     * Mientras tanto la aplicacion sigue siendo mono-club y esta es la unica
-     * forma de satisfacer el {@code NOT NULL} de {@code club_id} sin inventar
-     * un club por peticion.
+     * <p><b>No es una forma de fijar el club de la peticion.</b> Solo sirve para
+     * acotar esa consulta o elegir la cuenta; el {@code TenantContext} sigue
+     * saliendo del JWT y de nada mas.
+     *
+     * <p>Un club de baja responde igual que uno que no existe: su web deja de
+     * servirse.
      */
-    public Club getDefaultClub() {
-        return clubRepository.findBySlug(defaultClubSlug)
-                .orElseThrow(() -> new IllegalStateException(
-                        "No existe el club por defecto con slug '" + defaultClubSlug + "'"));
+    @Transactional(readOnly = true)
+    public Club getActiveBySlug(String slug) {
+        return clubRepository.findBySlug(slug)
+                .filter(Club::isActive)
+                .orElseThrow(() -> new EntityNotFoundException("Club no encontrado"));
     }
 
     public Club getById(UUID id) {

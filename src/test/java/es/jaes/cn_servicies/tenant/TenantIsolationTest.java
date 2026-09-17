@@ -68,9 +68,22 @@ class TenantIsolationTest {
     private static final UUID CLUB_A = UUID.fromString("aaaaaaaa-0000-0000-0000-00000000000a");
     private static final UUID CLUB_B = UUID.fromString("bbbbbbbb-0000-0000-0000-00000000000b");
 
+    private static final String SLUG_A = "club-it-a";
+    private static final String SLUG_B = "club-it-b";
+
+    private static final String NOTICIA_A = "NoticiaDeA";
+    private static final String NOTICIA_B = "NoticiaDeB";
+
     private static final String ADMIN_A = "admin_it_a";
     private static final String ADMIN_B = "admin_it_b";
     private static final String CLAVE = "clave-de-prueba-it";
+
+    /** El mismo username en los dos clubes, cada uno con su correo. */
+    private static final String TOCAYO = "tocayo_it";
+    private static final String CORREO_TOCAYO_A = "tocayo_a@it.local";
+    private static final String CORREO_TOCAYO_B = "tocayo_b@it.local";
+
+    private static final String ALTA_PUBLICA = "alta_publica_it";
 
     private static final String DNI_A = "88888881A";
     private static final String DNI_B = "88888882B";
@@ -109,6 +122,7 @@ class TenantIsolationTest {
     private UUID sesionB;
     private UUID cierreA;
     private UUID cierreB;
+    private UUID noticiaB;
 
     // ----------------------------------------------------------------
     //  Datos de prueba
@@ -119,10 +133,14 @@ class TenantIsolationTest {
         modoPublico();
         borrarDatos();
 
-        crearClub(CLUB_A, "Club IT A", "club-it-a");
-        crearClub(CLUB_B, "Club IT B", "club-it-b");
-        crearAdmin(CLUB_A, ADMIN_A);
-        crearAdmin(CLUB_B, ADMIN_B);
+        crearClub(CLUB_A, "Club IT A", SLUG_A);
+        crearClub(CLUB_B, "Club IT B", SLUG_B);
+        UUID adminA = crearAdmin(CLUB_A, ADMIN_A);
+        UUID adminB = crearAdmin(CLUB_B, ADMIN_B);
+        crearAdmin(CLUB_A, TOCAYO, CORREO_TOCAYO_A);
+        crearAdmin(CLUB_B, TOCAYO, CORREO_TOCAYO_B);
+        crearNoticia(CLUB_A, adminA, NOTICIA_A);
+        noticiaB = crearNoticia(CLUB_B, adminB, NOTICIA_B);
         atletaA = crearAtleta(CLUB_A, "AtletaDeA", DNI_A);
         atletaB = crearAtleta(CLUB_B, "AtletaDeB", DNI_B);
         tutorA = crearTutor(CLUB_A, "TutorDeA", DNI_TUTOR_A);
@@ -167,6 +185,8 @@ class TenantIsolationTest {
         jdbc.update("DELETE FROM training_groups WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM medical_certificates WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM seasons WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
+        // Antes que users: la noticia apunta a su autor.
+        jdbc.update("DELETE FROM posts WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM user_roles WHERE user_id IN"
                 + " (SELECT id FROM users WHERE club_id IN (?, ?))", CLUB_A, CLUB_B);
         jdbc.update("DELETE FROM users WHERE club_id IN (?, ?)", CLUB_A, CLUB_B);
@@ -186,14 +206,32 @@ class TenantIsolationTest {
                 + " VALUES (?, ?, ?, true, now())", id, nombre, slug);
     }
 
-    private void crearAdmin(UUID clubId, String username) {
+    private UUID crearAdmin(UUID clubId, String username) {
+        return crearAdmin(clubId, username, username + "@it.local");
+    }
+
+    /** Con el correo aparte: el email sigue siendo unico global, el username no. */
+    private UUID crearAdmin(UUID clubId, String username, String email) {
         UUID id = UUID.randomUUID();
         jdbc.update("INSERT INTO users"
                         + " (id, club_id, username, email, password_hash, blocked, created_at, updated_at)"
                         + " VALUES (?, ?, ?, ?, ?, false, now(), now())",
-                id, clubId, username, username + "@it.local", passwordEncoder.encode(CLAVE));
+                id, clubId, username, email, passwordEncoder.encode(CLAVE));
         jdbc.update("INSERT INTO user_roles (user_id, role_id)"
                 + " SELECT ?, id FROM roles WHERE name = 'ROLE_ADMIN'", id);
+        return id;
+    }
+
+    /** Publicada, y con el mismo slug en los dos clubes: se puede repetir. */
+    private UUID crearNoticia(UUID clubId, UUID autorId, String titulo) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO posts"
+                        + " (id, club_id, title, content, slug, status, published_at, author_id,"
+                        + "  created_at, updated_at)"
+                        + " VALUES (?, ?, ?, 'Contenido de prueba', 'noticia-it', 'PUBLISHED', now(), ?,"
+                        + "  now(), now())",
+                id, clubId, titulo, autorId);
+        return id;
     }
 
     private UUID crearAtleta(UUID clubId, String nombre, String dni) {
@@ -255,7 +293,7 @@ class TenantIsolationTest {
     @Test
     @DisplayName("el admin del club A no ve ni un atleta del club B")
     void unClubNoVeAtletasDeOtro() {
-        String cuerpo = get("/api/athletes?size=100", iniciarSesion(ADMIN_A)).getBody();
+        String cuerpo = get("/api/athletes?size=100", iniciarSesion(SLUG_A, ADMIN_A)).getBody();
 
         assertThat(cuerpo).contains("AtletaDeA");
         assertThat(cuerpo).doesNotContain("AtletaDeB");
@@ -265,7 +303,7 @@ class TenantIsolationTest {
     @Test
     @DisplayName("el admin del club A no ve ni un usuario del club B")
     void unClubNoVeUsuariosDeOtro() {
-        String cuerpo = get("/api/users?size=100", iniciarSesion(ADMIN_A)).getBody();
+        String cuerpo = get("/api/users?size=100", iniciarSesion(SLUG_A, ADMIN_A)).getBody();
 
         assertThat(cuerpo).contains(ADMIN_A);
         assertThat(cuerpo).doesNotContain(ADMIN_B);
@@ -576,12 +614,50 @@ class TenantIsolationTest {
     @Test
     @DisplayName("por HTTP, pedir por id un atleta de otro club devuelve 404")
     void porHttpElAtletaAjenoDa404() {
-        String token = iniciarSesion(ADMIN_B);
+        String token = iniciarSesion(SLUG_B, ADMIN_B);
 
         assertThat(get("/api/athletes/" + atletaA, token).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(get("/api/athletes/" + atletaB, token).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
+    }
+
+    // ----------------------------------------------------------------
+    //  2.b El blog publico, sin token
+    // ----------------------------------------------------------------
+    //  Aqui no protegen ni el filtro ni las policies: una peticion anonima va
+    //  en modo 'public' y lo ve todo. Lo unico que separa los clubes es el slug
+    //  de la ruta, y eso es lo que se comprueba.
+
+    @Test
+    @DisplayName("el blog publico de un club no enseña las noticias de otro")
+    void elBlogPublicoNoMezclaClubes() {
+        String deA = rest.getForEntity("/api/clubs/" + SLUG_A + "/posts/published?size=100", String.class).getBody();
+        String deB = rest.getForEntity("/api/clubs/" + SLUG_B + "/posts/published?size=100", String.class).getBody();
+
+        assertThat(deA).contains(NOTICIA_A).doesNotContain(NOTICIA_B);
+        assertThat(deB).contains(NOTICIA_B).doesNotContain(NOTICIA_A);
+    }
+
+    @Test
+    @DisplayName("la noticia de otro club no se abre por id con el slug propio")
+    void laNoticiaAjenaNoSeAbrePorId() {
+        assertThat(rest.getForEntity("/api/clubs/" + SLUG_A + "/posts/published/" + noticiaB, String.class)
+                .getStatusCode())
+                .as("la noticia del club B pedida con el slug del club A")
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(rest.getForEntity("/api/clubs/" + SLUG_B + "/posts/published/" + noticiaB, String.class)
+                .getStatusCode())
+                .as("la misma noticia con el slug de su club")
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("un slug que no es de ningun club no tiene blog")
+    void unSlugInexistenteDa404() {
+        assertThat(rest.getForEntity("/api/clubs/club-que-no-existe-it/posts/published", String.class)
+                .getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     // ----------------------------------------------------------------
@@ -603,13 +679,74 @@ class TenantIsolationTest {
     }
 
     // ----------------------------------------------------------------
+    //  3.b El mismo username en dos clubes
+    // ----------------------------------------------------------------
+    //  El username es unico por club, no global. Buscado sin el club, la
+    //  cuenta es ambigua: el login, el filtro del token y el refresco dejaban
+    //  de funcionar para los dos, o entraban en la del otro.
+
+    @Test
+    @DisplayName("dos cuentas con el mismo username entran cada una en su club y ven solo lo suyo")
+    void mismoUsernameEnDosClubes() {
+        String tokenA = iniciarSesion(SLUG_A, TOCAYO);
+        String tokenB = iniciarSesion(SLUG_B, TOCAYO);
+
+        assertThat(get("/api/users/me", tokenA).getBody()).contains(CORREO_TOCAYO_A);
+        assertThat(get("/api/users/me", tokenB).getBody()).contains(CORREO_TOCAYO_B);
+        assertThat(get("/api/athletes?size=100", tokenA).getBody())
+                .contains("AtletaDeA").doesNotContain("AtletaDeB");
+        assertThat(get("/api/athletes?size=100", tokenB).getBody())
+                .contains("AtletaDeB").doesNotContain("AtletaDeA");
+    }
+
+    @Test
+    @DisplayName("refrescar mantiene el club: el refresco de un tocayo no da los tokens del otro")
+    void elRefrescoMantieneElClub() {
+        String refresco = token(entrar(SLUG_B, TOCAYO), "refreshToken");
+
+        ResponseEntity<String> respuesta = post("/api/auth/refresh", "{\"refreshToken\":\"" + refresco + "\"}");
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(get("/api/users/me", token(respuesta, "accessToken")).getBody()).contains(CORREO_TOCAYO_B);
+    }
+
+    @Test
+    @DisplayName("con el slug de otro club no se entra, aunque la contraseña sea la buena")
+    void conElSlugDeOtroClubNoSeEntra() {
+        assertThat(entrar(SLUG_B, ADMIN_A).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("el login sin club se rechaza")
+    void elLoginSinClubSeRechaza() {
+        String cuerpo = "{\"username\":\"" + ADMIN_A + "\",\"password\":\"" + CLAVE + "\"}";
+
+        assertThat(post("/api/auth/login", cuerpo).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    @DisplayName("el alta publica crea la cuenta en el club del slug, no en otro")
+    void elAltaPublicaEntraEnElClubDelSlug() {
+        String cuerpo = "{\"clubSlug\":\"" + SLUG_B + "\",\"username\":\"" + ALTA_PUBLICA + "\","
+                + "\"email\":\"" + ALTA_PUBLICA + "@it.local\",\"password\":\"" + CLAVE + "\"}";
+
+        assertThat(post("/api/auth/signup", cuerpo).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(entrar(SLUG_B, ALTA_PUBLICA).getStatusCode())
+                .as("entra en el club donde se dio de alta")
+                .isEqualTo(HttpStatus.OK);
+        assertThat(entrar(SLUG_A, ALTA_PUBLICA).getStatusCode())
+                .as("y no existe en el otro")
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    // ----------------------------------------------------------------
     //  4. Regresion
     // ----------------------------------------------------------------
 
     @Test
     @DisplayName("el login sigue funcionando")
     void elLoginSigueFuncionando() {
-        String token = iniciarSesion(ADMIN_A);
+        String token = iniciarSesion(SLUG_A, ADMIN_A);
 
         assertThat(token).isNotBlank();
         assertThat(get("/api/users/me", token).getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -618,7 +755,7 @@ class TenantIsolationTest {
     @Test
     @DisplayName("el blog publico sigue sirviendo sin autenticacion")
     void elBlogPublicoSigueSirviendo() {
-        assertThat(rest.getForEntity("/api/posts/published", String.class).getStatusCode())
+        assertThat(rest.getForEntity("/api/clubs/" + SLUG_A + "/posts/published", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
     }
 
@@ -633,19 +770,29 @@ class TenantIsolationTest {
     //  Utilidades
     // ----------------------------------------------------------------
 
-    private String iniciarSesion(String username) {
-        HttpHeaders cabeceras = new HttpHeaders();
-        cabeceras.setContentType(MediaType.APPLICATION_JSON);
-        String cuerpo = "{\"username\":\"" + username + "\",\"password\":\"" + CLAVE + "\"}";
-
-        ResponseEntity<String> respuesta = rest.exchange("/api/auth/login", HttpMethod.POST,
-                new HttpEntity<>(cuerpo, cabeceras), String.class);
+    private String iniciarSesion(String slug, String username) {
+        ResponseEntity<String> respuesta = entrar(slug, username);
 
         assertThat(respuesta.getStatusCode())
-                .as("no se pudo iniciar sesion como %s", username)
+                .as("no se pudo iniciar sesion como %s en %s", username, slug)
                 .isEqualTo(HttpStatus.OK);
 
-        return respuesta.getBody().replaceAll(".*\"accessToken\":\"([^\"]+)\".*", "$1");
+        return token(respuesta, "accessToken");
+    }
+
+    private ResponseEntity<String> entrar(String slug, String username) {
+        String cuerpo = "{\"clubSlug\":\"" + slug + "\",\"username\":\"" + username + "\",\"password\":\"" + CLAVE + "\"}";
+        return post("/api/auth/login", cuerpo);
+    }
+
+    private ResponseEntity<String> post(String ruta, String cuerpo) {
+        HttpHeaders cabeceras = new HttpHeaders();
+        cabeceras.setContentType(MediaType.APPLICATION_JSON);
+        return rest.exchange(ruta, HttpMethod.POST, new HttpEntity<>(cuerpo, cabeceras), String.class);
+    }
+
+    private static String token(ResponseEntity<String> respuesta, String campo) {
+        return respuesta.getBody().replaceAll(".*\"" + campo + "\":\"([^\"]+)\".*", "$1");
     }
 
     private ResponseEntity<String> get(String ruta, String token) {

@@ -243,7 +243,7 @@ class AthleteGroupEndpointTest {
     private String iniciarSesion() {
         HttpHeaders cabeceras = new HttpHeaders();
         cabeceras.setContentType(MediaType.APPLICATION_JSON);
-        String cuerpo = "{\"username\":\"" + ADMIN + "\",\"password\":\"" + CLAVE + "\"}";
+        String cuerpo = "{\"clubSlug\":\"" + SLUG + "\",\"username\":\"" + ADMIN + "\",\"password\":\"" + CLAVE + "\"}";
 
         ResponseEntity<String> respuesta = rest.exchange("/api/auth/login", HttpMethod.POST,
                 new HttpEntity<>(cuerpo, cabeceras), String.class);

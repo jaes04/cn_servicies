@@ -24,23 +24,6 @@ public class PostController {
 
     private final PostService postService;
 
-    @GetMapping("/published")
-    public ResponseEntity<Page<PostResponse>> listPublished(
-            @RequestParam(required = false) String q,
-            @RequestParam(required = false) String author,
-            @PageableDefault(size = 10, sort = "publishedAt") Pageable pageable) {
-        return ResponseEntity.ok(postService.listPublished(q, author, pageable));
-    }
-
-    /**
-     * Detalle publico de una noticia, por id. Antes recibia el slug, que dejo
-     * de identificar al post cuando se permitio repetirlo entre clubes.
-     */
-    @GetMapping("/published/{id}")
-    public ResponseEntity<PostResponse> getPublishedById(@PathVariable UUID id) {
-        return ResponseEntity.ok(postService.findPublishedById(id));
-    }
-
     @GetMapping
     public ResponseEntity<Page<PostResponse>> listAll(
             @RequestParam(required = false) String q,

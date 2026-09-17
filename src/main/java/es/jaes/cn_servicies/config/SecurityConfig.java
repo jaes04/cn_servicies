@@ -60,7 +60,8 @@ public class SecurityConfig {
                         .requestMatchers(POST, "/api/auth/login").permitAll()
                         .requestMatchers(POST, "/api/auth/refresh").permitAll()
                         .requestMatchers(POST, "/api/auth/signup").permitAll()
-                        .requestMatchers(GET, "/api/posts/published/**").permitAll()
+                        // Blog publico, siempre de un club: el slug va en la ruta.
+                        .requestMatchers(GET, "/api/clubs/*/posts/published/**").permitAll()
                         .requestMatchers(GET, "/api/images/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(POST, "/api/posts/*/comments").authenticated()
@@ -75,7 +76,8 @@ public class SecurityConfig {
                         // Post lleva @SQLRestriction. Hasta la regla de denegar por
                         // defecto no tenian regla propia y caian en el authenticated()
                         // final: cualquier cuenta —un tutor, un atleta— leia noticias
-                        // sin publicar. Lo publico va por /published, mas arriba.
+                        // sin publicar. Lo publico va por /api/clubs/{slug}/posts/published,
+                        // mas arriba.
                         // Va despues de las de comentarios, o se las comeria.
                         .requestMatchers(GET, "/api/posts/**").hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers(GET, "/api/users/me").authenticated()

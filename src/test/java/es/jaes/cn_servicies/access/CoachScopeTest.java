@@ -441,7 +441,7 @@ class CoachScopeTest {
     private String iniciarSesion(String usuario) {
         HttpHeaders cabeceras = new HttpHeaders();
         cabeceras.setContentType(MediaType.APPLICATION_JSON);
-        String cuerpo = "{\"username\":\"" + usuario + "\",\"password\":\"" + CLAVE + "\"}";
+        String cuerpo = "{\"clubSlug\":\"" + SLUG + "\",\"username\":\"" + usuario + "\",\"password\":\"" + CLAVE + "\"}";
 
         ResponseEntity<String> respuesta = rest.exchange("/api/auth/login", HttpMethod.POST,
                 new HttpEntity<>(cuerpo, cabeceras), String.class);

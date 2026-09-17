@@ -167,7 +167,7 @@ class InviteKeyRedeemEndpointTest {
     private String iniciarSesion() {
         HttpHeaders cabeceras = new HttpHeaders();
         cabeceras.setContentType(MediaType.APPLICATION_JSON);
-        String cuerpo = "{\"username\":\"" + SOCIO + "\",\"password\":\"" + CLAVE + "\"}";
+        String cuerpo = "{\"clubSlug\":\"" + SLUG + "\",\"username\":\"" + SOCIO + "\",\"password\":\"" + CLAVE + "\"}";
         ResponseEntity<String> respuesta = rest.exchange("/api/auth/login", HttpMethod.POST,
                 new HttpEntity<>(cuerpo, cabeceras), String.class);
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);

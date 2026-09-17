@@ -25,8 +25,12 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = "server.forward-headers-strategy=framework")
 class SecurityHeadersTest {
 
-    /** Publica y sin autenticar: la cabecera tiene que estar aunque no haya sesion. */
-    private static final String RUTA_PUBLICA = "/api/posts/published";
+    /**
+     * Publica y sin autenticar: la cabecera tiene que estar aunque no haya sesion.
+     * El club no existe, asi que responde 404 desde el controlador, que para las
+     * cabeceras es el mismo camino que un 200: las pone Spring Security en todas.
+     */
+    private static final String RUTA_PUBLICA = "/api/clubs/club-cabeceras-it/posts/published";
 
     @Autowired private TestRestTemplate rest;
 

@@ -45,18 +45,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 try {
                     String username = jwtTokenProvider.extractUsername(token);
                     UUID tokenClubId = jwtTokenProvider.extractClubId(token);
-                    UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-
-                    // El club del token tiene que ser el del usuario. La firma
-                    // ya impide falsificarlo, pero un token puede quedar obsoleto
-                    // y no se autentica a nadie en un club que no es el suyo.
-                    if (!(userDetails instanceof AuthenticatedUser authenticated)
-                            || !authenticated.getClubId().equals(tokenClubId)) {
-                        log.warn("El club del token no coincide con el del usuario en {}",
-                                request.getRequestURI());
-                        filterChain.doFilter(request, response);
-                        return;
-                    }
+                    // Se busca la cuenta dentro del club del token, no por
+                    // username a secas: con un 'admin' en cada club la busqueda
+                    // suelta era ambigua y no autenticaba a ninguno. Y si el
+                    // usuario no es de ese club —un token obsoleto— no aparece,
+                    // cae en el catch y la peticion sigue sin autenticar.
+                    UserDetails userDetails = userDetailsService.loadUserByClubAndUsername(tokenClubId, username);
 
                     // Una cuenta bloqueada deja de autenticar en el acto, aunque
                     // su token siga siendo valido. Sin esto, bloquear a alguien

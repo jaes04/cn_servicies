@@ -2,6 +2,8 @@ package es.jaes.cn_servicies.post;
 
 import org.springframework.data.jpa.domain.Specification;
 
+import java.util.UUID;
+
 class PostSpecification {
 
     static Specification<Post> titleOrContentContains(String q) {
@@ -14,6 +16,14 @@ class PostSpecification {
 
     static Specification<Post> hasAuthor(String username) {
         return (root, query, cb) -> cb.equal(root.get("author").get("username"), username);
+    }
+
+    /**
+     * Explicito, para las consultas anonimas: sin token no hay filtro de
+     * Hibernate y las policies lo dejan ver todo.
+     */
+    static Specification<Post> belongsToClub(UUID clubId) {
+        return (root, query, cb) -> cb.equal(root.get("club").get("id"), clubId);
     }
 
     static Specification<Post> hasStatus(PostStatus status) {

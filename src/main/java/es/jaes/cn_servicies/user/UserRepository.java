@@ -12,13 +12,17 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
 
     /**
      * Ambiguo desde que el username es unico por club: puede existir un 'admin'
-     * en cada uno. Solo es fiable mientras haya un unico club. La tarea 0.3 lo
-     * sustituye por la variante acotada, cuando el login resuelva el club antes
-     * de autenticar.
+     * en cada uno. Solo es fiable dentro de una peticion autenticada, donde el
+     * filtro de Hibernate y las policies lo acotan al club del token. Para
+     * autenticar, o en cualquier sitio sin club en contexto, usa
+     * {@link #findByClubIdAndUsername}.
      */
     Optional<User> findByUsername(String username);
 
     Optional<User> findByClubAndUsername(Club club, String username);
+
+    /** La cuenta de un club concreto. Es la que usa la autenticacion. */
+    Optional<User> findByClubIdAndUsername(UUID clubId, String username);
 
     Optional<User> findByEmail(String email);
 

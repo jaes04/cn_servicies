@@ -7,6 +7,10 @@ import lombok.Data;
 @Data
 public class SignupRequest {
 
+    /** Slug del club en el que se da de alta la cuenta. Lo lleva configurado cada frontend. */
+    @NotBlank
+    private String clubSlug;
+
     @NotBlank
     private String username;
 

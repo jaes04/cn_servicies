@@ -1,5 +1,7 @@
 package es.jaes.cn_servicies.post;
 
+import es.jaes.cn_servicies.club.Club;
+import es.jaes.cn_servicies.club.ClubService;
 import es.jaes.cn_servicies.user.User;
 import es.jaes.cn_servicies.user.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -25,6 +27,7 @@ public class PostService {
     private final PostImageRepository postImageRepository;
     private final UserRepository userRepository;
     private final ImageStorageService imageStorageService;
+    private final ClubService clubService;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -89,9 +92,16 @@ public class PostService {
         postRepository.save(post);
     }
 
+    /**
+     * Blog publico de un club. Lo sirve un endpoint anonimo, asi que no hay
+     * filtro de Hibernate y las policies estan en modo {@code public}: sin la
+     * condicion del club saldrian las noticias de todos.
+     */
     @Transactional(readOnly = true)
-    public Page<PostResponse> listPublished(String q, String author, Pageable pageable) {
-        Specification<Post> spec = Specification.where(PostSpecification.hasStatus(PostStatus.PUBLISHED));
+    public Page<PostResponse> listPublished(String clubSlug, String q, String author, Pageable pageable) {
+        Club club = clubService.getActiveBySlug(clubSlug);
+        Specification<Post> spec = Specification.where(PostSpecification.belongsToClub(club.getId()))
+                .and(PostSpecification.hasStatus(PostStatus.PUBLISHED));
         if (q != null && !q.isBlank()) spec = spec.and(PostSpecification.titleOrContentContains(q));
         if (author != null && !author.isBlank()) spec = spec.and(PostSpecification.hasAuthor(author));
         return postRepository.findAll(spec, pageable).map(this::toResponse);
@@ -113,10 +123,14 @@ public class PostService {
      * <p>Exige que este PUBLISHED: este metodo lo sirve un endpoint anonimo y
      * un borrador no puede salir por ahi. Para ver uno sin publicar esta
      * {@link #findById}, detras de autenticacion.
+     *
+     * <p>Exige tambien que sea del club del slug: con el id de una noticia de
+     * otro club responde 404, igual que si no existiera.
      */
     @Transactional(readOnly = true)
-    public PostResponse findPublishedById(UUID id) {
-        Post post = postRepository.findByIdAndStatus(id, PostStatus.PUBLISHED)
+    public PostResponse findPublishedById(String clubSlug, UUID id) {
+        Club club = clubService.getActiveBySlug(clubSlug);
+        Post post = postRepository.findByIdAndStatusAndClubId(id, PostStatus.PUBLISHED, club.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Post no encontrado"));
         return toResponse(post);
     }

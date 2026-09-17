@@ -239,7 +239,7 @@ class LoginHardeningEndpointTest {
     }
 
     private ResponseEntity<String> entrar(String usuario, String clave) {
-        String cuerpo = "{\"username\":\"" + usuario + "\",\"password\":\"" + clave + "\"}";
+        String cuerpo = "{\"clubSlug\":\"" + SLUG + "\",\"username\":\"" + usuario + "\",\"password\":\"" + clave + "\"}";
         return rest.exchange("/api/auth/login", HttpMethod.POST,
                 new HttpEntity<>(cuerpo, json()), String.class);
     }

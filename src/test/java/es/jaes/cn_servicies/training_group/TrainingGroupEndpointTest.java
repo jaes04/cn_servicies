@@ -160,7 +160,7 @@ class TrainingGroupEndpointTest {
     private String iniciarSesion(String username) {
         HttpHeaders cabeceras = new HttpHeaders();
         cabeceras.setContentType(MediaType.APPLICATION_JSON);
-        String cuerpo = "{\"username\":\"" + username + "\",\"password\":\"" + CLAVE + "\"}";
+        String cuerpo = "{\"clubSlug\":\"" + SLUG + "\",\"username\":\"" + username + "\",\"password\":\"" + CLAVE + "\"}";
 
         ResponseEntity<String> respuesta = rest.exchange("/api/auth/login", HttpMethod.POST,
                 new HttpEntity<>(cuerpo, cabeceras), String.class);

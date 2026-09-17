@@ -51,6 +51,8 @@ class PendingDocumentationEndpointTest {
 
     private static final UUID CLUB = UUID.fromString("eeee1111-0000-0000-0000-000000001111");
     private static final UUID CLUB_SIN_TEMPORADA = UUID.fromString("eeee1111-0000-0000-0000-000000002222");
+    private static final String SLUG = "club-pendientes-it";
+    private static final String SLUG_SIN_TEMPORADA = "club-sin-temporada-it";
 
     private static final String CLAVE = "clave-de-prueba-it";
     private static final String ADMIN = "admin_pendientes_it";
@@ -79,8 +81,8 @@ class PendingDocumentationEndpointTest {
         modoPublico();
         borrarTodo();
 
-        crearClub(CLUB, "club-pendientes-it");
-        crearClub(CLUB_SIN_TEMPORADA, "club-sin-temporada-it");
+        crearClub(CLUB, SLUG);
+        crearClub(CLUB_SIN_TEMPORADA, SLUG_SIN_TEMPORADA);
         crearUsuario(CLUB, ADMIN, "ROLE_ADMIN");
         crearUsuario(CLUB, ENTRENADOR, "ROLE_TECHNICAL_STAFF");
         crearUsuario(CLUB, SIN_GRUPO, "ROLE_TECHNICAL_STAFF");
@@ -374,7 +376,8 @@ class PendingDocumentationEndpointTest {
     private String iniciarSesion(String usuario) {
         HttpHeaders cabeceras = new HttpHeaders();
         cabeceras.setContentType(MediaType.APPLICATION_JSON);
-        String cuerpo = "{\"username\":\"" + usuario + "\",\"password\":\"" + CLAVE + "\"}";
+        String slug = ADMIN_SIN_TEMPORADA.equals(usuario) ? SLUG_SIN_TEMPORADA : SLUG;
+        String cuerpo = "{\"clubSlug\":\"" + slug + "\",\"username\":\"" + usuario + "\",\"password\":\"" + CLAVE + "\"}";
         ResponseEntity<String> respuesta = rest.exchange("/api/auth/login", HttpMethod.POST,
                 new HttpEntity<>(cuerpo, cabeceras), String.class);
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);

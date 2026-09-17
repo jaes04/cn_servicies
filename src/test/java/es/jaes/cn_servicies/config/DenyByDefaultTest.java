@@ -151,7 +151,7 @@ class DenyByDefaultTest {
     @Test
     @DisplayName("lo publicado sigue siendo público")
     void loPublicadoSigueSiendoPublico() {
-        assertThat(rest.getForEntity("/api/posts/published", String.class).getStatusCode())
+        assertThat(rest.getForEntity("/api/clubs/" + SLUG + "/posts/published", String.class).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
     }
 
@@ -208,7 +208,7 @@ class DenyByDefaultTest {
     private String iniciarSesion(String username) {
         HttpHeaders cabeceras = new HttpHeaders();
         cabeceras.setContentType(MediaType.APPLICATION_JSON);
-        String cuerpo = "{\"username\":\"" + username + "\",\"password\":\"" + CLAVE + "\"}";
+        String cuerpo = "{\"clubSlug\":\"" + SLUG + "\",\"username\":\"" + username + "\",\"password\":\"" + CLAVE + "\"}";
         ResponseEntity<String> respuesta = rest.exchange("/api/auth/login", HttpMethod.POST,
                 new HttpEntity<>(cuerpo, cabeceras), String.class);
         assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.OK);
