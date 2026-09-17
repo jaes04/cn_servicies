@@ -28,6 +28,12 @@ en tres capas:
 3. **El claim `club_id` del JWT**, puesto por `TenantFilter`. Nunca se resuelve el club
    desde un parámetro, cabecera o cuerpo de la petición.
 
+**Lo que llega sin token lleva el slug del club** (decidido en septiembre de 2026). Cada
+frontend lo tiene configurado (`VITE_CLUB_SLUG`) y lo manda: en la ruta del blog público
+(`/api/clubs/{slug}/posts/published/**`) y como `clubSlug` en el cuerpo del login y del alta
+pública. **El slug no fija el `TenantContext`**: solo acota esa consulta o elige la cuenta.
+Un slug inexistente o de un club de baja responde 404. Tareas 0.2.c y 0.3.b del roadmap.
+
 La **Fase S.1.a** también está hecha: tutores, consentimientos granulares y el bloqueo del
 alta de menores de 14 sin consentimiento.
 
@@ -241,9 +247,13 @@ Hibernate lleva un nombre aleatorio que no se puede referenciar en una migració
 en `schema.sql`, con nombre `uk_*`. `user_athletes` y `athlete_guardians` tienen el
 problema contrario —solo existe la generada— y está anotado en la tarea 2.6.
 
-**El login sigue resolviéndose solo por `username`.** Es correcto mientras haya un único
-club; con dos, `UserRepository.findByUsername` se vuelve ambiguo, porque el username es
-único por club. Es la decisión abierta de más abajo.
+**Una cuenta se identifica por club y username, nunca por username solo.** El username es
+único por club, así que `UserRepository.findByUsername` es ambiguo en cuanto dos clubes
+tienen un `admin`. Solo es fiable dentro de una petición autenticada, donde el filtro y RLS
+lo acotan al club del token. Todo lo que autentica —login, alta pública, `JwtAuthFilter`,
+refresco— usa `UserDetailsServiceImpl.loadUserByClubAndUsername`; `loadUserByUsername`
+lanza a propósito. El club sale del slug que manda el frontend (`clubSlug`) en lo público,
+y del claim `club_id` en lo que lleva token.
 
 ---
 
@@ -251,10 +261,6 @@ club; con dos, `UserRepository.findByUsername` se vuelve ambiguo, porque el user
 
 No las cierres tú. Si una tarea depende de una, pregunta.
 
-- **Cómo se determina el club en lo público.** Afecta al login, al alta pública de usuario
-  y al blog. Hoy el login resuelve por username a secas y el alta pública cae en el club
-  por defecto. Con el segundo club, las dos cosas se rompen. Subdominio, slug en la
-  petición o selector en el formulario: sin decidir. **Es cambio de contrato de login.**
 - **Documentos subidos**: desde el bloque 3a la subida de `AthleteDocument` está apagada
   por defecto (`app.documents.upload.enabled`) y el club registra la entrega de papeles en
   `DocumentDelivery`. Sigue abierto qué se hace con los archivos que ya existan y si algún

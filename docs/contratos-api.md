@@ -94,14 +94,20 @@ lo contrario, pídelo: `sort=publishedAt,desc`.
 ### `POST /api/auth/login` — público
 
 ```json
-{ "username": "adminjaes", "password": "…" }
+{ "clubSlug": "sierra-oeste", "username": "adminjaes", "password": "…" }
 ```
+
+**`clubSlug` es obligatorio**: el username es único por club, y sin el club no se sabe de
+quién es. Tómalo de `import.meta.env.VITE_CLUB_SLUG`, el mismo del blog público.
 
 **200:**
 
 ```json
 { "accessToken": "eyJ…", "refreshToken": "eyJ…", "tokenType": "Bearer" }
 ```
+
+**400:** falta `clubSlug`. **404:** `"Club no encontrado"`, el slug no es de ningún club dado
+de alta; es un fallo de configuración del frontend, no del usuario.
 
 **401:** `"Usuario o contraseña incorrectos"`. Es el mismo mensaje exista el usuario o no:
 la pantalla no puede distinguir "ese usuario no existe" de "esa contraseña no es".
@@ -119,7 +125,7 @@ mensajes distintos para que se puedan separar en la pantalla:
   "path": "/api/auth/login", "timestamp": "…" }
 ```
 
-- **"con esta cuenta"**: 5 fallos seguidos con ese usuario.
+- **"con esta cuenta"**: 5 fallos seguidos con ese usuario en ese club.
 - **"desde esta conexión"**: 30 fallos desde la misma IP, aunque sean de usuarios distintos.
   Sale cuando alguien prueba una contraseña en muchas cuentas.
 - Llega también la cabecera estándar `Retry-After`, en segundos. Usa
@@ -978,13 +984,18 @@ que la cuenta tiene vínculo, como tutor o como deportista (§17); sin vínculos
 
 | Método y ruta | Quién | Respuesta |
 |---|---|---|
-| `GET /api/posts/published?q=&author=` | **Público**, sin token | Página de publicadas |
-| `GET /api/posts/published/{id}` | **Público** | La noticia; 404 si no está publicada |
+| `GET /api/clubs/{slug}/posts/published?q=&author=` | **Público**, sin token | Página de publicadas **de ese club** |
+| `GET /api/clubs/{slug}/posts/published/{id}` | **Público** | La noticia; 404 si no está publicada o es de otro club |
 | `GET /api/posts?q=&author=&status=` | Admin, editor | Página: publicadas **y borradores** |
 | `GET /api/posts/{id}` | Admin, editor | La noticia, esté como esté |
 | `POST /api/posts` | **Solo editor** | 201. Siempre nace como borrador |
 | `PUT /api/posts/{id}` | Admin, editor | 200 |
 | `DELETE /api/posts/{id}` | Admin, editor | 204 |
+
+**Lo público va siempre con el slug del club.** Sin token la API no sabe de qué club es la
+web, así que el frontend lo manda en la ruta: tómalo de `import.meta.env.VITE_CLUB_SLUG`.
+Un slug que no existe, o de un club dado de baja, responde **404**. Las rutas autenticadas
+de noticias no lo llevan: el club sale del token.
 
 **Ojo: crear es solo de `ROLE_EDITOR`, no de administrador.** Un administrador sin rol de
 editor recibe 403 al crear, aunque sí puede editar y borrar. Si el club quiere que el
@@ -1111,12 +1122,12 @@ no sea la tuya, siendo no administrador: 404. Sustituye la anterior.
 **Respuesta de una cuenta:** `id`, `username`, `email`, `blocked`, `roles`, `createdAt`,
 `profilePhoto` (URL relativa, ver §17.c).
 
-**Alta pública** (`POST /api/auth/signup`): `{ "username", "email", "password" }`. Crea una
-cuenta `ROLE_USER` **en el club por defecto** y devuelve sus tokens, como un login. Con un solo
-club es correcto; en qué club cae cuando haya varios sigue sin decidir.
+**Alta pública** (`POST /api/auth/signup`): `{ "clubSlug", "username", "email", "password" }`.
+Crea una cuenta `ROLE_USER` **en el club del slug** y devuelve sus tokens, como un login.
+`clubSlug` es obligatorio, igual que en el login: 400 sin él, 404 si no es de ningún club.
 
 **Alta con rol** (`POST /api/auth/signup/with-role`): `{ "username", "email", "password",
-"roles": [...] }`. **Devuelve los tokens de la cuenta nueva, no los tuyos: no los guardes**, o
+"roles": [...] }`. Sin `clubSlug`: la cuenta se crea en el club del administrador. **Devuelve los tokens de la cuenta nueva, no los tuyos: no los guardes**, o
 la sesión del administrador pasa a ser la de la cuenta que acaba de crear. **Usa
 `POST /api/users`**, que hace lo mismo y devuelve la cuenta.
 
@@ -1158,7 +1169,9 @@ falta cifrado, un directorio aparte y registro de accesos.
 | Cualquier pantalla | Si el club bloquea una cuenta, sus peticiones pasan a 401 en el acto | Tratar el 401 como sesión terminada y volver al login |
 | Certificados y entregas | Rutas nuevas para corregir (`PUT`) y borrar (`DELETE`) por id | §15 y §16 |
 | Entornos nuevos | Ya no traen las cuentas `admin`, `editor`, `tecnico` y `usuario` ni datos de ejemplo | Entrar con el administrador de `ADMIN_USERNAME` |
-| **Noticias: listado y lectura por id** | `GET /api/posts` y `GET /api/posts/{id}` pasan a ser **solo de administrador o editor**: devuelven también los borradores. Antes los leía cualquier cuenta | Para cualquier otra cuenta, y en la web pública, usar `/api/posts/published` y `/api/posts/published/{id}` |
+| **Noticias: listado y lectura por id** | `GET /api/posts` y `GET /api/posts/{id}` pasan a ser **solo de administrador o editor**: devuelven también los borradores. Antes los leía cualquier cuenta | Para cualquier otra cuenta, y en la web pública, usar `/api/clubs/{slug}/posts/published` y `/api/clubs/{slug}/posts/published/{id}` |
+| **Login y alta pública** | El cuerpo lleva `clubSlug`, obligatorio. Sin él, 400; con uno que no existe, 404 | Mandar `VITE_CLUB_SLUG` como `clubSlug` (§2 y §17.d). Las sesiones abiertas siguen valiendo |
+| **Blog público** | `/api/posts/published` y `/api/posts/published/{id}` desaparecen: pasan a `/api/clubs/{slug}/posts/published` y `/{id}`. Antes enseñaban las noticias de todos los clubes | Configurar `VITE_CLUB_SLUG` en cada entorno y usarlo en la ruta (§17.c) |
 | Cualquier llamada con la ruta mal escrita | 403 en vez de 404 | Revisar la ruta (§1) |
 | Alta con rol | El mínimo de contraseña de esa ruta seguía en 8 y el error llegaba en `errors.password`; ahora 12 y en `message`, como las demás | §2.b |
 | **Lo que salga de `API_DOCS.md`** | Es de mayo: permisos, mínimos de contraseña y documentos subidos ya no son así | Usar este documento |

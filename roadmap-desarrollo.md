@@ -140,6 +140,23 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 > Los enlaces antiguos por slug dejan de funcionar. Con el blog recién estrenado no importa; si alguna noticia ya está compartida fuera, conviene mantener la resolución por slug como alternativa mientras haya un solo club.
 
+### 0.2.c Blog público acotado por club — 3 h
+
+**El agujero:** `GET /api/posts/published` y `/published/{id}` no tenían club. Una petición anónima no trae token, así que no hay filtro de Hibernate y las policies van en modo `public`: con dos clubes, la web de cada uno listaba las noticias de los dos y abría por id las del otro. Ningún test lo veía, porque el único que tocaba el blog solo comprobaba el 200.
+
+**Decisión tomada:** cada frontend lleva configurado el slug de su club (`VITE_CLUB_SLUG`) y lo manda en la ruta. El slug **solo acota la consulta pública**: no fija el `TenantContext`, que sigue saliendo del JWT y de nada más.
+
+- [x] Rutas nuevas `GET /api/clubs/{slug}/posts/published` y `/{id}`, en `PublishedPostController`; las antiguas desaparecen — `1h · Baja · Crítica`
+- [x] Condición explícita del club en el listado y en el detalle; slug inexistente o de club de baja, 404 — `1h · Baja · Crítica`
+- [x] Tests en `TenantIsolationTest`: cada slug ve solo sus noticias, y el id de una noticia ajena con el slug propio da 404 — `1h · Media · Crítica`
+- [x] Frontend: `postsService.ts` usa `VITE_CLUB_SLUG` — `30min · Baja · Alta`
+
+> **Verificado con dos mutaciones:** quitando la condición del club del listado se pone en rojo `elBlogPublicoNoMezclaClubes`; cargando el detalle sin ella, `laNoticiaAjenaNoSeAbrePorId`. Las dos noticias de prueba comparten slug a propósito.
+
+> **Cambio de contrato de API** y variable nueva en el frontend: hay que añadir `VITE_CLUB_SLUG` al `.env` de cada entorno y a Cloudflare Pages.
+
+> **Fuera de esta tarea:** `/api/images/{filename}` sigue sin mirar el club; se deja así a propósito. El login y el alta pública se resuelven en la 0.3.b.
+
 ### 0.3 club_id en el JWT — 3,5 h
 
 - [x] Añadir el claim `club_id` al generar el token — `1h · Baja · Crítica`
@@ -153,7 +170,29 @@ Cuenta un 30 % de margen por encima. Nunca he visto una estimación de software 
 
 > **Los tokens emitidos antes de este cambio dejan de valer**: no traen el claim y se rechazan. Todo el mundo vuelve a iniciar sesión. Es el mismo efecto que tendrá rotar el secreto JWT, así que conviene hacer las dos cosas a la vez.
 
-> **Lo que NO resuelve, y sigue siendo el punto abierto:** el login recibe solo `username` y `password`, así que `loadUserByUsername` resuelve por username a secas. Correcto mientras haya un club; con dos, la consulta es ambigua. Determinar el club *antes* de autenticar depende de cómo se sirva cada uno —subdominio, slug en la petición o selector en el formulario—, que es decisión abierta y arrastra cambio de contrato en el login. Hay que cerrarla antes del segundo club.
+> **Lo que NO resuelve, y sigue siendo el punto abierto:** el login recibe solo `username` y `password`, así que `loadUserByUsername` resuelve por username a secas. Correcto mientras haya un club; con dos, la consulta es ambigua. Determinar el club *antes* de autenticar depende de cómo se sirva cada uno —subdominio, slug en la petición o selector en el formulario—, que es decisión abierta y arrastra cambio de contrato en el login. Hay que cerrarla antes del segundo club. **Cerrado en la 0.3.b.**
+
+### 0.3.b La cuenta se identifica por club y username — 5 h
+
+**El agujero:** todo lo que autentica cargaba la cuenta por username a secas, y el username es único por club. Con un `admin` en cada club: el login no sabía a cuál entrar, `JwtAuthFilter` —que carga la cuenta en cada petición, antes de que exista club en contexto— lanzaba `NonUniqueResultException`, el `catch` se la tragaba y **los dos admins recibían 401 en todo**, y el refresco podía emitir los tokens del tocayo. El alta pública metía a todo el mundo en el club por defecto.
+
+**Decisión tomada:** la misma que en la 0.2.c. El frontend manda el slug de su club como `clubSlug` en el cuerpo del login y del alta pública. Lo que ya lleva token usa su claim `club_id`.
+
+- [x] `UserDetailsServiceImpl.loadUserByClubAndUsername`; `loadUserByUsername` lanza a propósito — `1h · Media · Crítica`
+- [x] `JwtAuthFilter` y el refresco cargan la cuenta con el `club_id` del token — `1h · Baja · Crítica`
+- [x] Login con `clubSlug`, sin pasar por el `AuthenticationManager`, que resuelve solo por username — `1,5h · Media · Crítica`
+- [x] Alta pública con `clubSlug`; alta con rol en el club del token. `ClubService.getDefaultClub()` desaparece — `30min · Baja · Alta`
+- [x] Tests en `TenantIsolationTest` con un mismo username en los dos clubes — `1h · Media · Crítica`
+
+> **El login comprueba la contraseña a mano**, con las mismas reglas que el proveedor de Spring: cuenta bloqueada da 403 antes de mirar la contraseña; usuario inexistente y contraseña mala, el mismo 401. **Si el usuario no existe se gasta igualmente un BCrypt** contra un hash ficticio: sin eso, la respuesta llega 250 ms antes y cronometrando se sabe qué usernames hay. Esto último no tiene test.
+
+> **El límite de intentos cuenta por club y username** (`slug/username`): los fallos contra el `admin` de un club no dejan fuera al del otro.
+
+> **Verificado con tres mutaciones:** cargar la cuenta sin club pone en rojo cuatro tests; el alta pública en otro club, `elAltaPublicaEntraEnElClubDelSlug`; el refresco con otro club, `elRefrescoMantieneElClub`.
+
+> **Cambio de contrato de login y de alta pública:** `clubSlug` es obligatorio (400 sin él, 404 si no es de ningún club activo). Las sesiones abiertas siguen valiendo: el token no cambia.
+
+> **Queda sin usar** el bean `AuthenticationManager` de `SecurityConfig`. No se ha quitado.
 
 ### 0.4 TenantContext — 4,5 h
 

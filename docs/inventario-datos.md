@@ -187,8 +187,8 @@ grupos; el propio usuario ve las suyas por `/me`.
 
 ### 2.10 `posts`, `comments`, `post_images` — lo público
 
-**Es lo único del sistema accesible sin autenticación** (`GET /api/posts/published/**` y
-las imágenes). El contenido lo teclea el club: si publica el nombre o la foto de un menor,
+**Es lo único del sistema accesible sin autenticación** (`GET /api/clubs/{slug}/posts/published/**`,
+siempre de un club, y las imágenes). El contenido lo teclea el club: si publica el nombre o la foto de un menor,
 el dato sale del ámbito interno y ahí es donde importa el consentimiento de `IMAGE`.
 
 `comments` tiene `blocked`, lo que implica moderación, y su autor puede ser un menor con
