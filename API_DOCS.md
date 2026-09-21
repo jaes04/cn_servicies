@@ -550,7 +550,8 @@ Part "images" (opcional): archivos de imagen (máx. 5MB c/u, total 55MB)
 | Método | Ruta | Rol requerido | Descripción |
 |--------|------|---------------|-------------|
 | `POST` | `/api/posts/{postId}/comments` | Autenticado | Crear comentario |
-| `GET` | `/api/posts/{postId}/comments` | Autenticado | Listar comentarios del post |
+| `GET` | `/api/posts/{postId}/comments` | Autenticado | Listar comentarios del post (sin bloqueados) |
+| `GET` | `/api/posts/{postId}/comments?includeBlocked=true` | ADMIN, EDITOR | Listar incluyendo los bloqueados, para moderar |
 | `DELETE` | `/api/posts/{postId}/comments/{id}` | Autenticado (solo autor) | Borrado lógico del comentario |
 | `PATCH` | `/api/posts/{postId}/comments/{id}/block` | ADMIN, EDITOR | Bloquear comentario |
 | `PATCH` | `/api/posts/{postId}/comments/{id}/unblock` | ADMIN, EDITOR | Desbloquear comentario |

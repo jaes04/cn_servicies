@@ -39,14 +39,19 @@ public class CommentService {
         return toResponse(commentRepository.saveAndFlush(comment));
     }
 
+    /**
+     * Los comentarios de una noticia. Los borrados no salen nunca; los
+     * bloqueados, solo si se piden, para que quien modera pueda encontrarlos y
+     * desbloquearlos. Quien puede pedirlos lo decide el controlador.
+     */
     @Transactional(readOnly = true)
-    public List<CommentResponse> findByPost(UUID postId) {
+    public List<CommentResponse> findByPost(UUID postId, boolean includeBlocked) {
         if (!postRepository.existsById(postId)) {
             throw new EntityNotFoundException("Post no encontrado");
         }
         return commentRepository.findByPostIdOrderByCreatedAtAsc(postId)
                 .stream()
-                .filter(c -> !c.isBlocked() && c.getDeletedAt() == null)
+                .filter(c -> (includeBlocked || !c.isBlocked()) && c.getDeletedAt() == null)
                 .map(this::toResponse)
                 .toList();
     }

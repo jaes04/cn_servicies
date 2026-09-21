@@ -1051,6 +1051,7 @@ nada**: se puede repetir. Las rutas van siempre por `id`.
 | Método y ruta | Quién | Respuesta |
 |---|---|---|
 | `GET /api/posts/{postId}/comments` | Cualquier autenticado | Lista, del más antiguo al más nuevo |
+| `GET /api/posts/{postId}/comments?includeBlocked=true` | Admin, editor | Lo mismo, con los bloqueados. Cualquier otro, 403 |
 | `POST /api/posts/{postId}/comments` | Cualquier autenticado | 201 |
 | `DELETE /api/posts/{postId}/comments/{id}` | **Solo su autor** | 204. Cualquier otro, 403, **también un administrador** |
 | `PATCH /api/posts/{postId}/comments/{id}/block` | Admin, editor | 200, el comentario |
@@ -1061,6 +1062,10 @@ nada**: se puede repetir. Las rutas van siempre por `id`.
 
 - **La lista de una noticia no trae los bloqueados ni los borrados.** Para moderar, el
   administrador o el editor **bloquea**: no puede borrar un comentario ajeno.
+- **Para desbloquear, el administrador o el editor pide la lista con `includeBlocked=true`**, que
+  trae también los bloqueados, con `blocked: true`. Los borrados no salen nunca. Sin el
+  parámetro la lista es la de siempre, también para ellos: úsalo solo en la pantalla de
+  moderación, no en la vista del blog.
 - **`/api/users/{id}/comments` sí incluye los bloqueados** (no los borrados). Si lo enseñas en
   un perfil público, filtra por `blocked`.
 - No se comprueba que la noticia esté publicada para comentar: no enseñes el formulario en
