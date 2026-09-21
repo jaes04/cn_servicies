@@ -228,15 +228,20 @@ cuenta no existe o es de otro club; **400** si la contraseña es corta.
 **La acaba sabiendo el administrador**, así que la pantalla debería decirle al usuario que la
 cambie él con la ruta de arriba.
 
-### Bloquear una cuenta — `PATCH /api/users/{id}/block`, admin
+### Bloquear una cuenta — `PATCH /api/users/{id}/block`, admin o editor
 
 Ya existía, pero **ahora corta la sesión en el acto**: el token de una cuenta bloqueada deja
 de autenticar (**401** en cualquier ruta) y tampoco puede renovarse (**403** en `/refresh`).
 Antes seguía trabajando hasta que su token caducaba, hasta un día después.
 
-**Desbloquear:** `PATCH /api/users/{id}/unblock`, admin. Los dos devuelven la cuenta, sin cuerpo
+**Desbloquear:** `PATCH /api/users/{id}/unblock`, admin o editor. Los dos devuelven la cuenta, sin cuerpo
 en la petición. Desbloquear no le devuelve la sesión que tenía: vuelve a entrar con su
 contraseña.
+
+**El editor solo bloquea y desbloquea cuentas de usuario**: las que no tienen más rol que
+`ROLE_USER`. Con un administrador, otro editor, un entrenador —aunque además sea usuario— o
+su propia cuenta, recibe **403**. El administrador, cualquier cuenta de su club. En la
+interfaz del editor, no enseñes el botón en las filas cuyos `roles` no sean solo `ROLE_USER`.
 
 ---
 
@@ -1079,7 +1084,7 @@ Lo de la sesión, la contraseña y el bloqueo está en §2. Aquí, el resto.
 
 | Método y ruta | Quién | Respuesta |
 |---|---|---|
-| `GET /api/users?q=&role=&blocked=` | Admin | Página |
+| `GET /api/users?q=&role=&blocked=` | Admin o editor | Página |
 | `POST /api/users` | Admin | 201, la cuenta |
 | `PATCH /api/users/{id}` | Admin | 200. Sustituye **todos** los roles |
 | `PUT /api/users/{id}/roles` | Admin | 200. Deja **un solo** rol |

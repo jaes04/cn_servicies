@@ -105,14 +105,14 @@ GET /api/auth/hash?raw=miContraseña
 | Método | Ruta | Rol requerido | Descripción |
 |--------|------|---------------|-------------|
 | `GET` | `/api/users/me` | Autenticado | Perfil del usuario actual |
-| `GET` | `/api/users` | ADMIN | Listar usuarios (paginado, con filtros) |
+| `GET` | `/api/users` | ADMIN, EDITOR | Listar usuarios (paginado, con filtros) |
 | `GET` | `/api/users/{id}/comments` | Autenticado | Comentarios hechos por el usuario |
 | `POST` | `/api/users` | ADMIN | Crear usuario |
 | `PATCH` | `/api/users/{id}` | ADMIN | Actualizar roles del usuario |
 | `PUT` | `/api/users/{id}/roles` | ADMIN | Cambiar rol del usuario |
 | `POST` | `/api/users/{id}/profile-photo` | Autenticado | Subir foto de perfil |
-| `PATCH` | `/api/users/{id}/block` | ADMIN | Bloquear usuario |
-| `PATCH` | `/api/users/{id}/unblock` | ADMIN | Desbloquear usuario |
+| `PATCH` | `/api/users/{id}/block` | ADMIN, EDITOR | Bloquear usuario (el editor, solo cuentas `ROLE_USER`) |
+| `PATCH` | `/api/users/{id}/unblock` | ADMIN, EDITOR | Desbloquear usuario (el editor, solo cuentas `ROLE_USER`) |
 | `DELETE` | `/api/users/{id}` | ADMIN | Borrado lógico del usuario |
 
 #### GET `/api/users/{id}/comments`

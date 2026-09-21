@@ -88,6 +88,13 @@ public class SecurityConfig {
                         // nadie podria cambiar la suya. Fijar la de otra cuenta
                         // es /api/users/{id}/password y esa si es de ADMIN.
                         .requestMatchers(PUT, "/api/users/me/password").authenticated()
+                        // El editor bloquea cuentas y necesita el listado para
+                        // encontrarlas. A quien puede bloquear lo acota
+                        // AccessGuard.requireBlockAccess: solo cuentas ROLE_USER.
+                        // Van antes que la regla general, de ADMIN.
+                        .requestMatchers(GET, "/api/users").hasAnyRole("ADMIN", "EDITOR")
+                        .requestMatchers(PATCH, "/api/users/*/block", "/api/users/*/unblock")
+                                .hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
                         .requestMatchers(GET, "/api/athletes/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(POST, "/api/athletes/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")

@@ -105,15 +105,22 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    /**
+     * Bloquear y desbloquear: el administrador, cualquier cuenta; el editor,
+     * solo cuentas de usuario. Ver
+     * {@link AccessGuard#requireBlockAccess}.
+     */
+    @PreAuthorize("hasAnyRole('ADMIN', 'EDITOR')")
     @PatchMapping("/{id}/block")
     public ResponseEntity<UserResponse> block(@PathVariable UUID id) {
+        accessGuard.requireBlockAccess(id);
         return ResponseEntity.ok(userService.blockUser(id));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EDITOR')")
     @PatchMapping("/{id}/unblock")
     public ResponseEntity<UserResponse> unblock(@PathVariable UUID id) {
+        accessGuard.requireBlockAccess(id);
         return ResponseEntity.ok(userService.unblockUser(id));
     }
 

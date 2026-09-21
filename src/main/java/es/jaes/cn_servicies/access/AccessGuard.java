@@ -12,6 +12,7 @@ import es.jaes.cn_servicies.user.User;
 import es.jaes.cn_servicies.user.UserService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -165,6 +166,33 @@ public class AccessGuard {
         User quienPide = userService.findEntityByUsername(currentUsername());
         if (!quienPide.getId().equals(userId)) {
             throw new EntityNotFoundException("Usuario no encontrado");
+        }
+    }
+
+    /**
+     * Exige que quien pide pueda bloquear o desbloquear esa cuenta.
+     *
+     * <p>El administrador, cualquiera de su club. El editor, solo cuentas que no
+     * tengan mas rol que {@code ROLE_USER}: bloquear corta la sesion en el acto,
+     * y un editor que pudiera bloquear al administrador dejaria al club sin
+     * nadie que lo deshaga. Eso deja fuera tambien la suya, que lleva
+     * {@code ROLE_EDITOR}.
+     *
+     * <p><b>Deniega con 403, no con 404</b>, al contrario que el resto de esta
+     * clase: el editor ve el listado de cuentas, asi que ya sabe que existe, y un
+     * 404 solo confundiria. Una cuenta de otro club sigue saliendo como 404,
+     * porque la tapa RLS antes de llegar aqui.
+     */
+    public void requireBlockAccess(UUID userId) {
+        User objetivo = userService.findEntityById(userId);
+        if (isAdmin()) {
+            return;
+        }
+
+        boolean soloUsuario = objetivo.getRoles().stream()
+                .allMatch(r -> r.getName() == RoleName.ROLE_USER);
+        if (!soloUsuario) {
+            throw new AccessDeniedException("Un editor solo puede bloquear cuentas de usuario");
         }
     }
 
