@@ -97,6 +97,10 @@ public class SecurityConfig {
                                 .hasAnyRole("ADMIN", "EDITOR")
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
                         .requestMatchers(GET, "/api/athletes/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        // Alta de un tutor para un atleta que ya existe. La cubriria la
+                        // regla de abajo; va explicita para que se encuentre. El
+                        // entrenador, solo en sus atletas: lo acota el controlador.
+                        .requestMatchers(POST, "/api/athletes/*/guardians").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(POST, "/api/athletes/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(PUT, "/api/athletes/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(DELETE, "/api/athletes/**").hasRole("ADMIN")
@@ -127,6 +131,10 @@ public class SecurityConfig {
                         .requestMatchers(GET, "/api/consents/athlete/*/status").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/consents/athlete/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/consents/athlete/**").hasRole("ADMIN")
+                        // Listado y correccion de tutores. El entrenador entra, pero
+                        // acotado a los tutores de sus atletas: lo acota el controlador.
+                        .requestMatchers(GET, "/api/guardians").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers(PUT, "/api/guardians/*").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         // Sesiones sueltas, por su propio id. Cancelar lo puede
                         // el entrenador: es quien se entera de que hoy no hay
                         // piscina, y esperar al administrador deja la sesion

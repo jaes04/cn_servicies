@@ -4,6 +4,7 @@ import es.jaes.cn_servicies.athlete.AthleteService;
 import es.jaes.cn_servicies.athlete_document.AthleteDocumentService;
 import es.jaes.cn_servicies.athlete_link.UserAthleteService;
 import es.jaes.cn_servicies.competition_result.CompetitionResultService;
+import es.jaes.cn_servicies.guardian.GuardianService;
 import es.jaes.cn_servicies.training_group.AthleteGroupService;
 import es.jaes.cn_servicies.training_group.TrainingGroupService;
 import es.jaes.cn_servicies.training_session.TrainingSessionService;
@@ -65,6 +66,7 @@ public class AccessGuard {
 
     private final AthleteService athleteService;
     private final AthleteDocumentService documentService;
+    private final GuardianService guardianService;
     private final AthleteGroupService membershipService;
     private final CompetitionResultService resultService;
     private final TrainingGroupService groupService;
@@ -136,6 +138,23 @@ public class AccessGuard {
         UUID athleteId = documentService.athleteIdOf(documentId);
         if (!athleteAccessible(athleteId)) {
             throw new EntityNotFoundException("Documento no encontrado");
+        }
+    }
+
+    /**
+     * Exige que quien pide pueda llegar a ese tutor: el administrador, a
+     * cualquiera de su club; el entrenador, si el tutor lo es de alguno de sus
+     * atletas. Mismo criterio con el mensaje.
+     */
+    public void requireGuardianAccess(UUID guardianId) {
+        // Primero la carga, que pasa por RLS: un tutor de otro club se cae aqui.
+        guardianService.findOrThrow(guardianId);
+        if (isAdmin()) {
+            return;
+        }
+        Set<UUID> visibles = visibleAthleteIds();
+        if (guardianService.athleteIdsOf(guardianId).stream().noneMatch(visibles::contains)) {
+            throw new EntityNotFoundException("Tutor no encontrado");
         }
     }
 

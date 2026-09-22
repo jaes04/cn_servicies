@@ -283,6 +283,7 @@ propósito: no añadas un campo de notas en la interfaz, porque no hay dónde gu
 | Pasar lista | Todo | **Solo en sus grupos** | — |
 | Informes | Todo | **Solo sus grupos y sus atletas** | — |
 | Fichas de atleta | Todo | **Atletas que hoy están en sus grupos**; dar de alta | — |
+| Tutores | Todo | Consultar, dar de alta y corregir, **de sus atletas** | — |
 | Consentimientos | Todo | Estado, **de sus atletas** | — |
 | Certificados médicos | Todo | Estado, **de sus atletas** | — |
 | Entregas de papeles | Todo | Estado y permiso de viaje, **de sus atletas** | — |
@@ -786,6 +787,55 @@ formato que el del atleta. Se guarda en mayúsculas y sin espacios, así que `x1
 - **Una negativa (`granted: false`) se registra igual** que una concesión.
 - El tutor tiene que estar vinculado al atleta; si no, **400**.
 - Revocar una negativa, o un consentimiento ya revocado, es **400**.
+
+---
+
+## 14.b Tutores
+
+| Método y ruta | Quién | Respuesta |
+|---|---|---|
+| `GET /api/guardians?q=&page=&size=&sort=` | Admin, entrenador | Página de tutores |
+| `POST /api/athletes/{athleteId}/guardians` | Admin; entrenador si es su atleta | 201. Da de alta un tutor para ese atleta y los vincula |
+| `PUT /api/guardians/{id}` | Admin; entrenador si es tutor de uno de sus atletas | 200. Corrige nombre y contacto |
+
+Un tutor **siempre se da de alta desde un atleta**: en el alta del atleta (§13) o, después,
+con el `POST` de arriba. No existe el alta de un tutor suelto.
+
+**Alta para un atleta que ya existe** (el segundo progenitor, o el de un atleta dado de alta sin tutor):
+
+```json
+{ "guardian": { "firstName": "Luis", "lastName": "Gómez", "dni": "12345678Z",
+                "email": "…", "phone": "…" },
+  "relationship": "FATHER" }
+```
+
+- Responde con el tutor, en el mismo formato que el listado.
+- **Si ya hay un tutor con ese documento en el club, se reutiliza** y sus datos de contacto
+  **no se cambian**: la respuesta trae los que tenía. Para corregirlos, el `PUT`.
+- Si ya estaba vinculado a ese atleta, no se duplica y conserva el parentesco que tenía.
+- **No registra consentimientos.** Si este tutor aporta alguno, se registra después por §14.
+- Un atleta fuera del alcance del entrenador, o de otro club, es **404**.
+
+**Corregir:** `{ "firstName": "…", "lastName": "…", "email": "…", "phone": "…" }`. **El
+documento no se cambia**: no se acepta en el cuerpo, porque es lo que identifica a quien
+firmó los consentimientos. Un tutor fuera del alcance del entrenador, o de otro club, es **404**.
+
+**Listado:**
+
+```json
+{ "content": [ {
+    "id": "…", "firstName": "Marta", "lastName": "Pérez", "dni": "12345678Z",
+    "email": "…", "phone": "…", "hasAccount": false,
+    "athletes": [ { "athleteId": "…", "athleteFullName": "Ana Pérez", "relationship": "MOTHER" } ],
+    "createdAt": "…" } ],
+  "totalElements": 1, "…": "resto de la página" }
+```
+
+- `q` busca en nombre, apellidos, documento y email. Por defecto, 20 por página, ordenados por `lastName`.
+- `hasAccount` indica si el tutor ya tiene cuenta (canjeó su invitación). La cuenta no se expone.
+- **El entrenador solo recibe los tutores de sus atletas** (§4), y en `athletes` solo aparecen
+  esos: un hermano que nada en otro grupo no sale.
+- Un atleta dado de baja no aparece en `athletes`. Un tutor borrado no aparece en el listado.
 
 ---
 

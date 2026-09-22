@@ -1,6 +1,9 @@
 package es.jaes.cn_servicies.athlete;
 
 import es.jaes.cn_servicies.access.AccessGuard;
+import es.jaes.cn_servicies.guardian.GuardianLinkRequest;
+import es.jaes.cn_servicies.guardian.GuardianResponse;
+import es.jaes.cn_servicies.guardian.GuardianService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,6 +32,7 @@ import java.util.UUID;
 public class AthleteController {
 
     private final AthleteService athleteService;
+    private final GuardianService guardianService;
     private final AccessGuard accessGuard;
 
     @GetMapping
@@ -60,6 +64,20 @@ public class AthleteController {
     public ResponseEntity<AthleteResponse> update(@PathVariable UUID id, @Valid @RequestBody AthleteRequest request) {
         accessGuard.requireAthleteAccess(id);
         return ResponseEntity.ok(athleteService.update(id, request));
+    }
+
+    /**
+     * Da de alta un tutor para este atleta y los vincula. Si ya existe un tutor
+     * con ese documento en el club, se reutiliza. Los consentimientos van
+     * aparte, por {@code /api/consents}.
+     */
+    @PostMapping("/{id}/guardians")
+    public ResponseEntity<GuardianResponse> addGuardian(@PathVariable UUID id,
+                                                        @Valid @RequestBody GuardianLinkRequest request) {
+        accessGuard.requireAthleteAccess(id);
+        Set<UUID> soloEstos = accessGuard.seesWholeClub() ? null : accessGuard.visibleAthleteIds();
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(guardianService.addToAthlete(athleteService.findOrThrow(id), request, soloEstos));
     }
 
     @DeleteMapping("/{id}")
