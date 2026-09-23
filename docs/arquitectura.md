@@ -355,7 +355,7 @@ Usuario
                      VPS Hetzner
                          └── Docker Compose
                                ├── Spring Boot API
-                               └── PostgreSQL 16
+                               └── PostgreSQL 18
 ```
 
 - **Cloudflare Tunnel: sin puertos de entrada abiertos en el VPS.** El túnel abre la
@@ -379,10 +379,12 @@ un documento de atleta, la limpieza del historial es una tarea aparte y urgente.
 ### Estado del despliegue
 
 - [x] Paso 1 — Stack local con Docker Compose funcionando
-- [ ] Paso 2 — Cuenta Hetzner y creación del servidor
-- [ ] Paso 3 — Docker y despliegue del stack en el VPS
-- [ ] Paso 4 — Configuración del Cloudflare Tunnel
-- [ ] Paso 5 — Frontend en Cloudflare Pages
+- [x] Paso 2 — Cuenta Hetzner y creación del servidor (23/09/2026: acceso SSH por clave,
+      sin root ni contraseña; usuario `jorge` con sudo; Docker desde el repositorio oficial)
+- [x] Paso 3 — Docker y despliegue del stack en el VPS (23/09/2026: `docker compose up -d`,
+      RLS migrado, login probado por HTTP con el administrador — ver `docs/despliegue.md`)
+- [ ] Paso 4 — Configuración del Cloudflare Tunnel — bloqueado por el Paso 6
+- [ ] Paso 5 — Frontend en Cloudflare Pages — bloqueado por el Paso 6
 - [ ] Paso 6 — Dominio (pendiente de decisión del club)
 
 ### Trampa conocida
