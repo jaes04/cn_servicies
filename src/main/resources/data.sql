@@ -34,7 +34,7 @@ SELECT set_config('app.club_id', 'public', false);
 -- mientras solo haya un club.
 -- =====================================================
 INSERT INTO clubs (id, name, slug, active, created_at)
-VALUES ('99999999-0000-0000-0000-000000000001', 'Club Natacion Sierra Oeste', 'sierra-oeste', true, now())
+VALUES ('99999999-0000-0000-0000-000000000001', 'CN demo', 'cn-demo', true, now())
     ON CONFLICT DO NOTHING;
 
 -- =====================================================

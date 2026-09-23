@@ -187,10 +187,14 @@ public class SecurityConfig {
                         // Papeles entregados (bloque 3a). Mismo reparto que el
                         // certificado: el entrenador ve el estado y si el
                         // nadador puede viajar —de los atletas de sus grupos,
-                        // eso lo acota AccessGuard—; registrar la entrega y el
-                        // historial con fechas son del club.
+                        // eso lo acota AccessGuard—; el historial con fechas es
+                        // del club. Registrar, corregir y borrar la entrega
+                        // tambien lo hace el entrenador, con el mismo acotado.
                         .requestMatchers(GET, "/api/document-deliveries/athlete/*/status").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers(GET, "/api/document-deliveries/athlete/*/travel-permit").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers(POST, "/api/document-deliveries/athlete/*").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers(PUT, "/api/document-deliveries/*").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
+                        .requestMatchers(DELETE, "/api/document-deliveries/*").hasAnyRole("ADMIN", "TECHNICAL_STAFF")
                         .requestMatchers("/api/document-deliveries/**").hasRole("ADMIN")
                         .requestMatchers(POST, "/api/athlete-documents/athlete/**").authenticated()
                         .requestMatchers(GET, "/api/athlete-documents/athlete/**").hasAnyRole("ADMIN", "TECHNICAL_STAFF")

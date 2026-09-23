@@ -910,9 +910,9 @@ apunta que se entregó.
 | `GET /api/document-deliveries/athlete/{athleteId}/status` | Admin; entrenador si es su atleta | Licencia y documento de identidad |
 | `GET /api/document-deliveries/athlete/{athleteId}/travel-permit?from=&to=` | Igual | Si puede viajar esas fechas |
 | `GET /api/document-deliveries/athlete/{athleteId}` | Admin | Historial |
-| `POST /api/document-deliveries/athlete/{athleteId}` | Admin | 201 |
-| `PUT /api/document-deliveries/{id}` | Admin | 200, la entrega corregida |
-| `DELETE /api/document-deliveries/{id}` | Admin | 204 |
+| `POST /api/document-deliveries/athlete/{athleteId}` | Admin; entrenador si es su atleta | 201 |
+| `PUT /api/document-deliveries/{id}` | Admin; entrenador si es su atleta | 200, la entrega corregida |
+| `DELETE /api/document-deliveries/{id}` | Admin; entrenador si es su atleta | 204 |
 
 **Corregir:** mismo cuerpo que el alta y **mismas reglas**. **Se puede cambiar el tipo** —anotar
 la licencia como documento de identidad tiene arreglo—, pero con el tipo nuevo tienen que venir

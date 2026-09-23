@@ -4,6 +4,7 @@ import es.jaes.cn_servicies.athlete.AthleteService;
 import es.jaes.cn_servicies.athlete_document.AthleteDocumentService;
 import es.jaes.cn_servicies.athlete_link.UserAthleteService;
 import es.jaes.cn_servicies.competition_result.CompetitionResultService;
+import es.jaes.cn_servicies.document_delivery.DocumentDeliveryService;
 import es.jaes.cn_servicies.guardian.GuardianService;
 import es.jaes.cn_servicies.training_group.AthleteGroupService;
 import es.jaes.cn_servicies.training_group.TrainingGroupService;
@@ -66,6 +67,7 @@ public class AccessGuard {
 
     private final AthleteService athleteService;
     private final AthleteDocumentService documentService;
+    private final DocumentDeliveryService deliveryService;
     private final GuardianService guardianService;
     private final AthleteGroupService membershipService;
     private final CompetitionResultService resultService;
@@ -138,6 +140,18 @@ public class AccessGuard {
         UUID athleteId = documentService.athleteIdOf(documentId);
         if (!athleteAccessible(athleteId)) {
             throw new EntityNotFoundException("Documento no encontrado");
+        }
+    }
+
+    /**
+     * Lo mismo para una entrega de papeles, que hereda el permiso de su atleta.
+     * Es la puerta de corregirla y borrarla, que llegan con el id de la entrega
+     * suelto. Mismo criterio con el mensaje.
+     */
+    public void requireDeliveryAccess(UUID deliveryId) {
+        UUID athleteId = deliveryService.athleteIdOf(deliveryId);
+        if (!athleteAccessible(athleteId)) {
+            throw new EntityNotFoundException("Entrega no encontrada");
         }
     }
 

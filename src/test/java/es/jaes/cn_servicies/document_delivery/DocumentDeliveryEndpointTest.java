@@ -33,7 +33,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>Tres cosas que solo se ven por HTTP. <b>Que cada tipo lleve sus campos y
  * ningun otro</b>, con 400 y no con 500. <b>Quien ve que</b>: el entrenador ve el
- * estado de los atletas de sus grupos, pero no registra ni ve el historial. Y
+ * estado de los atletas de sus grupos y anota, corrige y borra sus entregas, pero
+ * no ve el historial. Y
  * <b>que la subida de documentos no existe</b> con la configuracion por defecto,
  * que es la del despliegue inicial.
  */
@@ -310,12 +311,30 @@ class DocumentDeliveryEndpointTest {
     }
 
     @Test
-    @DisplayName("el entrenador no registra entregas ni ve el historial con fechas")
-    void elEntrenadorNoRegistra() {
+    @DisplayName("el entrenador registra entregas de los atletas de su grupo")
+    void elEntrenadorRegistraLosSuyos() {
         assertThat(post("/api/document-deliveries/athlete/" + ana, identidad(HOY.plusYears(5)), ENTRENADOR)
-                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                .getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(estado(ana, ADMIN)).contains("\"IDENTITY_DOCUMENT\":\"VALID\"");
+    }
+
+    @Test
+    @DisplayName("pero no de un atleta que no está en ninguno de sus grupos")
+    void elEntrenadorNoRegistraOtros() {
+        assertThat(post("/api/document-deliveries/athlete/" + bruno, identidad(HOY.plusYears(5)), ENTRENADOR)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(estado(bruno, ADMIN))
+                .as("no se ha anotado nada")
+                .contains("\"IDENTITY_DOCUMENT\":\"MISSING\"");
+    }
+
+    @Test
+    @DisplayName("el entrenador no ve el historial con fechas, ni un socio registra")
+    void historialYSocio() {
         assertThat(get("/api/document-deliveries/athlete/" + ana, ENTRENADOR).getStatusCode())
                 .isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(post("/api/document-deliveries/athlete/" + ana, identidad(HOY.plusYears(5)), SOCIO)
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -443,17 +462,37 @@ class DocumentDeliveryEndpointTest {
     }
 
     @Test
-    @DisplayName("el entrenador no corrige ni borra, ni siquiera de los atletas de su grupo")
-    void elEntrenadorNoCorrigeNiBorra() {
-        String id = idDe(registrar(ana, licencia(temporada)));
+    @DisplayName("el entrenador corrige y borra las entregas de los atletas de su grupo")
+    void elEntrenadorCorrigeYBorraLosSuyos() {
+        String id = idDe(registrar(ana, identidad(HOY.plusYears(5))));
 
         assertThat(put("/api/document-deliveries/" + id, licencia(temporada), ENTRENADOR).getStatusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN);
+                .isEqualTo(HttpStatus.OK);
+        assertThat(estado(ana, ADMIN)).contains("\"LICENSE_APPLICATION\":\"VALID\"");
+
         assertThat(borrar("/api/document-deliveries/" + id, ENTRENADOR).getStatusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(estado(ana, ADMIN))
-                .as("la entrega sigue ahi")
-                .contains("\"LICENSE_APPLICATION\":\"VALID\"");
+                .isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(estado(ana, ADMIN)).contains("\"LICENSE_APPLICATION\":\"MISSING\"");
+    }
+
+    /**
+     * PUT y DELETE llegan con el id de la entrega suelto, que es del mismo club y
+     * pasa RLS: lo unico que separa al entrenador de la entrega de un nadador que
+     * no entrena es {@code AccessGuard.requireDeliveryAccess}.
+     */
+    @Test
+    @DisplayName("pero no las de un atleta que no está en ninguno de sus grupos, y siguen ahí")
+    void elEntrenadorNoCorrigeNiBorraOtros() {
+        String id = idDe(registrar(bruno, licencia(temporada)));
+
+        assertThat(put("/api/document-deliveries/" + id, identidad(HOY.plusYears(5)), ENTRENADOR).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(borrar("/api/document-deliveries/" + id, ENTRENADOR).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(estado(bruno, ADMIN))
+                .as("la entrega sigue ahi, sin cambios")
+                .contains("\"LICENSE_APPLICATION\":\"VALID\"")
+                .contains("\"IDENTITY_DOCUMENT\":\"MISSING\"");
     }
 
     @Test

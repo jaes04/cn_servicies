@@ -22,9 +22,11 @@ import java.util.UUID;
  *
  * <p>Mismo reparto que en el certificado medico y por el mismo motivo: el
  * entrenador necesita saber si el nadador tiene la licencia y la documentacion
- * en regla, o si le falta el permiso para el viaje del sabado, pero las fechas y
- * quien anoto cada papel son del club. Y como en todo lo del entrenador, solo de
- * los atletas que hoy estan en sus grupos.
+ * en regla, o si le falta el permiso para el viaje del sabado, pero el historial
+ * con las fechas y quien anoto cada papel es del club. Anotar, corregir y borrar
+ * la entrega si lo hace tambien el entrenador, porque es a el a quien le dan los
+ * papeles en el vestuario. Y como en todo lo del entrenador, solo de los atletas
+ * que hoy estan en sus grupos.
  */
 @RestController
 @RequestMapping("/api/document-deliveries")
@@ -70,6 +72,7 @@ public class DocumentDeliveryController {
             @Valid @RequestBody DocumentDeliveryRequest request,
             Principal principal) {
 
+        accessGuard.requireAthleteAccess(athleteId);
         DocumentDelivery delivery = deliveryService.register(
                 athleteService.findOrThrow(athleteId), request, principal.getName());
 
@@ -77,8 +80,8 @@ public class DocumentDeliveryController {
     }
 
     /**
-     * Corrige una entrega mal anotada. Solo administradores: la regla general de
-     * {@code /api/document-deliveries/**} en {@code SecurityConfig} ya lo cubre.
+     * Corrige una entrega mal anotada. Administrador, o entrenador si el atleta
+     * de la entrega esta hoy en uno de sus grupos.
      *
      * <p>{@code {id}} solo acepta un UUID, por lo mismo que en los certificados:
      * sin el patron, un GET a cualquier ruta inexistente de esta rama
@@ -90,13 +93,15 @@ public class DocumentDeliveryController {
             @Valid @RequestBody DocumentDeliveryRequest request,
             Principal principal) {
 
+        accessGuard.requireDeliveryAccess(id);
         DocumentDelivery delivery = deliveryService.update(id, request, principal.getName());
         return ResponseEntity.ok(deliveryService.toResponse(delivery));
     }
 
-    /** Borra una entrega anotada por error. Solo administradores. */
+    /** Borra una entrega anotada por error. Mismo reparto que corregirla. */
     @DeleteMapping("/{id:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        accessGuard.requireDeliveryAccess(id);
         deliveryService.delete(id);
         return ResponseEntity.noContent().build();
     }

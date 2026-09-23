@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "Read",
       "Bash(./mvnw compile *)",
       "Bash(./mvnw test *)",
       "Bash(docker compose logs *)"

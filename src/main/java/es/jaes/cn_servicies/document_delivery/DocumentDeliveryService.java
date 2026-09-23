@@ -99,6 +99,15 @@ public class DocumentDeliveryService {
         deliveryRepository.delete(findOrThrow(id));
     }
 
+    /**
+     * El atleta de la entrega, para que {@code AccessGuard} decida sin entrar en
+     * este repositorio desde fuera del modulo.
+     */
+    @Transactional(readOnly = true)
+    public UUID athleteIdOf(UUID id) {
+        return findOrThrow(id).getAthlete().getId();
+    }
+
     /** Una de otro club no aparece —lo tapa Row Level Security— y sale como no encontrada. */
     private DocumentDelivery findOrThrow(UUID id) {
         return deliveryRepository.findById(id)
