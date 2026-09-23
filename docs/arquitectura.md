@@ -383,9 +383,13 @@ un documento de atleta, la limpieza del historial es una tarea aparte y urgente.
       sin root ni contraseña; usuario `jorge` con sudo; Docker desde el repositorio oficial)
 - [x] Paso 3 — Docker y despliegue del stack en el VPS (23/09/2026: `docker compose up -d`,
       RLS migrado, login probado por HTTP con el administrador — ver `docs/despliegue.md`)
-- [ ] Paso 4 — Configuración del Cloudflare Tunnel — bloqueado por el Paso 6
-- [ ] Paso 5 — Frontend en Cloudflare Pages — bloqueado por el Paso 6
-- [ ] Paso 6 — Dominio (pendiente de decisión del club)
+- [x] Paso 4 — Configuración del Cloudflare Tunnel (23/09/2026: `api.jaesdemo.com` →
+      `api:8080`, probado con login real por HTTPS desde fuera)
+- [ ] Paso 5 — Frontend en Cloudflare Pages
+- [x] Paso 6 — Dominio: **provisional para la beta**, `jaesdemo.com`, comprado y en
+      Cloudflare. El dominio definitivo del club sigue sin decidir — ver "Decisiones
+      abiertas" en `CLAUDE.md`; cuando se decida, es cambiar el hostname del túnel y
+      `CORS_ALLOWED_ORIGINS`, nada estructural.
 
 ### Trampa conocida
 
